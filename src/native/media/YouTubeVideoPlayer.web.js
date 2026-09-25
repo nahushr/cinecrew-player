@@ -1,25 +1,53 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 let youtubeApiPromise;
+const YOUTUBE_API_TIMEOUT_MS = 15000;
+const YOUTUBE_PLAYER_TIMEOUT_MS = 15000;
+
 function loadYouTubeApi() {
   if (typeof window === 'undefined') return Promise.reject(new Error('YouTube playback requires a browser.'));
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (!youtubeApiPromise) {
     youtubeApiPromise = new Promise((resolve, reject) => {
+      let timeoutId;
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        if (window.onYouTubeIframeAPIReady === onReady) {
+          window.onYouTubeIframeAPIReady = previousReady;
+        }
+      };
       const existing = document.querySelector('script[data-cinecrew-youtube-api]');
       const previousReady = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
+      const onReady = () => {
         try { previousReady?.(); } catch {}
-        resolve(window.YT);
+        if (window.YT?.Player) {
+          cleanup();
+          resolve(window.YT);
+        } else {
+          cleanup();
+          reject(new Error('The YouTube player API loaded without becoming ready.'));
+        }
       };
+      window.onYouTubeIframeAPIReady = onReady;
+      timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error('Timed out loading the YouTube player API. Check your network and allow youtube.com.'));
+      }, YOUTUBE_API_TIMEOUT_MS);
       if (!existing) {
         const script = document.createElement('script');
         script.src = 'https://www.youtube.com/iframe_api';
         script.async = true;
         script.dataset.cinecrewYoutubeApi = 'true';
-        script.onerror = () => reject(new Error('Could not load the YouTube player API.'));
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('Could not load the YouTube player API.'));
+        };
         document.head.appendChild(script);
       }
+    });
+    youtubeApiPromise = youtubeApiPromise.catch((error) => {
+      youtubeApiPromise = null;
+      throw error;
     });
   }
   return youtubeApiPromise;
@@ -40,6 +68,7 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   onStateChange,
   onError,
   onEnded,
+  style,
 }, ref) {
   const hostRef = useRef(null);
   const playerRef = useRef(null);
@@ -65,6 +94,7 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   useEffect(() => {
     let cancelled = false;
     let progressTimer;
+    let readyTimer;
     let player;
     loadYouTubeApi().then((YT) => {
       if (cancelled || !hostRef.current) return;
@@ -73,18 +103,21 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
         height: '100%',
         videoId,
         playerVars: {
-          autoplay: paused ? 0 : 1,
+          autoplay: latestPropsRef.current.paused ? 0 : 1,
           controls: 0,
-          playsinline: 1,
+          disablekb: 1,
           enablejsapi: 1,
-          rel: 0,
-          modestbranding: 1,
           fs: 0,
+          iv_load_policy: 3,
+          mute: latestPropsRef.current.muted ? 1 : 0,
           origin: window.location.origin,
+          playsinline: 1,
+          rel: 0,
         },
         events: {
           onReady: (event) => {
             if (cancelled) return;
+            clearTimeout(readyTimer);
             playerRef.current = event.target;
             readyRef.current = true;
             const latest = latestPropsRef.current;
@@ -111,16 +144,29 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
             if (state === 'playing') onPlayingRef.current?.(event);
             if (state === 'ended') onEndedRef.current?.();
           },
-          onError: (event) => onErrorRef.current?.({ code: event.data, message: `YouTube playback failed (${event.data}).` }),
+          onError: (event) => {
+            clearTimeout(readyTimer);
+            onBufferingRef.current?.(false);
+            onErrorRef.current?.({ code: event.data, message: `YouTube playback failed (${event.data}).` });
+          },
         },
       });
       playerRef.current = player;
+      readyTimer = setTimeout(() => {
+        if (cancelled || readyRef.current) return;
+        onBufferingRef.current?.(false);
+        onErrorRef.current?.(new Error('The YouTube player did not become ready. Check that embedding is allowed and the page can send a referrer.'));
+      }, YOUTUBE_PLAYER_TIMEOUT_MS);
     }).catch((error) => {
-      if (!cancelled) onErrorRef.current?.(error);
+      if (!cancelled) {
+        onBufferingRef.current?.(false);
+        onErrorRef.current?.(error);
+      }
     });
     return () => {
       cancelled = true;
       clearInterval(progressTimer);
+      clearTimeout(readyTimer);
       readyRef.current = false;
       try { player?.destroy?.(); } catch {}
       playerRef.current = null;
@@ -162,7 +208,7 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   return React.createElement('div', {
     ref: hostRef,
     className: 'cinecrew-player__youtube',
-    style: { position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000' },
+    style: { position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000', ...style },
   });
 });
 

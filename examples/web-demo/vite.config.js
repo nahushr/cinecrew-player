@@ -5,4 +5,5 @@ export default defineConfig({
   plugins: [react()],
   server: { host: '0.0.0.0' },
   resolve: { dedupe: ['react', 'react-dom'] },
+  optimizeDeps: { include: ['@cinecrew/cinecrew-player/react'] },
 });

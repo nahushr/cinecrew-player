@@ -60,6 +60,7 @@ export default function App() {
   };
 
   const source = { ...asPlayerSource(active), isLive: live, mediaType: live ? 'live' : 'movie' };
+  const isYouTubeSource = /(?:youtube\.com|youtu\.be)/i.test(active.url || '');
 
   return (
     <main className="demo-shell">
@@ -117,6 +118,7 @@ export default function App() {
             title={active.title}
             mediaId={active.id}
             autoPlay
+            muted={isYouTubeSource}
             controls={allControls}
             integrations={integrations}
             actions={{

@@ -345,6 +345,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `volume` | `number` | `1` | Initial volume from `0` to `1`. |
 | `playbackRate` | `number` | `1` | Initial playback speed; the on-demand speed control can change it afterward. |
 | `controls` | `PlayerControls` | defaults below | Show/hide individual control buttons. |
+| `features` | feature flags | `{}` | Optional player features, including web stream diagnostics with `{ diagnostics: true }`. |
 | `actions` | `PlayerActions` | `{}` | Replace the built-in behavior for individual actions. If a callback is provided, that callback owns the action. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
 | `theme` | `PlayerTheme` | built-in theme | Customize player colors, borders, and shape. |
@@ -368,7 +369,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `initialShowLiveChat`, `liveChatNonce` | `boolean`, `number` | `false`, `0` | Open or re-open the live-chat panel (when available). |
 | `inlinePreview`, `inlinePreviewRect`, `onInlinePreviewWheel`, `onPromotePreview`, `onPlayerHostRef` | preview options and callbacks | — | Embed/manage the player as a movable inline preview. Mainly useful for app-level player shells. |
 
-`features` can enable optional diagnostics with `{ diagnostics: true }`. `onFullscreen` receives `{ isFullscreen }`. All lifecycle callbacks in the table are optional; native event objects differ from browser events.
+`features={{ diagnostics: true }}` enables the diagnostics button and built-in stream status panel on web; `controls.diagnostics` can hide it and `actions.onDiagnosticsOpen` can replace the panel action. `onFullscreen` receives `{ isFullscreen }`. All lifecycle callbacks in the table are optional; native event objects differ from browser events.
 
 ### Player source
 
@@ -431,6 +432,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
     recording: false,
     liveChat: false,
     epg: false,
+    diagnostics: true,
     seek: true,
   }}
 />
@@ -453,6 +455,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `recording` | Recording controls; requires `integrations.recording` or an action override. |
 | `liveChat` | Chat drawer/panel; requires a chat adapter, render slot, or action override. |
 | `epg` | EPG drawer/panel; requires an EPG adapter, render slot, or action override. |
+| `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}` or provide `actions.onDiagnosticsOpen`. |
 | `seek` | On-demand seek bar. |
 
 ## Actions and callbacks

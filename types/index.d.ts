@@ -37,8 +37,11 @@ export interface PlayerControls {
   recording?: boolean;
   liveChat?: boolean;
   epg?: boolean;
+  diagnostics?: boolean;
   seek?: boolean;
 }
+
+export type PlayerDrawerMode = 'overlay' | 'resize';
 
 export interface PlayerApi {
   play(): void;
@@ -126,7 +129,7 @@ export type PlayerIcon = string | React.ReactNode | React.ComponentType<PlayerIc
 export type PlayerIcons = Partial<Record<
   | 'play' | 'pause' | 'restart' | 'lock' | 'unlock' | 'mute' | 'unmute'
   | 'aspectRatio' | 'videoOnly' | 'audio' | 'minimize' | 'back'
-  | 'recording' | 'stop' | 'liveChat' | 'epg' | 'fullscreen' | 'close'
+  | 'recording' | 'stop' | 'liveChat' | 'epg' | 'diagnostics' | 'fullscreen' | 'close'
   | string,
   PlayerIcon
 >>;
@@ -137,6 +140,7 @@ export interface ChatMessage {
   comment?: string;
   message?: string;
   createdAt?: string | number;
+  timestamp?: string | number;
   [key: string]: unknown;
 }
 
@@ -152,7 +156,7 @@ export interface PlayerIntegrations {
   user?: { id?: string | number; username?: string };
   getUser?: () => Promise<{ id?: string | number; username?: string } | null>;
   liveChat?: {
-    loadMessages?: (args: { channelId: string; limit: number }) => Promise<ChatMessage[]>;
+    loadMessages?: (args: { channelId: string; limit: number; offset?: number }) => Promise<ChatMessage[] | { messages?: ChatMessage[]; items?: ChatMessage[]; hasMore?: boolean; pagination?: { hasMore?: boolean } }>;
     sendMessage?: (args: { channelId: string; userId?: string | number; username?: string; comment: string }) => Promise<unknown>;
     pollIntervalMs?: number;
     render?: (context: { title: string; source: PlayerSource; onClose: () => void }) => React.ReactNode;
@@ -195,6 +199,12 @@ export interface CineCrewPlayerProps {
   volume?: number;
   playbackRate?: number;
   controls?: PlayerControls;
+  /** Web/Electron chat and EPG drawer behavior. Overlay keeps the video full-size; resize shrinks it to make room. */
+  drawerMode?: PlayerDrawerMode;
+  /** Style overrides for the web/Electron chat, EPG, and diagnostics drawer. */
+  drawerStyle?: Record<string, unknown>;
+  /** Number of chat messages fetched per page; older pages load from the drawer's See more button. Defaults to 50. */
+  messagePageSize?: number;
   features?: { diagnostics?: boolean; [key: string]: boolean | undefined };
   actions?: PlayerActions;
   integrations?: PlayerIntegrations;

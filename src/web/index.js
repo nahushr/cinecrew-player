@@ -20,8 +20,9 @@ const DEFAULT_THEME = {
 const DEFAULT_ICONS = {
   play: 'play', pause: 'pause', restart: 'restart', lock: 'lock', unlock: 'lock-open',
   mute: 'volume-mute', unmute: 'volume-high', aspectRatio: 'aspect-ratio', videoOnly: 'video',
-  audio: 'music-note', minimize: 'arrow-collapse', back: 'arrow-left', recording: 'record-rec', stop: 'stop',
-  liveChat: 'comment-text-multiple-outline', epg: 'television-classic', fullscreen: 'fullscreen', close: 'close',
+  audio: 'music-note', minimize: 'minimize', back: 'arrow-left', recording: 'record-rec', stop: 'stop',
+  liveChat: 'comment-text-multiple-outline', epg: 'television-classic', diagnostics: 'logs',
+  fullscreen: 'fullscreen', close: 'close',
 };
 
 // Inline SVG keeps the React DOM/Electron entry independent of React Native,
@@ -38,6 +39,8 @@ const WEB_ICON_PATHS = {
   video: 'M18 7V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2l4 4V5zm-2 12H4V5h12z',
   'music-note': 'M12 3v12.26A4 4 0 1 0 14 19V7h6V3z',
   'arrow-collapse': 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
+  minimize: 'M5 11h14v2H5z',
+  logs: 'M3 3h18v18H3zm2 2v14h14V5zm3 3h2v2H8zm4 0h7v2h-7zm-4 4h2v2H8zm4 0h7v2h-7zm-4 4h2v2H8zm4 0h7v2h-7z',
   'arrow-left': 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z',
   'record-rec': 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z',
   stop: 'M6 6h12v12H6z',
@@ -170,8 +173,8 @@ function WebPlaybackRateControl({ value, onChange }) {
 
 function WebBottomControls(props) {
   const {
-    isLive, overrides, theme, icons, currentTime, duration, seekTo, muted,
-    toggleMute, showAspectMenu, setShowAspectMenu, selectAspect, videoOnly,
+    isLive, overrides, theme, icons, currentTime, duration, seekTo,
+    showAspectMenu, setShowAspectMenu, selectAspect, videoOnly,
     setVideoOnlyMode, audioOnly, setAudioOnlyMode, availableTracks,
     showAudioMenu, setShowAudioMenu, selectAudio, playbackRate,
     setPlaybackRateAction, fullscreen, toggleFullscreen,
@@ -211,27 +214,28 @@ function WebBottomControls(props) {
   if (isControlEnabled(overrides, 'playbackRate', true) && !isLive) {
     playbackRateControl = h(WebPlaybackRateControl, { value: playbackRate, onChange: setPlaybackRateAction });
   }
-  const muteLabel = muted ? 'Unmute' : 'Mute';
-  const muteIcon = muted ? 'mute' : 'unmute';
   const videoOnlyLabel = videoOnly ? 'Enable audio' : 'Video only';
   const audioOnlyLabel = audioOnly ? 'Switch to audio card' : 'Audio only';
   const fullscreenLabel = fullscreen ? 'Exit full screen' : 'Full screen';
 
   return h('div', { className: 'cinecrew-player__bottom-controls' },
     seek,
-    renderControlButton({ name: 'mute', label: muteLabel, callback: toggleMute, options: { icon: muteIcon }, overrides, icons, theme }),
-    aspect,
-    renderControlButton({ name: 'videoOnly', label: videoOnlyLabel, callback: () => setVideoOnlyMode(!videoOnly), options: { active: videoOnly, defaultVisible: false }, overrides, icons, theme }),
-    renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { icon: 'audio', active: audioOnly }, overrides, icons, theme }),
-    audioTracks,
-    playbackRateControl,
-    renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }));
+    h('div', { className: 'cinecrew-player__bottom-actions' },
+      h('div', { className: 'cinecrew-player__bottom-left-actions' },
+        renderControlButton({ name: 'videoOnly', label: videoOnlyLabel, callback: () => setVideoOnlyMode(!videoOnly), options: { active: videoOnly, defaultVisible: false }, overrides, icons, theme }),
+        aspect),
+      h('div', { className: 'cinecrew-player__bottom-right-actions' },
+        renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { icon: 'audio', active: audioOnly }, overrides, icons, theme }),
+        audioTracks,
+        playbackRateControl,
+        renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }))));
 }
 
 function WebPlayerControls({ locked, overrides, theme, icons, unlockedControls, toggleLock, paused, togglePlay, bottomProps }) {
-  let topControls = unlockedControls;
+  let leftControls = unlockedControls.left;
+  let rightControls = unlockedControls.right;
   if (locked) {
-    topControls = renderControlButton({
+    rightControls = renderControlButton({
       name: 'lock', label: 'Unlock controls', callback: toggleLock,
       options: { active: true, defaultVisible: true }, overrides, icons, theme,
     });
@@ -246,7 +250,9 @@ function WebPlayerControls({ locked, overrides, theme, icons, unlockedControls, 
     bottomControls = h(WebBottomControls, bottomProps);
   }
   return h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
-    h('div', { className: 'cinecrew-player__top-controls' }, topControls),
+    h('div', { className: 'cinecrew-player__top-controls' },
+      h('div', { className: 'cinecrew-player__top-left-actions' }, leftControls),
+      h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     bottomControls);
 }
@@ -265,6 +271,7 @@ function WebPlayerSurface({
   playbackRate,
   videoOnly,
   videoStyle,
+  drawerResize,
   audioOnly,
   inlinePreview,
   onPromotePreview,
@@ -292,6 +299,7 @@ function WebPlayerSurface({
       onStateChange,
       onError,
       onEnded,
+      style: drawerResize ? { width: '64%', height: '64%', inset: '18% auto auto 0' } : undefined,
     });
   }
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
@@ -304,7 +312,11 @@ function WebPlayerSurface({
     muted: muted || videoOnly,
     playsInline: true,
     preload: 'auto',
-    style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
+    style: {
+      ...videoStyle,
+      ...(drawerResize ? { width: '64%', height: '64%', top: '18%', right: 'auto', bottom: 'auto' } : {}),
+      opacity: audioOnly ? 0 : 1,
+    },
     onClick: inlinePreview ? onPromotePreview : undefined,
     onError: (event) => {
       if (!directVideoSource) return;
@@ -347,7 +359,9 @@ function isAudioPlaybackEnabled(muted, videoOnly) {
 }
 
 function getPanelIntegration(activePanel, integrations) {
-  return activePanel === 'chat' ? integrations.liveChat : integrations.epg;
+  if (activePanel === 'chat') return integrations.liveChat;
+  if (activePanel === 'epg') return integrations.epg;
+  return null;
 }
 
 function getActiveMediaUrl(youtubeVideoId, streamUrl) {
@@ -360,15 +374,15 @@ function getInlinePlayerStyle(inlinePreview, rect) {
 }
 
 function buildUnlockedControls({
-  control, actions, onBack, isLive, restart, toggleLock, hasRecording,
+  control, onBack, isLive, restart, toggleLock, toggleMute, muted, hasRecording,
   recording, integrations, action, videoRef, streamUrl, title, activePanel,
-  hasChat, hasEpg, handleOpenPanel, handleMinimize, setRecording, backVisible, minimizeVisible,
+  hasChat, hasEpg, hasDiagnostics, handleOpenPanel, handleMinimize, setRecording, backVisible, minimizeVisible,
 }) {
-  const controls = [
+  const leftControls = [
     control('back', 'Back', onBack, { defaultVisible: backVisible }),
-    ...(!isLive ? [control('restart', 'Restart', restart)] : []),
-    control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
+    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: minimizeVisible }),
   ];
+  const rightControls = [];
   let recordingControl = null;
   if (hasRecording) {
     const recordingLabel = recording ? 'Stop recording' : 'Start recording';
@@ -383,13 +397,16 @@ function buildUnlockedControls({
   }
   const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
   const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
-  return [
-    ...controls,
+  rightControls.push(
     recordingControl,
     control('liveChat', chatLabel, () => handleOpenPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
-    control('epg', epgLabel, () => handleOpenPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
-    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: minimizeVisible }),
-  ];
+    control('epg', epgLabel, () => handleOpenPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }));
+  if (!isLive) rightControls.push(control('restart', 'Restart', restart));
+  const muteLabel = muted ? 'Unmute' : 'Mute';
+  rightControls.push(control('mute', muteLabel, toggleMute, { icon: muted ? 'mute' : 'unmute' }));
+  rightControls.push(control('diagnostics', 'Stream diagnostics', () => handleOpenPanel('diagnostics'), { active: activePanel === 'diagnostics', defaultVisible: hasDiagnostics }));
+  rightControls.push(control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }));
+  return { left: leftControls, right: rightControls };
 }
 
 function WebPlayerLayout(props) {
@@ -417,11 +434,15 @@ function WebPlayerLayout(props) {
     ? h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, onSwitchToVideo: props.onSwitchToVideo })
     : null;
   const panelNode = props.activePanel && props.webPanel
-    ? h('div', { className: 'cinecrew-player__panel', style: { background: props.theme.surfaceColor, color: props.theme.controlColor } }, props.webPanel)
+    ? h('aside', {
+      className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}`,
+      style: { color: props.theme.controlColor, ...props.drawerStyle },
+      'aria-label': props.activePanel === 'chat' ? 'Live chat drawer' : props.activePanel === 'epg' ? 'Programme guide drawer' : 'Stream diagnostics drawer',
+    }, props.webPanel)
     : null;
   return h('div', {
     ref: props.playerRef,
-    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${props.className}`.trim(),
+    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
     style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
@@ -474,7 +495,13 @@ function getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations) 
   return null;
 }
 
-function createWebPanelNode({ renderer, integration, activePanel, integrations, source, title, theme, onClose }) {
+function createWebPanelNode({
+  renderer, integration, activePanel, integrations, source, title, theme, onClose,
+  diagnostics, messagePageSize,
+}) {
+  if (activePanel === 'diagnostics') {
+    return h(WebDiagnosticsPanel, { title, theme, ...diagnostics });
+  }
   if (renderer) return h(renderer, { title, source, onClose });
   if (!integration) return null;
   const hasLoader = activePanel === 'chat'
@@ -489,20 +516,76 @@ function createWebPanelNode({ renderer, integration, activePanel, integrations, 
     title,
     theme,
     onClose,
+    messagePageSize,
   });
 }
 
-function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose }) {
+function WebDiagnosticsPanel({ title, theme, streamMode, status, currentTime, duration, videoRef }) {
+  const video = videoRef?.current;
+  const resolution = video?.videoWidth && video?.videoHeight
+    ? `${video.videoWidth} × ${video.videoHeight}`
+    : 'Not available';
+  const rows = [
+    ['Title', title || 'Untitled'],
+    ['Stream type', streamMode || 'Unknown'],
+    ['Playback', status || 'Unknown'],
+    ['Resolution', resolution],
+    ['Position', `${formatTime(currentTime)} / ${formatTime(duration)}`],
+  ];
+  return h('section', {
+    className: 'cinecrew-player__diagnostics',
+    style: { color: theme.controlColor },
+    'aria-label': 'Stream diagnostics',
+  },
+  h('strong', null, 'Stream diagnostics'),
+  rows.map(([label, value]) => h('div', { className: 'cinecrew-player__diagnostic-row', key: label },
+    h('span', null, label), h('span', null, value))));
+}
+
+function getChatMessageKey(message, index = 0) {
+  return String(message?.id ?? message?.messageId ?? message?.createdAt ?? message?.timestamp
+    ?? `${message?.username || message?.userName || ''}:${message?.comment || message?.message || message?.text || index}`);
+}
+
+function mergeChatMessages(existing, incoming, prepend = false) {
+  const messages = prepend ? [...incoming, ...existing] : [...existing, ...incoming];
+  const unique = new Map();
+  messages.forEach((message, index) => unique.set(getChatMessageKey(message, index), message));
+  return [...unique.values()];
+}
+
+function formatChatTimestamp(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+const CHAT_EMOJIS = ['😀', '😂', '😍', '🥳', '👏', '🔥', '❤️', '😮', '😢', '🙏', '⚽', '🎉'];
+
+function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose, messagePageSize = 50 }) {
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(integrations.user || null);
   const [message, setMessage] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [messageOffset, setMessageOffset] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const rowsRef = useRef([]);
   const channelId = String(source.streamId || source.mediaId || source.id || '');
   const isChat = kind === 'chat';
+  const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
   const emptyStateMessage = isChat ? 'No messages yet.' : 'No programme information available.';
   const sendButtonLabel = sending ? 'Sending…' : 'Send';
+
+  const updateRows = (nextRows) => {
+    rowsRef.current = nextRows;
+    setRows(nextRows);
+  };
 
   const load = useCallback(async () => {
     if (!channelId) {
@@ -513,15 +596,28 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
     try {
       setError('');
       const value = isChat
-        ? await integration.loadMessages({ channelId, limit: 50 })
+        ? await integration.loadMessages({ channelId, limit: pageSize, offset: 0 })
         : await integration.loadListings({ channelId, limit: integration.limit || 48 });
-      setRows(responseRows(value, isChat ? ['messages', 'items', 'comments'] : ['listings', 'programmes', 'epg', 'items']));
+      const nextRows = responseRows(value, isChat ? ['messages', 'items', 'comments'] : ['listings', 'programmes', 'epg', 'items']);
+      if (isChat) {
+        const previousCount = rowsRef.current.length;
+        const mergedRows = mergeChatMessages(rowsRef.current, nextRows);
+        updateRows(mergedRows);
+        const addedCount = Math.max(0, mergedRows.length - previousCount);
+        setMessageOffset((offset) => previousCount === 0
+          ? nextRows.length
+          : Math.max(offset, nextRows.length) + addedCount);
+        const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
+        setHasMoreMessages(explicitHasMore === undefined ? nextRows.length >= pageSize : Boolean(explicitHasMore));
+      } else {
+        setRows(nextRows);
+      }
     } catch (loadError) {
       setError(loadError?.message || `Could not load ${isChat ? 'live chat' : 'the programme guide'}.`);
     } finally {
       setLoading(false);
     }
-  }, [channelId, integration, isChat]);
+  }, [channelId, integration, isChat, pageSize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -535,11 +631,33 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
 
   useEffect(() => {
     setLoading(true);
+    rowsRef.current = [];
+    setRows([]);
+    setMessageOffset(0);
+    setHasMoreMessages(false);
     load();
     if (!isChat) return undefined;
     const timer = setInterval(load, Math.max(1000, Number(integration.pollIntervalMs) || 5000));
     return () => clearInterval(timer);
   }, [load, isChat, integration.pollIntervalMs]);
+
+  const loadOlderMessages = async () => {
+    if (!isChat || !hasMoreMessages || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      setError('');
+      const value = await integration.loadMessages({ channelId, limit: pageSize, offset: messageOffset });
+      const olderRows = responseRows(value, ['messages', 'items', 'comments']);
+      updateRows(mergeChatMessages(rowsRef.current, olderRows, true));
+      setMessageOffset((offset) => offset + olderRows.length);
+      const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
+      setHasMoreMessages(explicitHasMore === undefined ? olderRows.length >= pageSize : Boolean(explicitHasMore));
+    } catch (loadError) {
+      setError(loadError?.message || 'Could not load more messages.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const send = async (event) => {
     event.preventDefault();
@@ -573,11 +691,21 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
   !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
-  h('div', { className: 'cinecrew-player__panel-list' }, rows.map((row, index) => {
+  h('div', { className: 'cinecrew-player__panel-list' },
+    isChat && hasMoreMessages ? h('button', {
+      type: 'button',
+      className: 'cinecrew-player__load-more',
+      onClick: loadOlderMessages,
+      disabled: loadingOlder,
+    }, loadingOlder ? 'Loading more…' : 'See more messages') : null,
+    rows.map((row, index) => {
     const key = row.id ?? row.messageId ?? row.startMs ?? index;
     if (isChat) {
+      const timestamp = row.createdAt ?? row.timestamp ?? row.sentAt ?? row.time;
       return h('article', { key, className: 'cinecrew-player__chat-message' },
-        h('strong', null, row.username || row.userName || row.name || 'Viewer'),
+        h('header', null,
+          h('strong', null, row.username || row.userName || row.name || 'Viewer'),
+          timestamp ? h('time', { dateTime: String(timestamp) }, formatChatTimestamp(timestamp)) : null),
         h('span', null, row.comment || row.message || row.text || ''));
     }
     const start = row.startMs ?? row.start ?? row.startTime;
@@ -587,15 +715,30 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
       h('strong', null, row.title || row.name || 'Programme'),
       row.description ? h('span', null, row.description) : null);
   })),
-  isChat && typeof integration.sendMessage === 'function' ? h('form', { className: 'cinecrew-player__chat-form', onSubmit: send },
-    h('input', {
-      value: message,
-      onChange: (event) => setMessage(event.target.value),
-      placeholder: 'Add a message…',
-      'aria-label': 'Chat message',
-      maxLength: 1000,
-    }),
-    h('button', { type: 'submit', disabled: sending || !message.trim() }, sendButtonLabel)) : null);
+  isChat ? h(React.Fragment, null,
+    h('form', { className: 'cinecrew-player__chat-form', onSubmit: send },
+      h('div', { className: 'cinecrew-player__chat-composer' },
+        h('button', {
+          type: 'button',
+          className: 'cinecrew-player__emoji-toggle',
+          onClick: () => setEmojiOpen((open) => !open),
+          'aria-label': emojiOpen ? 'Close emoji picker' : 'Open emoji picker',
+        }, '☺'),
+        h('input', {
+          value: message,
+          onChange: (event) => setMessage(event.target.value),
+          placeholder: 'Add a message…',
+          'aria-label': 'Chat message',
+          maxLength: 1000,
+        }),
+        h('button', { type: 'submit', disabled: sending || !message.trim() || typeof integration.sendMessage !== 'function' }, sendButtonLabel),
+        emojiOpen ? h('div', { className: 'cinecrew-player__emoji-picker', role: 'group', 'aria-label': 'Choose an emoji' },
+          CHAT_EMOJIS.map((emoji) => h('button', {
+            key: emoji,
+            type: 'button',
+            onClick: () => setMessage((current) => `${current}${emoji}`),
+            'aria-label': `Insert ${emoji}`,
+          }, emoji))) : null))) : null);
 }
 
 /**
@@ -615,6 +758,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     playbackRate: playbackRateProp = 1,
     paused: pausedProp,
     controls: controlOverrides = {},
+    features = {},
+    drawerMode = 'overlay',
+    drawerStyle,
+    messagePageSize = 50,
     actions = {},
     theme: themeProp = {},
     icons = {},
@@ -759,6 +906,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
   });
+  const streamMode = getStreamMode(youtubeVideoId, mpegTs.useMpegTs, useHls);
   useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
     streamUrl,
@@ -863,6 +1011,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
   const hasRecording = !!integrations.recording || typeof actions.onRecordingStart === 'function';
+  const hasDiagnostics = Boolean(features.diagnostics) || typeof actions.onDiagnosticsOpen === 'function';
   const sourceType = String(media.type || media.mimeType || '').toLowerCase();
   const directVideoSource = getDirectVideoSource({
     mpegTs: mpegTs.useMpegTs,
@@ -955,6 +1104,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     isLive,
     restart,
     toggleLock,
+    toggleMute,
+    muted,
     hasRecording,
     recording,
     integrations,
@@ -965,6 +1116,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     activePanel,
     hasChat,
     hasEpg,
+    hasDiagnostics,
     handleOpenPanel: openPanel,
     handleMinimize,
     setRecording,
@@ -978,6 +1130,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     title,
     theme,
     onClose: () => setActivePanel(null),
+    diagnostics: {
+      streamMode,
+      status: error ? 'Error' : buffering ? 'Buffering' : isPaused ? 'Paused' : 'Playing',
+      currentTime,
+      duration,
+      videoRef,
+    },
+    messagePageSize,
   });
 
   const handleYouTubeProgress = (event) => {
@@ -999,6 +1159,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     playbackRate,
     videoOnly,
     videoStyle,
+    drawerResize: Boolean(activePanel) && drawerMode === 'resize',
     audioOnly,
     inlinePreview,
     onPromotePreview,
@@ -1011,8 +1172,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onError: handleError,
     handleError,
   });
-  const streamMode = getStreamMode(youtubeVideoId, mpegTs.useMpegTs, useHls);
-
   const bottomControlProps = {
     isLive,
     overrides: controlOverrides,
@@ -1066,6 +1225,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     togglePlay,
     bottomControlProps,
     onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
+    drawerMode,
+    drawerStyle,
   });
 });
 
