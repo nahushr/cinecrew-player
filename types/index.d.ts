@@ -207,8 +207,8 @@ export interface CineCrewPlayerProps {
   controls?: PlayerControls;
   /** Web/Electron chat and EPG drawer behavior. Overlay keeps the video full-size; resize shrinks it to make room. */
   drawerMode?: PlayerDrawerMode;
-  /** CSS style overrides for the web/Electron chat, EPG, and diagnostics drawer. */
-  drawerStyle?: React.CSSProperties;
+  /** Web CSS or React Native view-style overrides for the chat, EPG, and diagnostics drawer. */
+  drawerStyle?: React.CSSProperties | import('react-native').ViewStyle;
   /** Number of chat messages fetched per page; older pages load from the drawer's See more button. Defaults to 50. */
   messagePageSize?: number;
   features?: { diagnostics?: boolean; [key: string]: boolean | undefined };

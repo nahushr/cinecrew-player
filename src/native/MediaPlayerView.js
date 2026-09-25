@@ -688,6 +688,8 @@ function FullscreenChatLayer(props) {
       streamId={props.mediaId}
       integrations={props.integrations}
       colors={props.colors}
+      messagePageSize={props.messagePageSize}
+      drawerStyle={props.drawerStyle}
     />
   );
 }
@@ -786,6 +788,8 @@ export const MediaPlayerView = ({
   shuffle,
   onNextEpisode,
   liveChatNonce = 0,
+  messagePageSize = 50,
+  drawerStyle,
   genre,
   categoryName,
   controls = {},
@@ -2515,6 +2519,8 @@ export const MediaPlayerView = ({
         popupMode
         integrations={integrations}
         colors={colors}
+        messagePageSize={messagePageSize}
+        drawerStyle={drawerStyle}
       />
     ) : null;
     return (
@@ -2694,6 +2700,8 @@ export const MediaPlayerView = ({
         diagnosticsEnabled={diagnosticsOverlayEnabled}
         integrations={integrations}
         colors={colors}
+        messagePageSize={messagePageSize}
+        drawerStyle={drawerStyle}
       />
       <FullscreenRecordingLayer
         isAudioOnly={isAudioOnly}

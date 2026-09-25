@@ -420,6 +420,13 @@
   border: 1px solid rgba(255, 255, 255, .2);
   border-radius: 999px;
   background: rgba(0, 0, 0, .2);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.cinecrew-player__chat-composer:focus-within {
+  border-color: var(--cinecrew-accent);
+  background: rgba(0, 0, 0, .28);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cinecrew-accent) 18%, transparent);
 }
 
 .cinecrew-player__chat-composer input {
@@ -444,6 +451,15 @@
   background: rgba(255, 255, 255, .08);
   cursor: pointer;
   font: inherit;
+  transition: background-color .16s ease, transform .16s ease;
+}
+
+.cinecrew-player__chat-composer button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .15);
+}
+
+.cinecrew-player__chat-composer button:active:not(:disabled) {
+  transform: scale(.96);
 }
 
 .cinecrew-player__chat-composer button[type="submit"] {
@@ -452,6 +468,12 @@
   border-radius: 999px;
   color: #07111e;
   background: var(--cinecrew-accent);
+  font-weight: 700;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cinecrew-accent) 24%, transparent);
+}
+
+.cinecrew-player__chat-composer button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
 .cinecrew-player__chat-composer button:disabled {

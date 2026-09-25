@@ -39,6 +39,35 @@ function formatMessageTime(timestamp) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function normalizeChatMessage(message) {
+  return {
+    ...message,
+    username: message?.username || message?.userName || message?.name || 'Viewer',
+    textContent: message?.textContent || message?.comment || message?.message || message?.text || '',
+    createdAt: message?.createdAt || message?.timestamp || message?.sentAt || message?.time || null,
+  };
+}
+
+function normalizeChatPage(value) {
+  const rows = Array.isArray(value)
+    ? value
+    : value?.messages || value?.items || value?.comments || value?.data || [];
+  return Array.isArray(rows) ? rows.map(normalizeChatMessage) : [];
+}
+
+function chatMessageKey(message, index) {
+  if (message?.id !== undefined && message?.id !== null) return String(message.id);
+  if (message?.messageId !== undefined && message?.messageId !== null) return String(message.messageId);
+  return `${message?.username || ''}:${message?.createdAt || ''}:${message?.textContent || ''}:${index}`;
+}
+
+function mergeChatMessages(existing, incoming, prepend = false) {
+  const combined = prepend ? [...incoming, ...existing] : [...existing, ...incoming];
+  const unique = new Map();
+  combined.forEach((message, index) => unique.set(chatMessageKey(message, index), message));
+  return [...unique.values()];
+}
+
 function extractHostname(url) {
   if (!url) return 'Xtream Server';
   try {
@@ -109,8 +138,11 @@ export const LiveChatDrawer = ({
   popupMode = false,
   integrations = {},
   colors,
+  messagePageSize = 50,
+  drawerStyle,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
   const chatAvailable = isLive && isLiveCommentsEnabled && typeof integrations.liveChat?.loadMessages === 'function';
   const epgAvailable = isLive && isEpgEnabled && typeof integrations.epg?.loadListings === 'function';
   const canShowDiagnostics = diagnosticsEnabled !== false;
@@ -136,7 +168,13 @@ export const LiveChatDrawer = ({
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [chatError, setChatError] = useState('');
   const flatListRef = useRef(null);
+  const messageOffsetRef = useRef(0);
+  const loadedInitialPageRef = useRef(false);
+  const scrollChatToEndRef = useRef(false);
 
   // --- Stream Diagnostics Telemetry State ---
   const [pingLatency, setPingLatency] = useState(null);
@@ -157,14 +195,32 @@ export const LiveChatDrawer = ({
     let isMounted = true;
     let initialLoad = true;
     setMessages([]);
+    setHasMoreMessages(false);
+    setChatError('');
+    setLoadingOlderMessages(false);
+    messageOffsetRef.current = 0;
+    loadedInitialPageRef.current = false;
+    scrollChatToEndRef.current = true;
     setMessagesLoading(true);
     const poll = async () => {
       try {
-        const msgs = await integrations.liveChat.loadMessages({ channelId: String(videoId), limit: 50 });
-        if (isMounted && Array.isArray(msgs)) {
-          setMessages(msgs);
+        const response = await integrations.liveChat.loadMessages({ channelId: String(videoId), limit: pageSize, offset: 0 });
+        const msgs = normalizeChatPage(response);
+        if (isMounted) {
+          setMessages((current) => loadedInitialPageRef.current
+            ? mergeChatMessages(current, msgs)
+            : msgs);
+          if (!loadedInitialPageRef.current) {
+            loadedInitialPageRef.current = true;
+            messageOffsetRef.current = msgs.length;
+            const explicitHasMore = response?.hasMore ?? response?.pagination?.hasMore;
+            setHasMoreMessages(explicitHasMore === undefined ? msgs.length >= pageSize : Boolean(explicitHasMore));
+          }
+          setChatError('');
         }
-      } catch {}
+      } catch (error) {
+        if (isMounted && initialLoad) setChatError(error?.message || 'Could not load live chat.');
+      }
       finally {
         if (isMounted && initialLoad) {
           initialLoad = false;
@@ -181,7 +237,34 @@ export const LiveChatDrawer = ({
       isMounted = false;
       clearInterval(timer);
     };
-  }, [visible, videoId, chatAvailable, integrations.liveChat]);
+  }, [visible, videoId, chatAvailable, integrations.liveChat, pageSize]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!hasMoreMessages || loadingOlderMessages || !chatAvailable) return;
+    setLoadingOlderMessages(true);
+    setChatError('');
+    try {
+      const offset = messageOffsetRef.current;
+      const response = await integrations.liveChat.loadMessages({
+        channelId: String(videoId),
+        limit: pageSize,
+        offset,
+      });
+      const olderMessages = normalizeChatPage(response);
+      if (olderMessages.length) {
+        setMessages((current) => mergeChatMessages(current, olderMessages, true));
+        messageOffsetRef.current += olderMessages.length;
+      }
+      const explicitHasMore = response?.hasMore ?? response?.pagination?.hasMore;
+      setHasMoreMessages(explicitHasMore === undefined
+        ? olderMessages.length >= pageSize
+        : Boolean(explicitHasMore));
+    } catch (error) {
+      setChatError(error?.message || 'Could not load older messages.');
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [hasMoreMessages, loadingOlderMessages, chatAvailable, integrations.liveChat, videoId, pageSize]);
 
   const epgStreamId = streamId || videoId;
   const [epgListings, setEpgListings] = useState([]);
@@ -235,12 +318,13 @@ export const LiveChatDrawer = ({
     return () => clearTimeout(timer);
   }, [activeTab, epgListings]);
 
-  // Auto-scroll to bottom on new messages
+  // Avoid snapping to the bottom when an older page is prepended.
   useEffect(() => {
-    if (messages.length > 0 && flatListRef.current && activeTab === 'chat') {
+    if (scrollChatToEndRef.current && messages.length > 0 && flatListRef.current && activeTab === 'chat') {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 80);
+      scrollChatToEndRef.current = false;
     }
   }, [messages.length, activeTab]);
 
@@ -309,6 +393,7 @@ export const LiveChatDrawer = ({
     const text = (textToSend || inputText).trim();
     if (!text || isSending || !videoId) return;
 
+    scrollChatToEndRef.current = true;
     if (!textToSend) setInputText('');
     setIsSending(true);
 
@@ -320,14 +405,17 @@ export const LiveChatDrawer = ({
         username: activeUsername,
         comment: text,
       });
-      const msgs = await integrations.liveChat?.loadMessages?.({ channelId: String(videoId), limit: 50 }).catch?.(() => null);
-      if (Array.isArray(msgs)) setMessages(msgs);
+      const response = await integrations.liveChat?.loadMessages?.({ channelId: String(videoId), limit: pageSize, offset: 0 }).catch?.(() => null);
+      if (response) {
+        const msgs = normalizeChatPage(response);
+        setMessages((current) => mergeChatMessages(current, msgs));
+      }
     } catch {
       // Error handled
     } finally {
       setIsSending(false);
     }
-  }, [inputText, isSending, videoId, userId, username, integrations.liveChat]);
+  }, [inputText, isSending, videoId, userId, username, integrations.liveChat, pageSize]);
 
   const handleSelectEmoji = useCallback((emoji) => {
     setInputText((prev) => prev + emoji);
@@ -430,6 +518,7 @@ export const LiveChatDrawer = ({
           width: Math.min(Math.max(windowWidth - 32, 280), 520),
           height: Math.min(Math.max(windowHeight - 32, 280), 680),
         },
+        drawerStyle,
       ]}
     >
       {/* Header with Close Button & Title */}
@@ -477,15 +566,28 @@ export const LiveChatDrawer = ({
             <FlatList
               ref={flatListRef}
               data={messages}
-              keyExtractor={(item, index) => `${String(item.id || 'message')}-${index}`}
+              keyExtractor={(item, index) => chatMessageKey(item, index)}
               renderItem={renderMessageItem}
               contentContainerStyle={styles.messagesList}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              ListHeaderComponent={hasMoreMessages ? (
+                <TouchableOpacity
+                  style={styles.loadMoreMessages}
+                  onPress={loadOlderMessages}
+                  disabled={loadingOlderMessages}
+                  accessibilityRole="button"
+                >
+                  {loadingOlderMessages ? <ActivityIndicator size="small" color="#00E5FF" /> : null}
+                  <Text style={styles.loadMoreMessagesText}>
+                    {loadingOlderMessages ? 'Loading older messages…' : 'See more messages'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
             />
           )}
+          {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
 
           {/* Quick Reaction Bar */}
           <View style={styles.quickReactionsRow}>
@@ -858,6 +960,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
+  },
+  loadMoreMessages: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 229, 255, 0.35)',
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+  },
+  loadMoreMessagesText: {
+    color: '#00E5FF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  chatErrorText: {
+    color: '#FF7A8A',
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+    fontSize: 12,
   },
   chatLoadingWrap: {
     flex: 1,

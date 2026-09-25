@@ -106,7 +106,6 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
-    "@hiraku-ai/react-native-emoji-picker": "^1.2.4",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "^5.2.0",
     "expo-video": "^57.0.2",

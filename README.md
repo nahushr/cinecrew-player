@@ -348,7 +348,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `actions` | `PlayerActions` | `{}` | Replace the built-in behavior for individual actions. If a callback is provided, that callback owns the action. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
 | `drawerMode` | `'overlay' \| 'resize'` | `'overlay'` | Web/Electron drawer behavior: overlay the video or resize it to make room for chat, EPG, and diagnostics. |
-| `drawerStyle` | `CSSProperties`-like object | — | Style the web/Electron chat, EPG, and diagnostics drawer. |
+| `drawerStyle` | `React.CSSProperties` / React Native `ViewStyle` | — | Platform-specific style overrides for the chat, EPG, and diagnostics drawer. |
 | `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older pages load from the drawer’s “See more” control. |
 | `theme` | `PlayerTheme` | built-in theme | Customize player colors, borders, and shape. |
 | `icons` | `PlayerIcons` | built-in icons | Override any control icon by key. |
