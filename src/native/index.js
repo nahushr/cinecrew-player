@@ -2,7 +2,6 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { PlayerCustomizationProvider } from './customization';
 import { MediaPlayerView } from './MediaPlayerView';
-import { InlineLivePlayer } from './InlineLivePlayer';
 import { isElectron, isWeb } from '../utils/runtimePlatform';
 import { getYouTubeVideoId, useResolvedPlayerSource } from '../utils/sourceUtils';
 
@@ -99,7 +98,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 });
 
 /** Compact inline live preview companion for channel lists and guides. */
-export { InlineLivePlayer };
+export { InlineLivePlayer } from './InlineLivePlayer';
 export { PlayerCustomizationProvider } from './customization';
 export default CineCrewPlayer;
 

@@ -25,7 +25,6 @@
     <path d="m404 55 18 36 38 5-28 26 7 38-35-19-34 19 7-38-28-26 38-5z" fill="#ff654f"/>
     <path d="M436 137c26 37 39 85 35 126" fill="none" stroke="#ff654f" stroke-linecap="round" stroke-width="14"/>
   </g>
-  <text x="248" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5" fill="#397fda">Cine</text>
-  <text x="507" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5" fill="#ff9a86">Crew</text>
+  <text x="248" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5"><tspan fill="#397fda">Cine</tspan><tspan fill="#ff9a86">Crew</tspan></text>
   <rect x="251" y="188" width="102" height="9" rx="4.5" fill="#ff9a86"/>
 </svg>

@@ -18,6 +18,7 @@ export const WebVideoPlayer = forwardRef(({
   isLive,
   audioOnly = false,
   videoOnly = false,
+  captions = [],
   onProgress,
   onPlaying,
   onBuffering,
@@ -81,6 +82,10 @@ export const WebVideoPlayer = forwardRef(({
 
   // 1. Aspect Ratio Styling
   const { videoStyle, applyAspectRatio } = useWebVideoAspectRatio(videoAspectRatio, audioOnly);
+  const videoSource = useMpegTsSource || useHlsSource ? undefined : activeUrl;
+  let streamMode = useHlsSource ? 'hls' : 'native';
+  if (useMpegTsSource) streamMode = 'mpegts';
+  const resolvedScheme = new URL(activeUrl || 'http://localhost', 'http://localhost').protocol.replace(':', '');
 
   // Report active streaming route
   const reportPlaybackRoute = useCallback((video, attachedUrl) => {
@@ -231,14 +236,24 @@ export const WebVideoPlayer = forwardRef(({
         <video
           key={activeUrl}
           ref={videoRef}
-          data-resolved-scheme={activeUrl ? new URL(activeUrl, 'http://localhost').protocol.replace(':', '') : ''}
-          data-stream-mode={useHlsSource ? 'hls' : useMpegTsSource ? 'mpegts' : 'native'}
-          src={useMpegTsSource || useHlsSource ? undefined : activeUrl}
+          data-resolved-scheme={resolvedScheme}
+          data-stream-mode={streamMode}
+          src={videoSource}
           autoPlay={!paused}
           muted={muted}
           playsInline
           controls={false}
           style={videoStyle}
+          {captions.map((caption, index) => (
+            <track
+              key={caption.id || caption.src || index}
+              kind="captions"
+              src={caption.src}
+              srcLang={caption.language || 'und'}
+              label={caption.label || caption.language || `Caption ${index + 1}`}
+              default={Boolean(caption.default)}
+            />
+          ))}
           onPlaying={() => {
             const video = videoRef.current;
             reportPlaybackRoute(video, activeUrl);

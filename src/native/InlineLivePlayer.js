@@ -116,6 +116,10 @@ function InlinePlayerOverlay({
     actions: controls.actions || {},
     palette,
   });
+  const muteLabel = muted ? 'Unmute' : 'Mute';
+  const muteIcon = muted ? 'volume-off' : 'volume-high';
+  const playbackLabel = paused ? 'Play' : 'Pause';
+  const playbackIcon = paused ? 'play' : 'pause';
 
   return React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
     React.createElement(Pressable, {
@@ -127,10 +131,10 @@ function InlinePlayerOverlay({
       React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
       React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')),
       React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
-      button('mute', 'onMute', muted ? 'Unmute' : 'Mute', muted ? 'volume-off' : 'volume-high', onMute, { muted: !muted }),
+      button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
-      button('playPause', 'onPlayPause', paused ? 'Play' : 'Pause', paused ? 'play' : 'pause', onPlay, { isPlaying: !paused })),
+      button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused })),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
       React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
       button('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
