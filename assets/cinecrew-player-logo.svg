@@ -1,28 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
-  <title id="title">CineCrew Player</title>
-  <desc id="desc">CineCrew Player logo: a blue television screen with a play button, followed by the CineCrew wordmark.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="240" viewBox="0 0 940 240" role="img" aria-labelledby="title desc">
+  <title id="title">CineCrew</title>
+  <desc id="desc">The CineCrew app brand: blue television play mark with orbit nodes and coral accent, paired with the two-tone CineCrew wordmark.</desc>
   <defs>
     <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#142d58"/>
-      <stop offset="1" stop-color="#08172f"/>
+      <stop offset="0" stop-color="#10264d"/>
+      <stop offset="1" stop-color="#07142c"/>
     </linearGradient>
     <linearGradient id="play" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#20d7f5"/>
-      <stop offset="1" stop-color="#1687ef"/>
+      <stop offset="0" stop-color="#0cb9ed"/>
+      <stop offset="1" stop-color="#0868ef"/>
     </linearGradient>
   </defs>
-  <g transform="translate(14 14)">
-    <rect x="8" y="8" width="224" height="224" rx="54" fill="#071326" stroke="#294d82" stroke-width="8"/>
-    <path d="M78 10 120 -4M164 10 205 -4" fill="none" stroke="#5bc7ff" stroke-linecap="round" stroke-width="7"/>
-    <rect x="43" y="59" width="154" height="112" rx="28" fill="url(#screen)" stroke="#1887ee" stroke-width="9"/>
-    <path d="m103 85 52 30-52 30z" fill="url(#play)"/>
-    <path d="M53 194c34 22 100 28 137 0" fill="none" stroke="#12d7e8" stroke-linecap="round" stroke-width="8"/>
-    <circle cx="29" cy="113" r="8" fill="#f4f8ff"/>
-    <circle cx="211" cy="113" r="8" fill="#f4f8ff"/>
-    <path d="m184 38 8 17 18 2-13 12 4 18-17-9-16 9 3-18-13-12 18-2z" fill="#ff7a72"/>
+  <g transform="translate(8 8) scale(.43)">
+    <rect x="9" y="9" width="494" height="494" rx="112" fill="#07132e" stroke="#294777" stroke-width="12"/>
+    <path d="M207 88 252 37M305 88l45-51" fill="none" stroke="#1487ee" stroke-linecap="round" stroke-width="13"/>
+    <circle cx="253" cy="30" r="10" fill="#138cf3"/>
+    <circle cx="355" cy="30" r="10" fill="#138cf3"/>
+    <rect x="94" y="138" width="325" height="232" rx="47" fill="url(#screen)" stroke="#0782ee" stroke-width="19"/>
+    <path d="m218 193 112 61-112 66z" fill="url(#play)"/>
+    <path d="M114 401c71 59 219 58 285 0" fill="none" stroke="#0878e9" stroke-linecap="round" stroke-width="13"/>
+    <circle cx="54" cy="254" r="17" fill="#f8fbff"/>
+    <circle cx="458" cy="254" r="17" fill="#f8fbff"/>
+    <circle cx="256" cy="438" r="17" fill="#f8fbff"/>
+    <path d="m404 55 18 36 38 5-28 26 7 38-35-19-34 19 7-38-28-26 38-5z" fill="#ff654f"/>
+    <path d="M436 137c26 37 39 85 35 126" fill="none" stroke="#ff654f" stroke-linecap="round" stroke-width="14"/>
   </g>
-  <text x="278" y="176" font-family="Inter,Arial,Helvetica,sans-serif" font-size="132" font-weight="800" letter-spacing="-6" fill="#397fda">Cine</text>
-  <text x="555" y="176" font-family="Inter,Arial,Helvetica,sans-serif" font-size="132" font-weight="800" letter-spacing="-6" fill="#ff766f">Crew</text>
-  <text x="864" y="170" font-family="Inter,Arial,Helvetica,sans-serif" font-size="51" font-weight="700" letter-spacing="1" fill="#dbe7f8">PLAYER</text>
-  <rect x="280" y="204" width="122" height="10" rx="5" fill="#ff766f"/>
+  <text x="248" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5" fill="#397fda">Cine</text>
+  <text x="507" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5" fill="#ff9a86">Crew</text>
+  <rect x="251" y="188" width="102" height="9" rx="4.5" fill="#ff9a86"/>
 </svg>

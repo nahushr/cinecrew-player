@@ -1,32 +1,154 @@
-# CineCrew Player
+<p align="center">
+  <img src="assets/cinecrew-player-logo.svg" alt="CineCrew app logo and wordmark" width="470" />
+</p>
 
-An embeddable video player for **React** and **React Native** with a shared, customizable control API. Pass local media or a URL using any scheme your platform supports; the player does not rewrite protocols or impose app-specific proxy rules. It supports HLS and MPEG-TS on web, native VLC playback, configurable controls and icons, YouTube embeds, and optional chat, EPG, and recording integrations.
+<h3 align="center">One player layer. Your app. Every screen.</h3>
 
-## What makes CineCrew Player stand out
+<p align="center">
+  A customizable playback experience for <strong>React</strong>, <strong>React Native</strong>, and <strong>Electron</strong>—from on-demand movies to Live TV previews, with the controls and integrations your product needs.
+</p>
 
-CineCrew Player brings the **player UI, playback adapters, and app-integration hooks** together behind one React-facing package:
+<p align="center">
+  <img alt="React" src="https://img.shields.io/badge/React-18%2B-61DAFB?logo=react&logoColor=111827" />
+  <img alt="React Native" src="https://img.shields.io/badge/React_Native-0.73%2B-61DAFB?logo=react&logoColor=111827" />
+  <img alt="TypeScript declarations" src="https://img.shields.io/badge/TypeScript-types%20included-3178C6?logo=typescript&logoColor=white" />
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a085.svg" /></a>
+</p>
 
-- **One player API across four app environments:** React in the browser, Electron, React Native on Android/iOS, and React Native Web. The package selects the appropriate renderer; Electron uses its Chromium renderer.
-- **Movie playback and Live TV in the same player:** on-demand controls such as restart, seeking, playback speed, and audio-track selection sit alongside live-oriented controls and optional live chat, EPG, and recording adapters.
-- **Control the whole experience:** independently show or hide controls, replace default behavior with action callbacks, and customize themes and icons. Defaults are ready to use; overrides are opt-in.
-- **Platform-appropriate playback engines:** browser playback uses the browser media stack, hls.js, and the bundled patched MPEG-TS client; native React Native uses the VLC adapter with an Expo Video fallback where available.
-- **Bring your own services and sources:** supply a playable URL/local URI and optionally connect your own chat, guide, recording, analytics, and source-resolution code. The package does not require a CineCrew account, backend, proxy, or worker.
+<p align="center"><a href="#install">Install</a> · <a href="#feature-portfolio">Features</a> · <a href="#platform--playback-matrix">Platforms</a> · <a href="#props">API reference</a> · <a href="#roadmap">Roadmap</a></p>
 
-### Work in progress
+<p align="center"><strong>🎬 Movies</strong> &nbsp; <strong>📡 Live TV</strong> &nbsp; <strong>📱 Native</strong> &nbsp; <strong>🖥️ Web & Electron</strong></p>
 
-These roadmap items describe **consistent, user-facing support across platforms**; some engines or experimental paths may already expose related primitives:
+| **2 player components** | **5 target environments** | **16 visibility controls** | **20 action hooks** |
+|:---:|:---:|:---:|:---:|
+| Full player + inline live preview | Web · Electron · Android · iOS · React Native Web | Choose what appears | Override default actions |
 
-- [ ] Dedicated cross-platform brightness control
-- [ ] In-player volume slider (beyond mute/unmute)
-- [ ] AI-generated subtitles
-- [ ] Broader client-side audio demuxing across codecs and stream types
-- [ ] Consistent picture-in-picture controls across platforms
+> **The product promise:** use ready-to-play defaults first; customize the interface, playback actions, and app-service adapters only where your product needs them.
 
-### Why it can be a one-stop player layer for movie and IPTV apps
+## Playback at a glance
 
-Instead of building and maintaining separate player shells for web, Electron, and native mobile, an app can use CineCrew Player for playback presentation and control, then connect its own IPTV/movie services through the documented callbacks and adapters. That keeps player behavior and app-specific services cleanly separated: CineCrew supplies the player layer; **your app supplies authorization, playable stream URLs, and any chat/EPG/recording services**.
+```mermaid
+flowchart LR
+  A[Playable URL or local media] --> B{Optional app resolver}
+  B --> C{Host platform}
+  C -->|React web / Electron / RN Web| D[Browser media element]
+  D --> E[Native formats · hls.js · patched MPEG-TS]
+  C -->|React Native Android / iOS| F[VLC adapter]
+  F --> G[Expo Video fallback where available]
+  E --> H[Shared player controls]
+  G --> H
+  H --> I[Theme · icons · callbacks]
+  H --> J[Optional app adapters: chat · EPG · recording]
+```
 
-This is a player package, not an IPTV subscription/service, media relay, DRM system, or universal URL-to-video converter. A web browser still requires a playable media URL, a supported codec/container, and any needed CORS access. A share page or arbitrary webpage must be resolved by your app first.
+<p align="center"><sub>CineCrew Player handles the player surface and platform playback path. Your app remains in charge of authorization, link resolution, CORS, and service backends.</sub></p>
+
+## Feature portfolio
+
+| Area | Included capabilities | Designed for |
+|---|---|---|
+| 🎞️ **Playback** | On-demand and live media; URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path; embedded YouTube playback | Movies, episodes, trailers, and channels |
+| 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, video-only/audio-only modes, audio tracks, playback speed, fullscreen, back, minimize | A complete control surface without hard-wiring your app navigation |
+| 🎨 **Branding** | Theme colors, radius, platform styles, replaceable icons, custom panel render slots | Match your app without forking the player |
+| 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; recording adapter hooks | Channel browsing and live-viewing workflows |
+| 🔌 **App integration** | Per-action callbacks, imperative ref API, source resolver, progress/presence/events hooks, sleep timer callback | Keep account, IPTV, analytics, and storage logic in your app |
+| 🧭 **Playback lifecycle** | Ready, playing, buffering, progress, ended, error, fullscreen, next-episode, and playback-route callbacks | App-owned navigation, telemetry, and resume state |
+
+<details>
+<summary><strong>🎛️ Control inventory — all 16 visibility switches</strong></summary>
+
+| Icon | `controls` key | What it controls | Notes |
+|:---:|---|---|---|
+| ↩️ | `back` | Back / close | Can be owned by app navigation |
+| ▶️ | `playPause` | Play / pause | Center playback action |
+| 🔁 | `restart` | Restart | Primarily useful for on-demand media |
+| 🔒 | `lock` | Lock / unlock controls | Prevent accidental touches |
+| 🔊 | `mute` | Mute / unmute | Volume prop also sets initial level |
+| 🖼️ | `aspectRatio` | Fit / fill / stretch | Available choices depend on renderer |
+| 🔇 | `videoOnly` | Video-only mode | Keeps video presentation while muting audio |
+| 🎧 | `audioOnly` | Audio-only presentation | Playback continues behind the audio card |
+| 🎚️ | `audioTracks` | Audio-track selection | Depends on exposed tracks / platform engine |
+| ⏩ | `playbackRate` | Playback speed | On-demand experience |
+| ⤵️ | `minimize` | Minimize action | App supplies its navigation or sheet behavior |
+| ⛶ | `fullscreen` | Fullscreen / promote preview | Native full-player presentation is platform-specific |
+| ⏺️ | `recording` | Recording controls | Requires an app recording adapter or callback |
+| 💬 | `liveChat` | Live chat panel | Requires an adapter, render slot, or callback |
+| 📅 | `epg` | Electronic program guide | Requires an adapter, render slot, or callback |
+| ⏱️ | `seek` | Seek bar | Meaningful for seekable media |
+
+</details>
+
+<details>
+<summary><strong>🧩 Customization inventory</strong></summary>
+
+| Customize | How |
+|---|---|
+| 🎨 Colors and shape | `theme`: accent, background, control, surface, error colors, border radius, and native palette |
+| 🪄 Icons | `icons`: provide a glyph/string, React node, or icon component; omitted icons keep CineCrew defaults |
+| 🧠 Per-control behavior | `actions`: override only the actions your app wants to own; built-in behavior remains the default otherwise |
+| 🧱 App-owned panels | `renderLiveChat`, `renderEpg`, or integration render callbacks |
+| 🔗 Source handling | `resolveSource` for share pages or host-specific resolution; direct media sources pass through unchanged |
+| 📐 Layout | `style`, web `className`, inline preview geometry, and `InlineLivePlayer` height |
+| 📣 Events and state | Lifecycle callbacks plus progress, presence, analytics, and sleep-timer integrations |
+
+</details>
+
+## Platform & playback matrix
+
+| Host | Public entry | Rendering / engine path | Key considerations |
+|---|---|---|---|
+| 🌐 React in browser | `cinecrew-player` or `cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js; YouTube embed | Browser codec support and origin CORS still apply |
+| 🖥️ Electron | `cinecrew-player/electron` | Same web renderer inside Electron Chromium | Chromium’s codec and network rules still apply |
+| 🤖 React Native Android | `cinecrew-player/native` or `cinecrew-player/react-native` | Native React Native surface with VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
+| 📱 React Native iOS | `cinecrew-player/native` or `cinecrew-player/react-native` | Native React Native surface with VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
+| 🧪 React Native Web / Expo Web | `cinecrew-player/react-native-web` | Browser renderer from a React Native Web host | Uses web media paths, not native VLC |
+
+| Media / source | Web & Electron | React Native | What the app may need to provide |
+|---|---|---|---|
+| MP4 / browser-native media | ✅ Browser media element | ✅ Native engine | A directly playable URL or local URI |
+| HLS (`.m3u8`) | ✅ hls.js / native HLS where available | ✅ Native engine | Origin access, valid playlist/segments, compatible codecs |
+| MPEG-TS (`.ts`) | ✅ Bundled patched MPEG-TS client, when browser conditions permit | ✅ VLC path | Browser codecs and CORS; native module availability |
+| YouTube watch / Shorts / `youtu.be` | ✅ Embedded YouTube player | ✅ Embedded native WebView | Video must allow embedding; network access to YouTube |
+| Local files | ✅ Platform-supported local/blob URI | ✅ Platform-supported file URI | App obtains and passes the platform-readable URI |
+| Share pages / cloud-drive pages | ⚙️ Optional `resolveSource` | ⚙️ Optional `resolveSource` | Your app resolves authentication and obtains a playable media URL |
+
+**Compatibility is not a promise that every URL plays everywhere.** A browser needs a compatible container/codec and any required CORS permission. Arbitrary web pages are not necessarily media files. For known browser-incompatible MPEG-TS audio such as AC3, use native playback when supported or handle the browser error in the consuming app.
+
+## Tech stack
+
+| Layer | Technologies in this package |
+|---|---|
+| UI & API | React · React Native · TypeScript declarations |
+| Web playback | HTML video · hls.js · patched mpegts.js · YouTube IFrame API |
+| Native playback | `@cinecrew/react-native-vlc-media-player` · `expo-video` fallback |
+| Native UI / utilities | React Native · Expo config plugins · safe-area context · SVG · community slider |
+| Optional media utilities | Mediabunny / AC3 parsing support in relevant web playback paths |
+| Packaging | Platform-specific entry points · npm exports · bundled styles · native autolinking |
+
+## Why this can be the player layer for a movie or IPTV app
+
+| Your app owns | CineCrew Player supplies |
+|---|---|
+| 🔐 User accounts, subscriptions, authorization, and provider credentials | 🎛️ Shared player UI and default controls |
+| 🔗 Turning provider/share links into playable sources; CORS and networking policy | 🔀 Platform-aware browser/native playback adapters |
+| 💬 Chat service, 📅 EPG service, and ⏺️ recording implementation | 🧩 Integration surfaces and optional built-in presentation |
+| 🗃️ Catalog, favorites, watch history, and backend storage | 🎨 Customizable theme, icons, control visibility, callbacks, and lifecycle events |
+
+**The result:** one player integration can serve movie and Live TV product flows across web, Electron, and native mobile, while provider-specific and account-specific code stays in the host app.
+
+> CineCrew Player is a playback component—not an IPTV service, media relay, DRM system, or universal URL-to-video converter. The package does not require a CineCrew account, worker, backend, or proxy.
+
+## Roadmap
+
+The items below are planned for more consistent, user-facing support across platforms. Some playback engines may already expose related low-level capabilities.
+
+| Status | Planned feature |
+|:---:|---|
+| [ ] | ☀️ Cross-platform brightness control |
+| [ ] | 🔉 In-player volume slider (in addition to mute / unmute) |
+| [ ] | ✨ AI-generated subtitles |
+| [ ] | 🎧 Broader client-side audio demuxing across codecs and stream types |
+| [ ] | 🪟 Consistent picture-in-picture controls across platforms |
 
 [![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
 
@@ -54,6 +176,8 @@ npm run web
 > Direct media sources are passed through to the platform engine. A page/share URL is not necessarily a playable media source; use `resolveSource` to resolve it. The player does not rewrite protocols, proxy media, or impose host-specific CORS rules.
 
 ## Install
+
+> 📦 **Public npm release pending.** The package is not currently available from the npm registry; use the repository demos while developing. After publication, install it with:
 
 ```sh
 npm install cinecrew-player

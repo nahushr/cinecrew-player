@@ -32,12 +32,7 @@ function getLoadingState({ isLoading, loadingSuccess, isGG, type }) {
 export default class VLCPlayerView extends Component {
   static propTypes = {
     uri: PropTypes.string,
-    initPaused: PropTypes.bool,
-    source: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
-    seek: PropTypes.number,
-    playInBackground: PropTypes.bool,
     isGG: PropTypes.bool,
-    autoplay: PropTypes.bool,
     errorTitle: PropTypes.string,
   };
 
@@ -60,13 +55,8 @@ export default class VLCPlayerView extends Component {
   }
 
   static defaultProps = {
-    initPaused: false,
-    source: null,
-    seek: 0,
-    playInBackground: false,
     isGG: false,
-    autoplay: true,
-    errorTitle: 'error'
+    errorTitle: 'error',
   };
 
   componentDidMount() {
@@ -90,7 +80,6 @@ export default class VLCPlayerView extends Component {
   render() {
     let {
       onEnd,
-      onError,
       style,
       isGG,
       type,
@@ -372,23 +361,18 @@ export default class VLCPlayerView extends Component {
      ',remainingTime=' +
      event.remainingTime,
      );*/
-    let currentTime = event.currentTime;
-    let loadingSuccess = false;
-    if (currentTime > 0 || this.state.currentTime > 0) {
-      loadingSuccess = true;
-    }
-    if (!this.changingSlider) {
-      if (currentTime === 0 || currentTime === this.state.currentTime * 1000) {
-      } else {
-        this.setState({
-          loadingSuccess: loadingSuccess,
-          isLoading: false,
-          isError: false,
-          progress: event.position,
-          currentTime: event.currentTime / 1000,
-          totalTime: event.duration / 1000,
-        });
-      }
+    const currentTime = event.currentTime;
+    const loadingSuccess = currentTime > 0 || this.state.currentTime > 0;
+    const hasProgress = currentTime !== 0 && currentTime !== this.state.currentTime * 1000;
+    if (!this.changingSlider && hasProgress) {
+      this.setState({
+        loadingSuccess,
+        isLoading: false,
+        isError: false,
+        progress: event.position,
+        currentTime: event.currentTime / 1000,
+        totalTime: event.duration / 1000,
+      });
     }
   }
 

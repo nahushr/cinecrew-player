@@ -69,6 +69,7 @@
   "files": [
     "src/",
     "types/",
+    "assets/",
     "vendor/mpegts.js/",
     "LICENSE",
     "NOTICE",

@@ -188,7 +188,6 @@ VLCPlayer.propTypes = {
   onPlaying: PropTypes.func,
   onLoad: PropTypes.func,
   onRecordingCreated: PropTypes.func,
-  onSnapshot: PropTypes.func,
   scaleX: PropTypes.number,
   scaleY: PropTypes.number,
   translateX: PropTypes.number,

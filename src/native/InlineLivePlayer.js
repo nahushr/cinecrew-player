@@ -18,6 +18,124 @@ function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
 }
 
+function createInlinePlatformPlayer({
+  shouldRenderVideo,
+  streamUrl,
+  source,
+  muted,
+  paused,
+  volume,
+  title,
+  vlcSource,
+  onPlaying,
+  onError,
+}) {
+  if (!shouldRenderVideo || !streamUrl) return null;
+
+  const commonProps = {
+    streamUrl,
+    isLive: true,
+    paused,
+    muted,
+    volume: 100,
+    onPlaying,
+    onError,
+  };
+  if (isElectron()) return React.createElement(ElectronVideoPlayer, commonProps);
+  if (isWeb()) return React.createElement(WebVideoPlayer, { ...commonProps, title });
+  if (!isAndroid() && !isIOS()) return null;
+
+  return React.createElement(VLCPlayer, {
+    key: streamUrl,
+    style: styles.video,
+    source: vlcSource || source,
+    autoplay: true,
+    paused,
+    muted: false,
+    volume: muted ? 0 : 100,
+    autoAspectRatio: true,
+    videoAspectRatio: 'FIT_SCREEN',
+    onPlaying,
+    onVLCPlaying: onPlaying,
+    onOpen: onPlaying,
+    onError,
+    onVLCError: onError,
+  });
+}
+
+function InlineControlButton({
+  controlName,
+  actionName,
+  label,
+  icon,
+  fallback,
+  payload,
+  active,
+  controls,
+  actions,
+  palette,
+}) {
+  if (controls[controlName] === false) return null;
+  return React.createElement(Pressable, {
+    key: controlName,
+    accessibilityRole: 'button',
+    accessibilityLabel: label,
+    onPress: () => {
+      const callback = actions?.[actionName];
+      if (typeof callback === 'function') callback(payload, { player: null });
+      else fallback?.();
+    },
+    style: [styles.button, { backgroundColor: palette.controlBackground }, active && { borderColor: palette.accentColor, borderWidth: 1 }],
+  }, React.createElement(PlayerIcon, { name: icon, size: 19, color: palette.controlColor }));
+}
+
+function InlinePlayerOverlay({
+  showControls,
+  controls,
+  palette,
+  title,
+  muted,
+  paused,
+  source,
+  fullscreen,
+  onToggleControls,
+  onMute,
+  onPlay,
+  onFullscreen,
+}) {
+  const button = (controlName, actionName, label, icon, fallback, payload, active = false) => React.createElement(InlineControlButton, {
+    key: controlName,
+    controlName,
+    actionName,
+    label,
+    icon,
+    fallback,
+    payload,
+    active,
+    controls,
+    actions: controls.actions || {},
+    palette,
+  });
+
+  return React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
+    React.createElement(Pressable, {
+      style: StyleSheet.absoluteFill,
+      onPress: onToggleControls,
+      accessibilityLabel: showControls ? 'Hide video controls' : 'Show video controls',
+    }),
+    showControls ? React.createElement(React.Fragment, null,
+      React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
+      React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')),
+      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
+      button('mute', 'onMute', muted ? 'Unmute' : 'Mute', muted ? 'volume-off' : 'volume-high', onMute, { muted: !muted }),
+      ),
+      React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
+      button('playPause', 'onPlayPause', paused ? 'Play' : 'Pause', paused ? 'play' : 'pause', onPlay, { isPlaying: !paused })),
+      React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
+      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
+      button('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
+}
+
 function InlineLivePlayerView({
   source,
   url,
@@ -139,63 +257,17 @@ function InlineLivePlayerView({
     mediaOptions: sourceObject.mediaOptions || nativeMediaOptions,
   }), [sourceObject, streamUrl, nativeMediaOptions]);
 
-  let player = null;
-  if (shouldRenderVideo && streamUrl) {
-    if (isElectron()) {
-      player = React.createElement(ElectronVideoPlayer, {
-        streamUrl,
-        isLive: true,
-        paused: pausedNow,
-        muted,
-        volume: 100,
-        onPlaying: handlePlaying,
-        onError: handleError,
-      });
-    } else if (isWeb()) {
-      player = React.createElement(WebVideoPlayer, {
-        streamUrl,
-        title,
-        isLive: true,
-        paused: pausedNow,
-        muted,
-        volume: 100,
-        onPlaying: handlePlaying,
-        onError: handleError,
-      });
-    } else if (isAndroid() || isIOS()) {
-      player = React.createElement(VLCPlayer, {
-        key: streamUrl,
-        style: styles.video,
-        source: vlcSource,
-        autoplay: true,
-        paused: pausedNow,
-        muted: false,
-        volume: muted ? 0 : 100,
-        autoAspectRatio: true,
-        videoAspectRatio: 'FIT_SCREEN',
-        onPlaying: handlePlaying,
-        onVLCPlaying: handlePlaying,
-        onOpen: handlePlaying,
-        onError: handleError,
-        onVLCError: handleError,
-      });
-    }
-  }
-
-  const controlButton = (controlName, actionName, label, icon, fallback, payload, active = false) => {
-    if (controls[controlName] === false) return null;
-    return React.createElement(Pressable, {
-      key: controlName,
-      accessibilityRole: 'button',
-      accessibilityLabel: label,
-      onPress: () => {
-        const callback = actions?.[actionName];
-        if (typeof callback === 'function') callback(payload, { player: null });
-        else fallback?.();
-      },
-      style: [styles.button, { backgroundColor: palette.controlBackground }, active && { borderColor: palette.accentColor, borderWidth: 1 }],
-    }, React.createElement(PlayerIcon, { name: icon, size: 19, color: palette.controlColor }));
-  };
+  const player = createInlinePlatformPlayer({
+    shouldRenderVideo,
+    streamUrl,
+    source: sourceObject,
+    muted,
+    paused: pausedNow,
+    title,
+    vlcSource,
+    onPlaying: handlePlaying,
+    onError: handleError,
+  });
 
   return React.createElement(
     PlayerCustomizationProvider,
@@ -206,25 +278,20 @@ function InlineLivePlayerView({
       !shouldRenderVideo && !artwork ? React.createElement(View, { style: styles.emptyPoster }, React.createElement(PlayerIcon, { name: 'television-play', size: 48, color: palette.accentColor })) : null,
       shouldRenderVideo && loading && !error ? React.createElement(View, { pointerEvents: 'none', style: styles.loading }, React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor })) : null,
       error ? React.createElement(View, { pointerEvents: 'none', style: styles.error }, React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error)) : null,
-      React.createElement(Pressable, {
-        style: StyleSheet.absoluteFill,
-        onPress: () => setShowControls((value) => !value),
-        accessibilityLabel: showControls ? 'Hide video controls' : 'Show video controls',
+      React.createElement(InlinePlayerOverlay, {
+        showControls,
+        controls: { ...controls, actions },
+        palette,
+        title,
+        muted,
+        paused: pausedNow,
+        source: streamUrl,
+        fullscreen,
+        onToggleControls: () => setShowControls((value) => !value),
+        onMute: toggleMute,
+        onPlay: togglePlay,
+        onFullscreen: openFullscreen,
       }),
-      showControls ? React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
-        React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
-          React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')),
-          React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
-          controlButton('mute', 'onMute', muted ? 'Unmute' : 'Mute', muted ? 'volume-off' : 'volume-high', toggleMute, { muted: !muted }),
-        ),
-        React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
-          controlButton('playPause', 'onPlayPause', pausedNow ? 'Play' : 'Pause', pausedNow ? 'play' : 'pause', togglePlay, { isPlaying: pausedNow }),
-        ),
-        React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
-          React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
-          controlButton('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', openFullscreen, { source: streamUrl, title }),
-        ),
-      ) : null,
     ),
   );
 }

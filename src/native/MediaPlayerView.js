@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerIcon } from './customization';
 import { isWeb, isAndroid, isElectron } from '../utils/runtimePlatform';
 import { getFontSize, getFontWeight } from '../utils/layoutUtils';
-import { cleanPlayerTitle, isLocalMediaUri } from '../utils/mediaUtils';
+import { isLocalMediaUri } from '../utils/mediaUtils';
 import {
   USER_AGENT,
   calculateScreenAspectRatio,
@@ -97,6 +97,12 @@ const scheduleNativeVolumeFrame = (callback) => ({
 // choose Fill Screen from the player controls when they explicitly want crop.
 const DEFAULT_ASPECT_RATIO = 'FIT';
 
+function getPanelActionName(tab) {
+  if (tab === 'chat') return 'onLiveChatOpen';
+  if (tab === 'epg') return 'onEpgOpen';
+  return 'onDiagnosticsOpen';
+}
+
 export const MediaPlayerView = ({
   visible,
   streamUrl,
@@ -150,7 +156,7 @@ export const MediaPlayerView = ({
   onPlaybackRoute,
 }) => {
   colors = theme?.colors || (theme ? {
-    ...(colors || {}),
+    ...colors,
     mode: theme.mode || colors?.mode,
     brandAccent: theme.accentColor || theme.brandAccent || colors?.brandAccent,
     primary: theme.accentColor || theme.primary || colors?.primary,
@@ -1303,7 +1309,7 @@ export const MediaPlayerView = ({
     return invokeAction(name, fallback, { title, streamUrl, mediaId });
   }, [invokeAction, title, streamUrl, mediaId]);
   const handlePanelAction = useCallback((tab) => invokeAction(
-    tab === 'chat' ? 'onLiveChatOpen' : tab === 'epg' ? 'onEpgOpen' : 'onDiagnosticsOpen',
+    getPanelActionName(tab),
     () => {
       if (showLiveChat && drawerTab === tab) setShowLiveChat(false);
       else { setDrawerTab(tab); setShowLiveChat(true); }
@@ -1386,10 +1392,9 @@ export const MediaPlayerView = ({
     }, 2500);
   }, [activateNativeAudioFallback, clearBufferingIndicator, onError]);
 
-  const handlePlaybackRoute = (url) => {
-    const resolvedUrl = url || '';
-    setPlaybackUrl(resolvedUrl);
-    onPlaybackRoute?.(resolvedUrl);
+  const handlePlaybackRoute = (url = '') => {
+    setPlaybackUrl(url);
+    onPlaybackRoute?.(url);
   };
 
   const windowWidthRef = useRef(windowWidth);

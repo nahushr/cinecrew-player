@@ -1,0 +1,67 @@
+name: Pull Request Build and Quality Gates
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-main-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  platform-build:
+    name: Build package and platform demos
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install package dependencies
+        run: npm ci
+
+      - name: Run package tests and type checks
+        run: |
+          npm test
+          npm run check:types
+          npm pack --dry-run
+
+      - name: Install React web demo dependencies
+        run: npm ci --prefix examples/web-demo
+
+      - name: Build React web renderer
+        run: npm run build --prefix examples/web-demo
+
+      - name: Build Electron renderer entry
+        run: npm run build:electron --prefix examples/web-demo
+
+      - name: Install Expo demo dependencies
+        run: npm ci --prefix examples/expo-web-demo
+
+      - name: Build Expo Web bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform web --output-dir dist-web
+
+      - name: Build React Native Android bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform android --output-dir dist-android
+
+      - name: Build React Native iOS bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform ios --output-dir dist-ios
+
+  quality-gates:
+    name: Sonar, Snyk, and Checkstyle
+    needs: platform-build
+    uses: ./.github/workflows/quality-gates.yml
+    secrets: inherit

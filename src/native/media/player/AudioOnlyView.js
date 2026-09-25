@@ -4,6 +4,28 @@ import { isAndroid, isIOS, isWeb } from '../../../utils/runtimePlatform';
 import { cleanPlayerTitle } from '../../../utils/mediaUtils';
 import { PlayerIcon, usePlayerColors } from '../../customization';
 
+function shouldDisplayEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
+  if (isMobile || !episodeLabel) return false;
+  const episode = episodeLabel.trim().toLowerCase();
+  const title = displayTitle.toLowerCase();
+  return Boolean(episode && title !== episode && !title.includes(episode));
+}
+
+function AudioArtwork({ posterUrl, isLandscape, palette }) {
+  if (posterUrl) {
+    return (
+      <View style={[styles.audioOnlyPosterWrap, isLandscape && styles.audioOnlyPosterWrapLandscape]}>
+        <Image source={{ uri: posterUrl }} style={styles.audioOnlyPoster} resizeMode="cover" />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.audioOnlyIconWrap, isLandscape && styles.audioOnlyIconWrapLandscape]}>
+      <PlayerIcon name="headphones" size={isLandscape ? 36 : 54} color={palette.accentColor} />
+    </View>
+  );
+}
+
 export const AudioOnlyView = ({
   posterUrl,
   title,
@@ -22,16 +44,10 @@ export const AudioOnlyView = ({
     return cleanPlayerTitle(title, episodeLabel, isMobile);
   }, [title, episodeLabel, isMobile]);
 
-  const showEpisodeSubtitle = useMemo(() => {
-    if (isMobile) return false;
-    if (!episodeLabel) return false;
-    const ep = episodeLabel.trim();
-    if (!ep) return false;
-    if (displayTitle.toLowerCase() === ep.toLowerCase() || displayTitle.toLowerCase().includes(ep.toLowerCase())) {
-      return false;
-    }
-    return true;
-  }, [isMobile, episodeLabel, displayTitle]);
+  const showEpisodeSubtitle = useMemo(
+    () => shouldDisplayEpisodeSubtitle(isMobile, episodeLabel, displayTitle),
+    [isMobile, episodeLabel, displayTitle],
+  );
 
   return (
     <View style={[styles.audioOnlyContainer, { backgroundColor: palette.backgroundColor }]} pointerEvents="auto">
@@ -47,15 +63,7 @@ export const AudioOnlyView = ({
       <View style={styles.audioOnlyBackdropDim} pointerEvents="none" />
 
       <View style={[styles.audioOnlyCard, isLandscape && styles.audioOnlyCardLandscape, { backgroundColor: palette.surfaceColor, borderColor: palette.accentColor }]} pointerEvents="auto">
-        {posterUrl ? (
-          <View style={[styles.audioOnlyPosterWrap, isLandscape && styles.audioOnlyPosterWrapLandscape]}>
-            <Image source={{ uri: posterUrl }} style={styles.audioOnlyPoster} resizeMode="cover" />
-          </View>
-        ) : (
-          <View style={[styles.audioOnlyIconWrap, isLandscape && styles.audioOnlyIconWrapLandscape]}>
-            <PlayerIcon name="headphones" size={isLandscape ? 36 : 54} color={palette.accentColor} />
-          </View>
-        )}
+        <AudioArtwork posterUrl={posterUrl} isLandscape={isLandscape} palette={palette} />
 
         <View style={[styles.soundWaveRow, isLandscape && styles.soundWaveRowLandscape]}>
           <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim1 : styles.soundWaveBarStatic]} />

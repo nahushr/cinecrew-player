@@ -450,19 +450,29 @@ class ReactVlcPlayerView extends TextureView
           }
 
           @Override
-          public void onDisplay(Dialog.ErrorMessage dialog) {}
+          public void onDisplay(Dialog.ErrorMessage dialog) {
+            // VLC's default error dialog behavior is intentionally retained.
+          }
 
           @Override
-          public void onDisplay(Dialog.LoginDialog dialog) {}
+          public void onDisplay(Dialog.LoginDialog dialog) {
+            // VLC's default login dialog behavior is intentionally retained.
+          }
 
           @Override
-          public void onDisplay(Dialog.ProgressDialog dialog) {}
+          public void onDisplay(Dialog.ProgressDialog dialog) {
+            // VLC's default progress dialog behavior is intentionally retained.
+          }
 
           @Override
-          public void onCanceled(Dialog dialog) {}
+          public void onCanceled(Dialog dialog) {
+            // There is no app-side state to restore when VLC cancels a dialog.
+          }
 
           @Override
-          public void onProgressUpdate(Dialog.ProgressDialog dialog) {}
+          public void onProgressUpdate(Dialog.ProgressDialog dialog) {
+            // VLC owns progress presentation; no bridge update is needed here.
+          }
         });
   }
 
@@ -483,7 +493,12 @@ class ReactVlcPlayerView extends TextureView
         isNetwork
             || (uriString != null
                 && (uriString.startsWith("file://") || uriString.startsWith("content://")));
-    Media media = useUri ? new Media(libvlc, Uri.parse(uriString)) : new Media(libvlc, uriString);
+    Media media;
+    if (useUri) {
+      media = new Media(libvlc, Uri.parse(uriString));
+    } else {
+      media = new Media(libvlc, uriString);
+    }
     applyHardwareDecoder(media);
     for (String option : getStringOptions("mediaOptions")) {
       media.addOption(option);
