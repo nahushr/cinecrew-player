@@ -8,8 +8,8 @@ export const sampleSources = [
   {
     id: 'ts',
     label: 'MPEG-TS',
-    title: 'Sample MPEG-TS video',
-    url: 'https://filesamples.com/samples/video/ts/sample_640x360.ts',
+    title: 'Local MPEG-TS fixture',
+    url: '/cinecrew-mpegts-fixture.ts',
     type: 'mpegts',
   },
   {
