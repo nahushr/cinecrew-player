@@ -244,16 +244,6 @@ export const WebVideoPlayer = forwardRef(({
           playsInline
           controls={false}
           style={videoStyle}
-          {captions.map((caption, index) => (
-            <track
-              key={caption.id || caption.src || index}
-              kind="captions"
-              src={caption.src}
-              srcLang={caption.language || 'und'}
-              label={caption.label || caption.language || `Caption ${index + 1}`}
-              default={Boolean(caption.default)}
-            />
-          ))}
           onPlaying={() => {
             const video = videoRef.current;
             reportPlaybackRoute(video, activeUrl);
@@ -296,6 +286,16 @@ export const WebVideoPlayer = forwardRef(({
             });
           }}
         >
+          {captions.map((caption, index) => (
+            <track
+              key={caption.id || caption.src || index}
+              kind="captions"
+              src={caption.src}
+              srcLang={caption.language || 'und'}
+              label={caption.label || caption.language || `Caption ${index + 1}`}
+              default={Boolean(caption.default)}
+            />
+          ))}
         </video>
       ) : null}
     </View>
