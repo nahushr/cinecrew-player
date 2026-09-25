@@ -1,7 +1,7 @@
 const { withDangerousMod } = require("@expo/config-plugins");
 const generateCode = require("@expo/config-plugins/build/utils/generateCode");
-const path = require("path");
-const fs = require("fs");
+const path = require("node:path");
+const fs = require("node:fs");
 
 const withMobileVlcKit = (config, options) => {
     // No need if you are running RN 0.61 and up
@@ -20,7 +20,7 @@ const withMobileVlcKit = (config, options) => {
                 tag: "withVlcMediaPlayer",
                 src: contents,
                 newSrc: "  pod 'MobileVLCKit', '3.3.10'",
-                anchor: /use\_expo\_modules\!/i,
+                anchor: /use_expo_modules!/i,
                 offset: 3,
                 comment: "  #",
             });

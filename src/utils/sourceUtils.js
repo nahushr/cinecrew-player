@@ -18,13 +18,13 @@ export function getYouTubeVideoId(source) {
     const parsed = new URL(raw);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     if (host === 'youtu.be') {
-      const id = parsed.pathname.split('/').filter(Boolean)[0];
+      const id = parsed.pathname.split('/').find(Boolean);
       return isValidId(id) ? id : null;
     }
     if (host !== 'youtube.com' && host !== 'youtube-nocookie.com' && host !== 'm.youtube.com') return null;
     const queryId = parsed.searchParams.get('v');
     if (isValidId(queryId)) return queryId;
-    const match = parsed.pathname.match(/^\/(?:embed|shorts|live)\/([\w-]{11})/);
+    const match = /^\/(?:embed|shorts|live)\/([\w-]{11})/.exec(parsed.pathname);
     return isValidId(match?.[1]) ? match[1] : null;
   } catch {
     return null;

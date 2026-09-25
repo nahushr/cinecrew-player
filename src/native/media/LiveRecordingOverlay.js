@@ -21,7 +21,6 @@ function formatRecElapsed(elapsedMs = 0) {
 }
 
 function resolveTheme(colors) {
-  const mode = colors?.mode === 'light' ? 'light' : 'dark';
   const palette = colors?.onSurfacePrimary ? colors : DEFAULT_DARK_PALETTE;
   const isLight = palette.mode === 'light';
   return {

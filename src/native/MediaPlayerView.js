@@ -47,6 +47,28 @@ const clampNumber = (value, min, max, fallback) => {
 const normalizeBrightness = (value) => Number(clampNumber(value, 0.1, 1, 1).toFixed(2));
 const normalizeVolume = (value) => Math.round(clampNumber(value, 0, 100, 100));
 
+function pickShuffleCandidate(candidates, season, episode) {
+  if (candidates.length < 2) return candidates[0] || null;
+
+  const cryptoProvider = globalThis.crypto;
+  if (typeof cryptoProvider?.getRandomValues === 'function') {
+    try {
+      const randomValue = new Uint32Array(1);
+      cryptoProvider.getRandomValues(randomValue);
+      return candidates[randomValue[0] % candidates.length];
+    } catch {
+      // The fallback only selects an episode; it is not used for security tokens.
+    }
+  }
+
+  const seed = `${season ?? ''}:${episode ?? ''}:${Date.now()}`;
+  let hash = 2166136261;
+  for (const character of seed) {
+    hash = Math.imul(hash ^ character.codePointAt(0), 16777619);
+  }
+  return candidates[(hash >>> 0) % candidates.length];
+}
+
 // Gesture events can arrive much faster than the native player can consume
 // volume updates. Coalesce them to display-rate updates for the UI and a
 // slower native volume cadence so a drag stays smooth without audio crackle.
@@ -906,7 +928,7 @@ export const MediaPlayerView = ({
     if (shuffle) {
       const candidates = eps.filter((p) => !(p.season === curSeason && p.episode === curEp));
       if (candidates.length === 0) return;
-      next = candidates[Math.floor(Math.random() * candidates.length)];
+      next = pickShuffleCandidate(candidates, curSeason, curEp);
     } else {
       const idx = eps.findIndex((p) => p.season === curSeason && p.episode === curEp);
       next = idx >= 0 ? eps[idx + 1] : null;

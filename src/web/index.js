@@ -1,13 +1,10 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
 import { YouTubeVideoPlayer } from '../native/media/YouTubeVideoPlayer.web.js';
 import { getYouTubeVideoId, getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
-import {
-  WEB_AC3_UNSUPPORTED_MESSAGE,
-} from '../native/media/web/webPlaybackErrors';
 import './styles.css';
 
 const h = React.createElement;
@@ -238,7 +235,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     playbackRate: playbackRateProp = 1,
     paused: pausedProp,
     controls: controlOverrides = {},
-    features = {},
     actions = {},
     theme: themeProp = {},
     icons = {},
@@ -335,7 +331,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     }
     if (!streamUrl) {
       setBuffering(Boolean(resolution.loading));
-      return;
     }
   }, [streamUrl, resolution.loading, resolution.error, handleError]);
 
@@ -384,7 +379,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
   });
-  const ac3 = useWebAc3AudioPlayback({
+  useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
     streamUrl,
     enabled: !muted && !videoOnly,

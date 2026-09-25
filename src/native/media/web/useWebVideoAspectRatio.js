@@ -8,10 +8,7 @@ export function useWebVideoAspectRatio(videoAspectRatio, audioOnly) {
   const [aspectRatioVal, setAspectRatioVal] = useState(undefined);
 
   const applyAspectRatio = useCallback((aspect) => {
-    if (!aspect || aspect === 'FIT' || aspect === 'FIT_SCREEN') {
-      setAspectFit('contain');
-      setAspectRatioVal(undefined);
-    } else if (aspect === 'FILL_SCREEN' || aspect === 'FILL') {
+    if (aspect === 'FILL_SCREEN' || aspect === 'FILL') {
       setAspectFit('cover');
       setAspectRatioVal(undefined);
     } else if (aspect === 'STRETCH') {
@@ -34,32 +31,17 @@ export function useWebVideoAspectRatio(videoAspectRatio, audioOnly) {
     applyAspectRatio(videoAspectRatio);
   }, [videoAspectRatio, applyAspectRatio]);
 
-  let videoStyle = {
-    width: '100%',
-    height: '100%',
-    objectFit: aspectFit,
+  const useCustomRatio = Boolean(aspectRatioVal) && !audioOnly;
+  const videoStyle = {
+    width: useCustomRatio ? 'auto' : '100%',
+    height: useCustomRatio ? 'auto' : '100%',
+    ...(useCustomRatio
+      ? { maxWidth: '100%', maxHeight: '100%', aspectRatio: aspectRatioVal }
+      : {}),
+    objectFit: useCustomRatio ? 'contain' : aspectFit,
     backgroundColor: '#000',
+    ...(audioOnly ? { opacity: 0 } : {}),
   };
-
-  if (audioOnly) {
-    videoStyle = {
-      width: '100%',
-      height: '100%',
-      objectFit: aspectFit,
-      backgroundColor: '#000',
-      opacity: 0,
-    };
-  } else if (aspectRatioVal) {
-    videoStyle = {
-      width: 'auto',
-      height: 'auto',
-      maxWidth: '100%',
-      maxHeight: '100%',
-      aspectRatio: aspectRatioVal,
-      objectFit: 'contain',
-      backgroundColor: '#000',
-    };
-  }
 
   return {
     aspectFit,

@@ -6,15 +6,9 @@ import {
   StyleSheet,
   Text,
   View,
-  Dimensions,
   TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-// import Slider from 'react-native-slider';
-import PropTypes from 'prop-types';
-import TimeLimt from './TimeLimit';
 
 export default class ControlBtn extends Component {
   static defaultProps = {
@@ -24,50 +18,15 @@ export default class ControlBtn extends Component {
     showRightButton: true
   }
 
-  _getTime = (data = 0) => {
-    let hourCourse = Math.floor(data / 3600);
-    let diffCourse = data % 3600;
-    let minCourse = Math.floor(diffCourse / 60);
-    let secondCourse = Math.floor(diffCourse % 60);
-    let courseReal = '';
-    if (hourCourse) {
-      if (hourCourse < 10) {
-        courseReal += '0' + hourCourse + ':';
-      } else {
-        courseReal += hourCourse + ':';
-      }
-    }
-    if (minCourse < 10) {
-      courseReal += '0' + minCourse + ':';
-    } else {
-      courseReal += minCourse + ':';
-    }
-    if (secondCourse < 10) {
-      courseReal += '0' + secondCourse;
-    } else {
-      courseReal += secondCourse;
-    }
-    return courseReal;
-  };
-
   render() {
     let {
       paused,
       isFull,
-      showGG,
-      showSlider,
       showGoLive,
       onGoLivePress,
       onReplayPress,
       onPausedPress,
       onFullPress,
-      onValueChange,
-      onSlidingComplete,
-      currentTime,
-      totalTime,
-      onLeftPress,
-      title,
-      onEnd,
       titleGolive,
       showLeftButton,
       showMiddleButton,
@@ -84,9 +43,7 @@ export default class ControlBtn extends Component {
                   showLeftButton ? (
                     <TouchableOpacity
                       activeOpacity={1}
-                      onPress={() => {
-                        onReplayPress && onReplayPress();
-                      }}
+                      onPress={() => onReplayPress?.()}
                       style={{ width: 50, alignItems: 'center', justifyContent: 'center' }}>
                       <Icon name={'replay'} size={30} color="#fff" />
                     </TouchableOpacity>
@@ -100,59 +57,17 @@ export default class ControlBtn extends Component {
                 showMiddleButton && (
                   <TouchableOpacity
                     activeOpacity={1}
-                    onPress={() => {
-                      onPausedPress && onPausedPress(!paused);
-                    }}
+                    onPress={() => onPausedPress?.(!paused)}
                     style={{ width: 50, alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name={paused ? 'play' : 'pause'} size={30} color="#fff" />
                   </TouchableOpacity>
                 )
               }
 
-              {/* {showSlider && totalTime > 0 &&(
-                <View
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    flexDirection: 'row',
-                    //justifyContent: 'space-between',
-                  }}>
-                  <View style={{justifyContent:'center',alignItems:'center',height:50, minWidth: 50,}}>
-                    <Text style={{fontSize: 11,color: '#fff',}}>
-                      {this._getTime(currentTime) || 0}
-                    </Text>
-                  </View>
-                  <View style={styles.progress}>
-                    <Slider
-                      minimumTrackTintColor="#30a935"
-                      thumbStyle={styles.thumb}
-                      style={{ width: '100%' }}
-                      value={currentTime}
-                      maximumValue={totalTime}
-                      step={1}
-                      onValueChange={value => {
-                        onValueChange && onValueChange(value);
-                      }}
-                      onSlidingComplete={value => {
-                        onSlidingComplete && onSlidingComplete(value);
-                      }}
-                    />
-                  </View>
-                  <View style={{justifyContent:'center',alignItems:'center',height:50, minWidth: 50}}>
-                  <Text
-                    style={{fontSize: 11,color: '#fff'}}>
-                    {this._getTime(totalTime) || 0}
-                  </Text>
-                  </View>
-                </View>
-              )} */}
-
               <View style={styles.right}>
                 <TouchableOpacity
                   activeOpacity={1}
-                  onPress={() => {
-                    onGoLivePress && onGoLivePress();
-                  }}>
+                  onPress={() => onGoLivePress?.()}>
                   <Text
                     style={{ fontSize: 11, color: '#fff' }}>{showGoLive ? titleGolive : '       '}</Text>
                 </TouchableOpacity>
@@ -160,9 +75,7 @@ export default class ControlBtn extends Component {
                   showRightButton ? (
                     <TouchableOpacity
                       activeOpacity={1}
-                      onPress={() => {
-                        onFullPress && onFullPress(!isFull);
-                      }}
+                      onPress={() => onFullPress?.(!isFull)}
                       style={{ width: 50, alignItems: 'center', justifyContent: 'center' }}>
                       <Icon name={isFull ? 'fullscreen-exit' : 'fullscreen'} size={30} color="#fff" />
                     </TouchableOpacity>

@@ -9,9 +9,6 @@ import {
   Dimensions,
   TouchableOpacity,
   ActivityIndicator,
-  StatusBar,
-  BackHandler,
-  Modal,
   Platform,
 } from 'react-native';
 import VLCPlayer from '../VLCPlayer';
@@ -23,9 +20,25 @@ import { getStatusBarHeight } from './SizeController';
 const statusBarHeight = getStatusBarHeight();
 let deviceHeight = Dimensions.get('window').height;
 let deviceWidth = Dimensions.get('window').width;
+
+function getLoadingState({ isLoading, loadingSuccess, isGG, type }) {
+  const isIosFlash = Platform.OS === 'ios' && type === 'swf';
+  return {
+    showGG: isGG && (loadingSuccess || isIosFlash),
+    showLoading: isLoading && !isIosFlash,
+  };
+}
+
 export default class VLCPlayerView extends Component {
   static propTypes = {
     uri: PropTypes.string,
+    initPaused: PropTypes.bool,
+    source: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    seek: PropTypes.number,
+    playInBackground: PropTypes.bool,
+    isGG: PropTypes.bool,
+    autoplay: PropTypes.bool,
+    errorTitle: PropTypes.string,
   };
 
   constructor(props) {
@@ -42,7 +55,6 @@ export default class VLCPlayerView extends Component {
       isError: false,
     };
     this.touchTime = 0;
-    this.changeUrl = false;
     this.isEnding = false;
     this.reloadSuccess = false;
   }
@@ -66,19 +78,13 @@ export default class VLCPlayerView extends Component {
   }
 
   componentWillUnmount() {
-    this.vlcPlayer._onStopped()
+    this.vlcPlayer?._onStopped?.();
 
     if (this.bufferInterval) {
       clearInterval(this.bufferInterval);
       this.bufferInterval = null;
     }
 
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    if (this.props.uri !== prevProps.uri) {
-      this.changeUrl = true;
-    }
   }
 
   render() {
@@ -106,46 +112,23 @@ export default class VLCPlayerView extends Component {
       errorTitle
     } = this.props;
     let { isLoading, loadingSuccess, showControls, isError } = this.state;
-    let showGG = false;
-    let realShowLoding = false;
-    let source = {};
-    if (uri) {
-      if (uri.split) {
-        source = { uri: this.props.uri };
-      } else {
-        source = uri;
-      }
-    }
-    if (Platform.OS === 'ios') {
-      if ((loadingSuccess && isGG) || (isGG && type === 'swf')) {
-        showGG = true;
-      }
-      if (isLoading && type !== 'swf') {
-        realShowLoding = true;
-      }
-    } else {
-      if (loadingSuccess && isGG) {
-        showGG = true;
-      }
-      if (isLoading) {
-        realShowLoding = true;
-      }
-    }
+    const source = typeof uri === 'string' ? { uri } : uri || {};
+    const { showGG, showLoading: realShowLoding } = getLoadingState({
+      isLoading,
+      loadingSuccess,
+      isGG,
+      type,
+    });
 
     return (
       <TouchableOpacity
         activeOpacity={1}
         style={[styles.videoBtn, style]}
         onPressOut={() => {
-          let currentTime = new Date().getTime();
-          if (this.touchTime === 0) {
-            this.touchTime = currentTime;
-            this.setState({ showControls: !this.state.showControls });
-          } else {
-            if (currentTime - this.touchTime >= 500) {
+          const currentTime = Date.now();
+          if (this.touchTime === 0 || currentTime - this.touchTime >= 500) {
               this.touchTime = currentTime;
-              this.setState({ showControls: !this.state.showControls });
-            }
+              this.setState(({ showControls }) => ({ showControls: !showControls }));
           }
         }}>
         <VLCPlayer
@@ -165,7 +148,6 @@ export default class VLCPlayerView extends Component {
           progressUpdateInterval={250}
           onError={this._onError}
           // onError={this.onError.bind(this)}
-          onOpen={this._onOpen}
           onLoadStart={this._onLoadStart}
         />
         {realShowLoding &&
@@ -196,9 +178,9 @@ export default class VLCPlayerView extends Component {
               <TouchableOpacity
                 onPress={() => {
                   if (isFull) {
-                    closeFullScreen && closeFullScreen();
+                    closeFullScreen?.();
                   } else {
-                    onLeftPress && onLeftPress();
+                    onLeftPress?.();
                   }
                 }}
                 style={styles.btn}
@@ -218,7 +200,7 @@ export default class VLCPlayerView extends Component {
               <View style={styles.GG}>
                 <TimeLimt
                   onEnd={() => {
-                    onEnd && onEnd();
+                    onEnd?.();
                   }}
                 //maxTime={Math.ceil(this.state.totalTime)}
                 />
@@ -301,14 +283,14 @@ export default class VLCPlayerView extends Component {
       isLoading: true,
       isError: false,
     });
-    this.bufferTime = new Date().getTime();
+    this.bufferTime = Date.now();
     if (!this.bufferInterval) {
       this.bufferInterval = setInterval(this.bufferIntervalFunction, 250);
     }
   }
 
   bufferIntervalFunction = () => {
-    let currentTime = new Date().getTime();
+    const currentTime = Date.now();
     let diffTime = currentTime - this.bufferTime;
     if (diffTime > 1000) {
       clearInterval(this.bufferInterval);
@@ -327,16 +309,13 @@ export default class VLCPlayerView extends Component {
   _onError = e => {
     // [bavv add start]
     let { onVLCError, onError } = this.props;
-    onVLCError && onVLCError();
+    onVLCError?.();
     // [bavv add end]
     this.reloadSuccess = false;
     this.setState({
       isError: true,
     });
-    onError&&onError()
-  };
-
-  _onOpen = e => {
+    onError?.();
   };
 
   _onLoadStart = e => {
@@ -345,9 +324,9 @@ export default class VLCPlayerView extends Component {
       this.reloadSuccess = true;
       let { currentTime, totalTime } = this.state;
       if (Platform.OS === 'ios') {
-        this.vlcPlayer.seek(Number((currentTime / totalTime).toFixed(17)));
-      } else {
-        this.vlcPlayer.seek(currentTime);
+      this.vlcPlayer?.seek?.(Number((currentTime / totalTime).toFixed(17)));
+    } else {
+      this.vlcPlayer?.seek?.(currentTime);
       }
       this.setState({
         paused: true,
@@ -358,7 +337,7 @@ export default class VLCPlayerView extends Component {
         });
       })
     } else {
-      this.vlcPlayer.seek(0);
+      this.vlcPlayer?.seek?.(0);
       this.setState({
         isLoading: true,
         isError: false,
@@ -376,7 +355,7 @@ export default class VLCPlayerView extends Component {
 
   _reload = () => {
     if (!this.reloadSuccess) {
-      this.vlcPlayer.resume && this.vlcPlayer.resume(false);
+      this.vlcPlayer?.resume?.(false);
     }
   };
 
@@ -420,8 +399,8 @@ export default class VLCPlayerView extends Component {
   onEnded(event) {
     let { currentTime, totalTime } = this.state;
     // [bavv add start]
-    let { onVLCEnded, onEnd, autoplay, isGG } = this.props;
-    onVLCEnded && onVLCEnded();
+    let { onVLCEnded, onEnd, isGG } = this.props;
+    onVLCEnded?.();
     // [bavv add end]
     if (((currentTime + 5) >= totalTime && totalTime > 0) || isGG) {
       this.setState(
@@ -431,10 +410,9 @@ export default class VLCPlayerView extends Component {
         },
         () => {
           if (!this.isEnding) {
-            onEnd && onEnd();
+            onEnd?.();
             if (!isGG) {
-              this.vlcPlayer.resume && this.vlcPlayer.resume(false);
-            } else {
+              this.vlcPlayer?.resume?.(false);
             }
             this.isEnding = true;
           }
@@ -462,9 +440,9 @@ export default class VLCPlayerView extends Component {
   _toFullScreen = () => {
     let { startFullScreen, closeFullScreen, isFull } = this.props;
     if (isFull) {
-      closeFullScreen && closeFullScreen();
+      closeFullScreen?.();
     } else {
-      startFullScreen && startFullScreen();
+      startFullScreen?.();
     }
   };
 
@@ -473,7 +451,7 @@ export default class VLCPlayerView extends Component {
    * @private
    */
   _play = () => {
-    this.setState({ paused: !this.state.paused });
+    this.setState(({ paused }) => ({ paused: !paused }));
   };
 }
 

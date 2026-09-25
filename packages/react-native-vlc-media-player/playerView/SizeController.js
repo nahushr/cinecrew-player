@@ -29,9 +29,7 @@ if (deviceWidth > 375 && deviceWidth <= 1125 / 2) {
 }
 if (Platform.OS !== 'ios') {
   statusBarHeight = 20;
-  if (deviceWidth > 375 && deviceWidth <= 1125 / 2) {
-    statusBarHeight = 25;
-  } else if (deviceWidth > 1125 / 2 && deviceWidth < 812) {
+  if (deviceWidth > 375 && deviceWidth < 812) {
     statusBarHeight = 25;
   }
   if (StatusBar.currentHeight) {
@@ -71,11 +69,7 @@ export function getTabBarHeight() {
  *
  */
 export function getTopHeight() {
-  if (Platform.OS === 'ios') {
-    return topBarHeight + statusBarHeight;
-  } else {
-    return topBarHeight + statusBarHeight;
-  }
+  return topBarHeight + statusBarHeight;
 }
 /**
  * 返回变更比例

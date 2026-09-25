@@ -6,32 +6,20 @@ let backFunctionKeys = [];
 let backFunctionsMap = new Map();
 
 function removeIndex(array, index) {
-  let newArray = [];
-  for (let i = 0; i < array.length; i++) {
-    if (i !== index) {
-      newArray.push(array[i]);
-    }
-  }
-  return newArray;
+  return array.filter((_, itemIndex) => itemIndex !== index);
 }
 
 function removeKey(array, key) {
-  let newArray = [];
-  for (let i = 0; i < array.length; i++) {
-    if (array[i] !== key) {
-      newArray.push(array[i]);
-    }
-  }
-  return newArray;
+  return array.filter((item) => item !== key);
 }
 
 const handleBack = () => {
   if (backFunctionKeys.length > 0) {
-    let functionKey = backFunctionKeys[backFunctionKeys.length - 1];
+    const functionKey = backFunctionKeys.at(-1);
     backFunctionKeys = removeIndex(backFunctionKeys, backFunctionKeys.length - 1);
-    let functionA = backFunctionsMap.get(functionKey);
+    const functionA = backFunctionsMap.get(functionKey);
     backFunctionsMap.delete(functionKey);
-    functionA && functionA();
+    functionA?.();
     return false;
   }
   return true;

@@ -48,7 +48,7 @@ function InlineLivePlayerView({
   const [error, setError] = useState('');
   const [showControls, setShowControls] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
-  const shouldRenderVideo = isActive && !Boolean(externalPaused);
+  const shouldRenderVideo = isActive && !externalPaused;
   const pausedNow = Boolean(externalPaused) || internallyPaused;
   const artwork = poster || getArtwork(posterChannel);
   const palette = {

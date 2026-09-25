@@ -31,7 +31,7 @@ const resolveAppGradleString = (options) => {
 };
 
 const withGradleTasks = (config, options) => {
-    if(!options || !options.android){
+    if (!options?.android) {
         return config;
     }
     return withAppBuildGradle(config, (config) => {

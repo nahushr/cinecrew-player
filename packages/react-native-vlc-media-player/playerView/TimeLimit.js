@@ -43,7 +43,7 @@ export default class TimeLimt extends Component {
   _onEnd = () => {
     let { onEnd } = this.props;
     clearInterval(this.timer);
-    onEnd && onEnd();
+    onEnd?.();
   };
 
   render() {
@@ -59,9 +59,6 @@ export default class TimeLimt extends Component {
             <Text style={{ color: 'green', fontSize: 13 }}>{maxTime - timeNumber}</Text>
           </View>
         )}
-//         <View style={styles.nameView}>
-//           <Text style={{ fontSize: 13 }}>跳过片头</Text>
-//         </View>
       </TouchableOpacity>
     );
   }
@@ -77,10 +74,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 5,
-  },
-  nameView: {
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

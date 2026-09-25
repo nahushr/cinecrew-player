@@ -2,6 +2,32 @@
 
 An embeddable video player for **React** and **React Native** with a shared, customizable control API. Pass local media or a URL using any scheme your platform supports; the player does not rewrite protocols or impose app-specific proxy rules. It supports HLS and MPEG-TS on web, native VLC playback, configurable controls and icons, YouTube embeds, and optional chat, EPG, and recording integrations.
 
+## What makes CineCrew Player stand out
+
+CineCrew Player brings the **player UI, playback adapters, and app-integration hooks** together behind one React-facing package:
+
+- **One player API across four app environments:** React in the browser, Electron, React Native on Android/iOS, and React Native Web. The package selects the appropriate renderer; Electron uses its Chromium renderer.
+- **Movie playback and Live TV in the same player:** on-demand controls such as restart, seeking, playback speed, and audio-track selection sit alongside live-oriented controls and optional live chat, EPG, and recording adapters.
+- **Control the whole experience:** independently show or hide controls, replace default behavior with action callbacks, and customize themes and icons. Defaults are ready to use; overrides are opt-in.
+- **Platform-appropriate playback engines:** browser playback uses the browser media stack, hls.js, and the bundled patched MPEG-TS client; native React Native uses the VLC adapter with an Expo Video fallback where available.
+- **Bring your own services and sources:** supply a playable URL/local URI and optionally connect your own chat, guide, recording, analytics, and source-resolution code. The package does not require a CineCrew account, backend, proxy, or worker.
+
+### Work in progress
+
+These roadmap items describe **consistent, user-facing support across platforms**; some engines or experimental paths may already expose related primitives:
+
+- [ ] Dedicated cross-platform brightness control
+- [ ] In-player volume slider (beyond mute/unmute)
+- [ ] AI-generated subtitles
+- [ ] Broader client-side audio demuxing across codecs and stream types
+- [ ] Consistent picture-in-picture controls across platforms
+
+### Why it can be a one-stop player layer for movie and IPTV apps
+
+Instead of building and maintaining separate player shells for web, Electron, and native mobile, an app can use CineCrew Player for playback presentation and control, then connect its own IPTV/movie services through the documented callbacks and adapters. That keeps player behavior and app-specific services cleanly separated: CineCrew supplies the player layer; **your app supplies authorization, playable stream URLs, and any chat/EPG/recording services**.
+
+This is a player package, not an IPTV subscription/service, media relay, DRM system, or universal URL-to-video converter. A web browser still requires a playable media URL, a supported codec/container, and any needed CORS access. A share page or arbitrary webpage must be resolved by your app first.
+
 [![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
 
 ## Demos
@@ -155,6 +181,18 @@ The video must allow embedding. Other URLs are passed unchanged to the platform 
 | Electron renderer | Chromium `<video>`, hls.js, and patched mpegts.js | Same browser codec/CORS constraints as React web; packages with the app's `.dmg` / `.exe`. |
 
 Browser codec support varies. The web player reports an AC3 compatibility message only when its MPEG-TS probe identifies unsupported AC3 audio; native playback does not apply this browser-only restriction. YouTube sources use the embedded YouTube player and remain subject to the video’s embed settings.
+
+## How CineCrew Player differs from established players
+
+This is a comparison of each project’s **documented focus and out-of-the-box integration surface**, not a claim that another library cannot be extended to do these things. HLS, YouTube playback, custom styling, and player controls are established capabilities in this space—not unique CineCrew claims.
+
+| Player | Documented focus | Where CineCrew’s focus differs |
+| --- | --- | --- |
+| [Vidstack](https://vidstack.io/docs/player/) | A feature-rich **web** media framework with React and Web Component APIs, customizable/headless components, production layouts, and providers including HLS, DASH, YouTube, and Vimeo. | CineCrew packages web playback together with a React Native renderer for Android/iOS, an Electron web entry, and adapter slots for app-owned IPTV services. |
+| [Video.js](https://github.com/videojs/video.js/) | A mature **web-based HTML5 player** supporting common web media and streaming formats such as HLS/DASH, with a broad plugin ecosystem. | CineCrew’s package-level scope also includes native React Native playback and app-oriented control/integration props, rather than being centered on the browser player ecosystem. |
+| [React Native Video](https://docs.thewidlarzgroup.com/react-native-video/docs/v7/fundamentals/intro/) | A **React Native playback library** for native platforms. Its v7 documentation describes a player/view split; its view API includes native controls and a PiP option where supported. | CineCrew combines native playback with its own customizable player shell and web/Electron renderers, and documents optional live-chat, EPG, and recording adapters. |
+
+In short: CineCrew’s intended distinction is **one app-facing player package for movie and IPTV product flows across web and native mobile**, with Electron support and app-owned service adapters. Vidstack and Video.js have more mature, broader web ecosystems; React Native Video is a strong native playback option. CineCrew is not claiming to replace every specialized player or to have feature parity with those ecosystems.
 
 ## Props
 

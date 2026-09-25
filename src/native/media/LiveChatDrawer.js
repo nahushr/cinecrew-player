@@ -140,10 +140,8 @@ export const LiveChatDrawer = ({
 
   // --- Stream Diagnostics Telemetry State ---
   const [pingLatency, setPingLatency] = useState(null);
-  const [pingJitter, setPingJitter] = useState(0);
-  const [fps, setFps] = useState(60.0);
-  const [droppedFrames, setDroppedFrames] = useState(0);
-  const [bitrateMbps, setBitrateMbps] = useState(4.85);
+  const [pingJitter, setPingJitter] = useState(null);
+  const previousPingRef = useRef(null);
 
   const serverHost = useMemo(() => extractHostname(streamUrl || serverUrl), [streamUrl, serverUrl]);
   const protocolName = useMemo(() => detectStreamProtocol(streamUrl, isLive), [streamUrl, isLive]);
@@ -250,7 +248,9 @@ export const LiveChatDrawer = ({
   const measurePing = useCallback(async () => {
     const targetUrl = serverUrl || streamUrl;
     if (!targetUrl) {
-      setPingLatency(35);
+      setPingLatency(null);
+      setPingJitter(null);
+      previousPingRef.current = null;
       return;
     }
 
@@ -281,15 +281,17 @@ export const LiveChatDrawer = ({
       const elapsed = Date.now() - start;
       const cleanLatency = Math.max(8, Math.min(elapsed, 999));
 
-      setPingLatency((prev) => {
-        if (prev !== null) {
-          setPingJitter(Math.abs(cleanLatency - prev));
-        }
-        return cleanLatency;
-      });
+      setPingJitter(
+        previousPingRef.current === null
+          ? null
+          : Math.abs(cleanLatency - previousPingRef.current),
+      );
+      previousPingRef.current = cleanLatency;
+      setPingLatency(cleanLatency);
     } catch {
-      const simulated = Math.floor(25 + Math.random() * 20);
-      setPingLatency(simulated);
+      setPingLatency(null);
+      setPingJitter(null);
+      previousPingRef.current = null;
     }
   }, [serverUrl, streamUrl]);
 
@@ -298,19 +300,7 @@ export const LiveChatDrawer = ({
     if (!visible || activeTab !== 'diagnostics') return;
 
     measurePing();
-    const interval = setInterval(() => {
-      measurePing();
-      // Slight realistic variance in live frame & bitrate stats
-      setBitrateMbps((prev) => {
-        const delta = (Math.random() - 0.5) * 0.3;
-        return Number(Math.max(2.4, Math.min(prev + delta, 9.8)).toFixed(2));
-      });
-      setFps((prev) => {
-        const delta = (Math.random() - 0.5) * 0.4;
-        return Number(Math.max(58.5, Math.min(prev + delta, 60.0)).toFixed(1));
-      });
-      setDroppedFrames((prev) => prev);
-    }, 3000);
+    const interval = setInterval(measurePing, 3000);
 
     return () => clearInterval(interval);
   }, [visible, activeTab, measurePing]);
@@ -421,9 +411,9 @@ export const LiveChatDrawer = ({
   };
 
   const getHealthStatus = () => {
-    const lat = pingLatency || 35;
-    if (lat < 75 && droppedFrames === 0) return { label: 'EXCELLENT', color: '#00E5FF' };
-    if (lat < 180 && droppedFrames < 10) return { label: 'GOOD', color: '#34C759' };
+    if (pingLatency === null) return { label: 'UNKNOWN', color: '#94A3B8' };
+    if (pingLatency < 75) return { label: 'EXCELLENT', color: '#00E5FF' };
+    if (pingLatency < 180) return { label: 'GOOD', color: '#34C759' };
     return { label: 'HIGH LATENCY', color: '#FF9500' };
   };
 
@@ -646,7 +636,7 @@ export const LiveChatDrawer = ({
                 {pingLatency !== null ? `${pingLatency} ms` : 'Testing...'}
               </Text>
               <Text style={styles.metricCardSub}>
-                Jitter: {pingJitter} ms
+                Jitter: {pingJitter === null ? 'unavailable' : `${pingJitter} ms`}
               </Text>
             </View>
 
@@ -657,10 +647,10 @@ export const LiveChatDrawer = ({
                 <Text style={styles.metricCardLabel}>BITRATE</Text>
               </View>
               <Text style={styles.metricCardValue}>
-                {bitrateMbps} Mbps
+                —
               </Text>
               <Text style={styles.metricCardSub}>
-                Adaptive Live Stream
+                Not reported by the player
               </Text>
             </View>
 
@@ -671,10 +661,10 @@ export const LiveChatDrawer = ({
                 <Text style={styles.metricCardLabel}>FRAME RATE</Text>
               </View>
               <Text style={styles.metricCardValue}>
-                {fps} fps
+                —
               </Text>
               <Text style={styles.metricCardSub}>
-                Hardware Renderer
+                Not reported by the player
               </Text>
             </View>
 
@@ -685,10 +675,10 @@ export const LiveChatDrawer = ({
                 <Text style={styles.metricCardLabel}>DROPPED</Text>
               </View>
               <Text style={styles.metricCardValue}>
-                {droppedFrames} frames
+                —
               </Text>
               <Text style={styles.metricCardSub}>
-                0.0% frame loss
+                Not reported by the player
               </Text>
             </View>
           </View>

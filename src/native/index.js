@@ -6,6 +6,12 @@ import { InlineLivePlayer } from './InlineLivePlayer';
 import { isElectron, isWeb } from '../utils/runtimePlatform';
 import { getYouTubeVideoId, useResolvedPlayerSource } from '../utils/sourceUtils';
 
+function getRuntimePlatform() {
+  if (isWeb()) return 'web';
+  if (isElectron()) return 'electron';
+  return 'native';
+}
+
 /** Full-screen player for React Native and Electron applications. */
 export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const {
@@ -39,7 +45,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   } = props;
   const playerApiRef = useRef({});
   useImperativeHandle(ref, () => playerApiRef.current, []);
-  const platform = isWeb() ? 'web' : isElectron() ? 'electron' : 'native';
+  const platform = getRuntimePlatform();
   const resolution = useResolvedPlayerSource(source, url, resolveSource, platform);
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
