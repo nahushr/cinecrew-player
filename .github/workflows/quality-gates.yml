@@ -1,0 +1,159 @@
+name: Quality Gates
+
+on:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: true
+      SNYK_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sonar:
+    name: SonarQube analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require Sonar project configuration
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        run: |
+          set -euo pipefail
+          test -n "$SONAR_TOKEN" || { echo "::error::SONAR_TOKEN is required"; exit 1; }
+          test -n "$SONAR_PROJECT_KEY" || { echo "::error::Set repository variable SONAR_PROJECT_KEY"; exit 1; }
+          test -n "$SONAR_ORGANIZATION" || { echo "::error::Set repository variable SONAR_ORGANIZATION"; exit 1; }
+
+      - name: Scan JavaScript and React Native sources
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+        with:
+          args: >-
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.sources=src,packages/react-native-vlc-media-player/playerView
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.gradle/**,**/.scannerwork/**,**/coverage/**
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
+
+      - name: Fail on any open Sonar finding or duplication at 3 percent
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_BRANCH: ${{ github.ref_name }}
+          SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
+        run: |
+          set -euo pipefail
+          host="${SONAR_HOST_URL%/}"
+          scope=()
+          if [[ -n "$SONAR_PULL_REQUEST" ]]; then
+            scope+=(--data-urlencode "pullRequest=$SONAR_PULL_REQUEST")
+          else
+            scope+=(--data-urlencode "branch=$SONAR_BRANCH")
+          fi
+
+          issues=$(curl --fail --silent --show-error --user "$SONAR_TOKEN:" --get \
+            "$host/api/issues/search" \
+            --data-urlencode "componentKeys=$SONAR_PROJECT_KEY" \
+            --data-urlencode 'resolved=false' \
+            --data-urlencode 'ps=1' "${scope[@]}")
+          issue_count=$(jq -er '.total | numbers' <<<"$issues")
+          if [[ "$issue_count" -ne 0 ]]; then
+            echo "::error::Sonar reported $issue_count unresolved finding(s); all must be resolved."
+            exit 1
+          fi
+
+          measures=$(curl --fail --silent --show-error --user "$SONAR_TOKEN:" --get \
+            "$host/api/measures/component" \
+            --data-urlencode "component=$SONAR_PROJECT_KEY" \
+            --data-urlencode 'metricKeys=duplicated_lines_density' "${scope[@]}")
+          duplicate_percent=$(jq -er '.component.measures[] | select(.metric == "duplicated_lines_density") | .value' <<<"$measures")
+          if ! awk -v value="$duplicate_percent" 'BEGIN { exit !(value < 3) }'; then
+            echo "::error::Sonar duplication is ${duplicate_percent}%; it must be below 3%."
+            exit 1
+          fi
+          echo "Sonar gate passed: 0 unresolved findings; ${duplicate_percent}% duplication."
+
+  snyk:
+    name: Snyk dependency security
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle for all-project dependency detection
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5.1'
+          cache-provider: basic
+
+      - uses: snyk/actions/setup@v1.0.0
+        with:
+          snyk-version: latest
+
+      - name: Fail on every Snyk vulnerability or scan error
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --all-projects --fail-fast --severity-threshold=low
+
+  checkstyle:
+    name: Checkstyle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5.1'
+          cache-provider: basic
+
+      - name: Fail on any Checkstyle violation or warning
+        run: gradle --no-daemon checkstyleMain
+
+  quality-gates:
+    name: All quality gates passed
+    if: ${{ always() }}
+    needs: [sonar, snyk, checkstyle]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all parallel checks to pass
+        env:
+          SONAR_RESULT: ${{ needs.sonar.result }}
+          SNYK_RESULT: ${{ needs.snyk.result }}
+          CHECKSTYLE_RESULT: ${{ needs.checkstyle.result }}
+        run: |
+          set -euo pipefail
+          for result in "$SONAR_RESULT" "$SNYK_RESULT" "$CHECKSTYLE_RESULT"; do
+            if [[ "$result" != success ]]; then
+              echo "::error::All quality gates must pass (Sonar=$SONAR_RESULT, Snyk=$SNYK_RESULT, Checkstyle=$CHECKSTYLE_RESULT)."
+              exit 1
+            fi
+          done

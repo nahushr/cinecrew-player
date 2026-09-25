@@ -8,3 +8,8 @@ npm-debug.log*
 **/.gradle/
 **/ios/**/xcuserdata/
 **/*.iml
+
+# Generated Gradle and Sonar analysis output
+/build/
+/.scannerwork/
+/.sonar/cache/

@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '8.9.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['packages/react-native-vlc-media-player/android/src/main/java']
+        }
+    }
+}
+
+checkstyle {
+    toolVersion = '13.9.0'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    maxWarnings = 0
+}
+
+tasks.named('checkstyleMain') {
+    classpath = files()
+    setDependsOn([])
+}
+
+spotless {
+    java {
+        target 'packages/react-native-vlc-media-player/android/src/main/java/**/*.java'
+        googleJavaFormat('1.29.0')
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
