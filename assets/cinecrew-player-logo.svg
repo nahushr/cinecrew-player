@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="940" height="240" viewBox="0 0 940 240" role="img" aria-labelledby="title desc">
   <title id="title">CineCrew</title>
-  <desc id="desc">The CineCrew app brand: blue television play mark with orbit nodes and coral accent, paired with the two-tone CineCrew wordmark.</desc>
+  <desc id="desc">The CineCrew app brand lockup from BrowseHeaderBar: TV play icon paired with clean natural CineCrew wordmark and coral accent line.</desc>
   <defs>
     <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#10264d"/>
@@ -11,7 +11,9 @@
       <stop offset="1" stop-color="#0868ef"/>
     </linearGradient>
   </defs>
-  <g transform="translate(8 8) scale(.43)">
+
+  <!-- Left Icon Mark -->
+  <g transform="translate(10, 8) scale(0.43)">
     <rect x="9" y="9" width="494" height="494" rx="112" fill="#07132e" stroke="#294777" stroke-width="12"/>
     <path d="M207 88 252 37M305 88l45-51" fill="none" stroke="#1487ee" stroke-linecap="round" stroke-width="13"/>
     <circle cx="253" cy="30" r="10" fill="#138cf3"/>
@@ -25,6 +27,18 @@
     <path d="m404 55 18 36 38 5-28 26 7 38-35-19-34 19 7-38-28-26 38-5z" fill="#ff654f"/>
     <path d="M436 137c26 37 39 85 35 126" fill="none" stroke="#ff654f" stroke-linecap="round" stroke-width="14"/>
   </g>
-  <text x="248" y="161" font-family="Inter,Arial,Helvetica,sans-serif" font-size="116" font-weight="800" letter-spacing="-5"><tspan fill="#397fda">Cine</tspan><tspan dx="-42" fill="#ff9a86">Crew</tspan></text>
-  <rect x="251" y="188" width="102" height="9" rx="4.5" fill="#ff9a86"/>
+
+  <!-- BrowseHeaderBar Brand Wordmark: natural single-word kerning, no collision -->
+  <text
+    x="248"
+    y="152"
+    font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    font-size="112"
+    font-weight="900"
+    letter-spacing="-1.5"
+    fill="#397fda"
+  >Cine<tspan fill="#ff9a86">Crew</tspan></text>
+
+  <!-- Brand Accent Line (brandAccentLine) -->
+  <rect x="252" y="174" width="130" height="12" rx="6" fill="#ff9a86"/>
 </svg>
