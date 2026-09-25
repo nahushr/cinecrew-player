@@ -25,13 +25,9 @@ jobs:
       - name: Require Sonar project configuration
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
-          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
         run: |
           set -euo pipefail
           test -n "$SONAR_TOKEN" || { echo "::error::SONAR_TOKEN is required"; exit 1; }
-          test -n "$SONAR_PROJECT_KEY" || { echo "::error::Set repository variable SONAR_PROJECT_KEY"; exit 1; }
-          test -n "$SONAR_ORGANIZATION" || { echo "::error::Set repository variable SONAR_ORGANIZATION"; exit 1; }
 
       - name: Scan JavaScript and React Native sources
         uses: SonarSource/sonarqube-scan-action@v8.2.1
@@ -40,8 +36,8 @@ jobs:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
         with:
           args: >-
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=nahushr_cinecrew-player
+            -Dsonar.organization=nahushr
             -Dsonar.sources=src,android/src/main/java,packages/react-native-vlc-media-player/ios/RCTVLCPlayer,packages/react-native-vlc-media-player/expo
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.gradle/**,**/.scannerwork/**,**/coverage/**
             -Dsonar.qualitygate.wait=true
@@ -51,7 +47,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_PROJECT_KEY: nahushr_cinecrew-player
           SONAR_BRANCH: ${{ github.ref_name }}
           SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
         run: |
