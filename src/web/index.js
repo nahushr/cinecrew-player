@@ -362,6 +362,27 @@ function WebPlayerSurface({
     });
   }
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
+  let resizedVideoStyle = {};
+  if (drawerResize && videoStyle.width === 'auto') {
+    resizedVideoStyle = {
+      left: 'calc(var(--cinecrew-media-width, 64%) / 2)',
+      top: '50%',
+      right: 'auto',
+      bottom: 'auto',
+      maxWidth: 'var(--cinecrew-media-width, 64%)',
+      transform: 'translate(-50%, -50%)',
+    };
+  } else if (drawerResize) {
+    resizedVideoStyle = {
+      width: 'var(--cinecrew-media-width, 64%)',
+      height: '100%',
+      left: 0,
+      top: 0,
+      right: 'auto',
+      bottom: 0,
+      transform: 'none',
+    };
+  }
   return h('video', {
     ref: videoRef,
     className: 'cinecrew-player__video',
@@ -373,11 +394,7 @@ function WebPlayerSurface({
     preload: 'auto',
     style: {
       ...videoStyle,
-      ...(drawerResize
-        ? videoStyle.width === 'auto'
-          ? { left: 'calc(var(--cinecrew-media-width, 64%) / 2)', top: '50%', right: 'auto', bottom: 'auto', maxWidth: 'var(--cinecrew-media-width, 64%)', transform: 'translate(-50%, -50%)' }
-          : { width: 'var(--cinecrew-media-width, 64%)', height: '100%', left: 0, top: 0, right: 'auto', bottom: 0, transform: 'none' }
-        : {}),
+      ...resizedVideoStyle,
       opacity: audioOnly ? 0 : 1,
     },
     onClick: inlinePreview ? onPromotePreview : undefined,
