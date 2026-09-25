@@ -51,7 +51,8 @@ export default function App() {
       loadMessages: async ({ limit, offset = 0 }) => {
         const messages = sampleMessagesRef.current;
         const end = Math.max(0, messages.length - offset);
-        return messages.slice(Math.max(0, end - limit), end);
+        const start = Math.max(0, end - limit);
+        return { messages: messages.slice(start, end), hasMore: start > 0 };
       },
       sendMessage: async ({ username, comment }) => {
         setSampleMessages((current) => [...current, {
@@ -178,7 +179,6 @@ export default function App() {
             messagePageSize={5}
             actions={{
               onBack: () => setStatus('Back action — connect your app navigation.'),
-              onMinimize: () => setStatus('Minimize action — connect your app layout.'),
             }}
             features={{ diagnostics: true }}
             onBuffering={(buffering) => setStatus(buffering ? 'Buffering…' : 'Ready')}

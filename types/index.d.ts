@@ -32,7 +32,6 @@ export interface PlayerControls {
   audioOnly?: boolean;
   audioTracks?: boolean;
   playbackRate?: boolean;
-  minimize?: boolean;
   fullscreen?: boolean;
   recording?: boolean;
   liveChat?: boolean;
@@ -57,7 +56,6 @@ export interface PlayerApi {
   seekTo(seconds: number): void;
   seekBy(seconds: number): void;
   back(): void;
-  minimize(): void;
   setPlaybackRate(rate: number): void;
   getVideoElement(): unknown | null;
   getAudioTracks(): AudioTrack[];
@@ -92,7 +90,6 @@ export interface PlayerActions {
   onVideoOnlyChange?: PlayerAction;
   onAudioOnlyChange?: PlayerAction;
   onAudioTrackChange?: PlayerAction;
-  onMinimize?: PlayerAction;
   onPlaybackRateChange?: PlayerAction;
   onFullscreen?: PlayerAction;
   onRecordingStart?: PlayerAction;
@@ -128,7 +125,7 @@ export interface PlayerIconProps {
 export type PlayerIcon = string | React.ReactNode | React.ComponentType<PlayerIconProps>;
 export type PlayerIcons = Partial<Record<
   | 'play' | 'pause' | 'restart' | 'lock' | 'unlock' | 'mute' | 'unmute'
-  | 'aspectRatio' | 'videoOnly' | 'audio' | 'minimize' | 'back'
+  | 'aspectRatio' | 'videoOnly' | 'audio' | 'back'
   | 'recording' | 'stop' | 'liveChat' | 'epg' | 'diagnostics' | 'fullscreen' | 'close'
   | string,
   PlayerIcon
@@ -144,6 +141,15 @@ export interface ChatMessage {
   [key: string]: unknown;
 }
 
+export interface ChatMessagePage {
+  messages?: ChatMessage[];
+  items?: ChatMessage[];
+  comments?: ChatMessage[];
+  data?: ChatMessage[];
+  hasMore?: boolean;
+  pagination?: { hasMore?: boolean };
+}
+
 export interface EpgListing {
   title?: string;
   description?: string;
@@ -156,7 +162,7 @@ export interface PlayerIntegrations {
   user?: { id?: string | number; username?: string };
   getUser?: () => Promise<{ id?: string | number; username?: string } | null>;
   liveChat?: {
-    loadMessages?: (args: { channelId: string; limit: number; offset?: number }) => Promise<ChatMessage[] | { messages?: ChatMessage[]; items?: ChatMessage[]; hasMore?: boolean; pagination?: { hasMore?: boolean } }>;
+    loadMessages?: (args: { channelId: string; limit: number; offset?: number }) => Promise<ChatMessage[] | ChatMessagePage>;
     sendMessage?: (args: { channelId: string; userId?: string | number; username?: string; comment: string }) => Promise<unknown>;
     pollIntervalMs?: number;
     render?: (context: { title: string; source: PlayerSource; onClose: () => void }) => React.ReactNode;
@@ -229,7 +235,6 @@ export interface CineCrewPlayerProps {
   shuffle?: boolean;
   onClose?: () => void;
   onBack?: () => void;
-  onMinimize?: () => void;
   onFullscreen?: (state: { isFullscreen: boolean }) => void;
   onPlayerHostRef?: (node: unknown | null) => void;
   onInlinePreviewWheel?: (deltaY: number) => void;

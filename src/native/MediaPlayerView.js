@@ -572,7 +572,6 @@ function FullscreenControlsPanel(props) {
         onRestart={props.handleRestartAction}
         onToggleMute={props.handleMuteAction}
         onToggleLock={props.handleLockAction}
-        onMinimize={props.handleMinimizeAction}
       />
       <CenterControls
         visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
@@ -775,7 +774,6 @@ export const MediaPlayerView = ({
   inlinePreview = false,
   inlinePreviewRect = null,
   onPromotePreview,
-  onMinimize,
   mediaId,
   posterUrl,
   episodeLabel,
@@ -1906,9 +1904,6 @@ export const MediaPlayerView = ({
   const handleFullscreenAction = useCallback(() => invokeAction(
     'onFullscreen', toggleFullscreen, { isFullscreen: !isFullscreen },
   ), [invokeAction, toggleFullscreen, isFullscreen]);
-  const handleMinimizeAction = useCallback(() => invokeAction(
-    'onMinimize', onMinimize, { title, mediaId },
-  ), [invokeAction, onMinimize, title, mediaId]);
   const handleRecordingAction = useCallback((name, fallback, event) => {
     event?.stopPropagation?.();
     return invokeAction(name, fallback, { title, streamUrl, mediaId });
@@ -1939,7 +1934,6 @@ export const MediaPlayerView = ({
       seekBy: handleSeekBy,
       setPlaybackRate: (rate) => setPlaybackRate(clampNumber(rate, 0.25, 4, 1)),
       back: handleClose,
-      minimize: handleMinimizeAction,
       getVideoElement: () => vlcRef.current?.getVideoElement?.() || null,
       getAudioTracks: () => audioTracks,
     };
@@ -1947,7 +1941,7 @@ export const MediaPlayerView = ({
     return () => {
       for (const key of Object.keys(api)) delete playerApiRef.current[key];
     };
-  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleClose, handleMinimizeAction, audioTracks]);
+  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleClose, audioTracks]);
 
   const handleSpeedSelect = useCallback((speed) => invokeAction(
     'onPlaybackRateChange', () => {
@@ -2006,6 +2000,8 @@ export const MediaPlayerView = ({
   windowWidthRef.current = windowWidth;
   const windowHeightRef = useRef(windowHeight);
   windowHeightRef.current = windowHeight;
+  const showControlsRef = useRef(showControls);
+  showControlsRef.current = showControls;
   const handleSeekByRef = useRef(handleSeekByAction);
   handleSeekByRef.current = handleSeekByAction;
   const triggerSeekRippleRef = useRef(triggerSeekRipple);
@@ -2021,10 +2017,21 @@ export const MediaPlayerView = ({
   const panResponder = useMemo(() => {
     if (isWeb()) return null;
 
+    const isSeekScrubGesture = (evt) => {
+      if (!showControlsRef.current) return false;
+      const height = windowHeightRef.current || 0;
+      const y = Number(evt?.nativeEvent?.locationY);
+      if (height <= 0 || !Number.isFinite(y)) return false;
+      // Keep the bottom timeline region available to the native Slider instead
+      // of letting the full-screen tap/gesture layer claim horizontal scrubs.
+      return y >= height - Math.max(180, height * 0.14);
+    };
+
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: (evt) => !isSeekScrubGesture(evt),
       onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (isSeekScrubGesture(evt)) return false;
         return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
       },
       onMoveShouldSetPanResponderCapture: () => false,
@@ -2566,7 +2573,6 @@ export const MediaPlayerView = ({
     handleRestartAction,
     handleMuteAction,
     handleLockAction,
-    handleMinimizeAction,
     isAudioOnly,
     isPlaying,
     handleSeekByAction,

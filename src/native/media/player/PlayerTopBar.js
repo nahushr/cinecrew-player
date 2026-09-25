@@ -56,13 +56,12 @@ function LiveServiceControls({ isLive, controls, showLiveChat, drawerTab, showCh
   return <>{renderServiceButton('liveChat', 'chat', showChat, 'comment-text-multiple')}{renderServiceButton('epg', 'epg', showEpg, 'television-guide')}{renderServiceButton('diagnostics', 'diagnostics', showDiagnostics, 'pulse')}</>;
 }
 
-function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, onLock, onMinimize, palette }) {
+function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, onLock, palette }) {
   return (
     <>
       {!isLive && controls.restart !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onRestart(); }} hitSlop={12}><PlayerIcon name="restart" size={20} color={palette.controlColor} /></TouchableOpacity> : null}
       {controls.mute !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onMute(); }} hitSlop={12}><PlayerIcon name={muted ? 'volume-off' : 'volume-high'} size={20} color={muted ? palette.errorColor : palette.controlColor} /></TouchableOpacity> : null}
       {controls.lock !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onLock(); }} hitSlop={12}><PlayerIcon name="lock-open-variant" size={20} color={palette.controlColor} /></TouchableOpacity> : null}
-      {controls.minimize && typeof onMinimize === 'function' ? <TouchableOpacity style={styles.pill} onPress={onMinimize} hitSlop={12} accessibilityLabel="Minimize player"><PlayerIcon name="arrow-collapse" size={20} color={palette.controlColor} /></TouchableOpacity> : null}
     </>
   );
 }
@@ -113,7 +112,6 @@ export const PlayerTopBar = ({
   onRestart,
   onToggleMute,
   onToggleLock,
-  onMinimize,
   controls = {},
 }) => {
   const { width, height } = useWindowDimensions();
@@ -149,7 +147,7 @@ export const PlayerTopBar = ({
         <View style={styles.topRightActions}>
           <RecordingControls isLive={isLive} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
           <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} />
-          <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} onMinimize={onMinimize} palette={palette} />
+          <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} />
         </View>
       </View>
       <PortraitPlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />

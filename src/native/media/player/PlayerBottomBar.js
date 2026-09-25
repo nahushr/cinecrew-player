@@ -16,7 +16,7 @@ function SeekControls({ isLive, controls, insets, scale, isSeeking, sliderPos, c
         <Text style={[styles.timeText, seeking && styles.timeTextSeeking, { color: seeking ? palette.accentColor : palette.controlColor, fontSize: scale?.timeFont, fontWeight: seeking ? scale?.timeSeekingWeight : scale?.timeWeight }]}>{formatTime(displayTime)}</Text>
         <Text style={[styles.timeText, { color: palette.controlColor, fontSize: scale?.timeFont, fontWeight: scale?.timeWeight }]}>{remaining}</Text>
       </View>
-      <Slider style={styles.slider} minimumValue={0} maximumValue={duration > 0 ? duration : 1} value={sliderPos} minimumTrackTintColor={palette.accentColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor={palette.accentColor} onValueChange={onValueChange} onSlidingStart={onSlidingStart} onSlidingComplete={onSlidingComplete} />
+      <Slider testID="cinecrew-player-seek-slider" accessibilityLabel="Seek video" style={styles.slider} minimumValue={0} maximumValue={duration > 0 ? duration : 1} value={sliderPos} minimumTrackTintColor={palette.accentColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor={palette.accentColor} onValueChange={onValueChange} onSlidingStart={onSlidingStart} onSlidingComplete={onSlidingComplete} />
     </View>
   );
 }
@@ -210,7 +210,9 @@ const styles = StyleSheet.create({
   },
   slider: {
     width: '100%',
-    height: 36,
+    height: 48,
+    zIndex: 75,
+    elevation: 75,
   },
   bottomControlsRow: {
     flexDirection: 'row',

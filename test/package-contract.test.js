@@ -56,6 +56,18 @@ test('native VLC implementation is bundled inside the single player package', ()
   assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/.github/workflows/npmpublish.yml')), false);
 });
 
+test('Vite demo lockfile includes the Linux optional Rolldown binding', () => {
+  const lock = JSON.parse(readFileSync(path.join(root, 'examples/web-demo/package-lock.json'), 'utf8'));
+  const rolldown = lock.packages['node_modules/rolldown'];
+  const linuxBinding = lock.packages['node_modules/@rolldown/binding-linux-x64-gnu'];
+
+  assert.ok(rolldown.optionalDependencies['@rolldown/binding-linux-x64-gnu']);
+  assert.equal(linuxBinding.version, rolldown.optionalDependencies['@rolldown/binding-linux-x64-gnu']);
+  assert.deepEqual(linuxBinding.os, ['linux']);
+  assert.deepEqual(linuxBinding.cpu, ['x64']);
+  assert.equal(linuxBinding.optional, true);
+});
+
 test('README documents every public control and action key', () => {
   const controls = declarations.match(/export interface PlayerControls \{([\s\S]*?)\n\}/)?.[1] || '';
   const actions = declarations.match(/export interface PlayerActions \{([\s\S]*?)\n\}/)?.[1] || '';

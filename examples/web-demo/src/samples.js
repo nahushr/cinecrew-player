@@ -39,7 +39,6 @@ export const allControls = {
   audioOnly: true,
   audioTracks: true,
   playbackRate: true,
-  minimize: true,
   fullscreen: true,
   recording: true,
   liveChat: true,

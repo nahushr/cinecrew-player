@@ -1,5 +1,6 @@
 .cinecrew-player {
   position: relative;
+  container-type: size;
   display: flex;
   width: 100%;
   min-width: 0;
@@ -55,6 +56,7 @@
   position: absolute;
   inset: 0;
   z-index: 3;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -113,11 +115,13 @@
 .cinecrew-player__bottom-actions {
   width: 100%;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .cinecrew-player__bottom-left-actions,
 .cinecrew-player__bottom-right-actions {
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .cinecrew-player__center-controls {
@@ -134,6 +138,9 @@
 .cinecrew-player__seek input {
   flex: 1;
   min-width: 50px;
+  min-height: 24px;
+  touch-action: none;
+  cursor: pointer;
 }
 
 .cinecrew-player__button {
@@ -263,6 +270,24 @@
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0,0,0,.4);
+}
+
+.cinecrew-player__menu-wrap--aspect .cinecrew-player__menu {
+  right: auto;
+  left: 0;
+  width: min(180px, calc(100vw - 80px));
+  min-width: 0;
+  max-width: calc(100vw - 80px);
+  max-height: min(120px, calc(100vh - 160px));
+  overflow-y: auto;
+}
+
+@supports (width: 1cqw) and (height: 1cqh) {
+  .cinecrew-player__menu-wrap--aspect .cinecrew-player__menu {
+    width: min(180px, calc(100cqw - 76px));
+    max-width: calc(100cqw - 76px);
+    max-height: min(220px, calc(100cqh - 88px));
+  }
 }
 
 .cinecrew-player__menu button,
@@ -568,6 +593,6 @@
   }
   .cinecrew-player__title { top: 96px; left: 12px; right: 12px; }
   .cinecrew-player__bottom-actions { align-items: flex-end; gap: 6px; }
-  .cinecrew-player__bottom-right-actions { flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .cinecrew-player__bottom-right-actions { max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
   .cinecrew-player__panel { width: min(380px, 92%); }
 }

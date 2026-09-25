@@ -24,7 +24,7 @@
 
 <p align="center"><strong>🎬 Movies</strong> &nbsp; <strong>📡 Live TV</strong> &nbsp; <strong>📱 Native</strong> &nbsp; <strong>🖥️ Web & Electron</strong></p>
 
-| **2 player components** | **5 target environments** | **16 visibility controls** | **20 action hooks** |
+| **2 player components** | **5 target environments** | **15 visibility controls** | **19 action hooks** |
 |:---:|:---:|:---:|:---:|
 | Full player + inline live preview | Web · Electron · Android · iOS · React Native Web | Choose what appears | Override default actions |
 
@@ -53,14 +53,14 @@ flowchart LR
 | Area | Included capabilities | Designed for |
 |---|---|---|
 | 🎞️ **Playback** | On-demand and live media; URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path; embedded YouTube playback | Movies, episodes, trailers, and channels |
-| 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, video-only/audio-only modes, audio tracks, playback speed, fullscreen, back, minimize | A complete control surface without hard-wiring your app navigation |
+| 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, video-only/audio-only modes, audio tracks, playback speed, fullscreen, back | A complete control surface without hard-wiring your app navigation |
 | 🎨 **Branding** | Theme colors, radius, platform styles, replaceable icons, custom panel render slots | Match your app without forking the player |
 | 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; recording adapter hooks | Channel browsing and live-viewing workflows |
 | 🔌 **App integration** | Per-action callbacks, imperative ref API, source resolver, progress/presence/events hooks, sleep timer callback | Keep account, IPTV, analytics, and storage logic in your app |
 | 🧭 **Playback lifecycle** | Ready, playing, buffering, progress, ended, error, fullscreen, next-episode, and playback-route callbacks | App-owned navigation, telemetry, and resume state |
 
 <details>
-<summary><strong>🎛️ Control inventory — all 16 visibility switches</strong></summary>
+<summary><strong>🎛️ Control inventory — all 15 visibility switches</strong></summary>
 
 | Icon | `controls` key | What it controls | Notes |
 |:---:|---|---|---|
@@ -74,7 +74,6 @@ flowchart LR
 | 🎧 | `audioOnly` | Audio-only presentation | Playback continues behind the audio card |
 | 🎚️ | `audioTracks` | Audio-track selection | Depends on exposed tracks / platform engine |
 | ⏩ | `playbackRate` | Playback speed | On-demand experience |
-| ⤵️ | `minimize` | Minimize action | App supplies its navigation or sheet behavior |
 | ⛶ | `fullscreen` | Fullscreen / promote preview | Native full-player presentation is platform-specific |
 | ⏺️ | `recording` | Recording controls | Requires an app recording adapter or callback |
 | 💬 | `liveChat` | Live chat panel | Requires an adapter, render slot, or callback |
@@ -365,7 +364,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `mediaId`, `episodeLabel`, `season`, `episode`, `genre`, `categoryName` | metadata | — | Optional item metadata for the player and integrations. |
 | `playlist` | `object[]` | — | Episode list used for automatic next-episode behavior. |
 | `shuffle` | `boolean` | `false` | Select a random next episode when the current episode ends. |
-| `onClose`, `onBack`, `onMinimize` | callbacks | — | Player lifecycle/navigation callbacks. |
+| `onClose`, `onBack` | callbacks | — | Player lifecycle/navigation callbacks. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. Progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
@@ -430,7 +429,6 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
     audioOnly: true,
     audioTracks: true,
     playbackRate: true,
-    minimize: false,
     fullscreen: true,
     recording: false,
     liveChat: false,
@@ -453,7 +451,6 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `audioOnly` | Show the audio-only card while playback continues. |
 | `audioTracks` | Audio-track picker when tracks are exposed. |
 | `playbackRate` | On-demand playback speed. |
-| `minimize` | Minimize callback button; hidden unless enabled. |
 | `fullscreen` | Fullscreen button on web and inline previews. Native player opens full-screen. |
 | `recording` | Recording controls; requires `integrations.recording` or an action override. |
 | `liveChat` | Chat drawer/panel; requires a chat adapter, render slot, or action override. |
@@ -473,7 +470,6 @@ const playerRef = React.useRef(null);
   source={source}
   actions={{
     onRestart: (_payload, { player }) => player?.restart(),
-    onMinimize: () => closePlayerSheet(),
     onBack: () => navigation.goBack(),
     onMute: ({ muted }, { player }) => player?.setMuted(muted),
     onAspectRatioChange: ({ aspectRatio }, { player }) => player?.setAspectRatio(aspectRatio),
@@ -481,9 +477,9 @@ const playerRef = React.useRef(null);
 />
 ```
 
-Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onMinimize`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
+Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
 
-The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `minimize`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported.
+The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported.
 
 ## Integrations
 
@@ -548,7 +544,7 @@ Defaults are used unless the caller supplies an override. Web theme properties i
 />
 ```
 
-Icon keys: `play`, `pause`, `restart`, `lock`, `unlock`, `mute`, `unmute`, `aspectRatio`, `videoOnly`, `audio`, `minimize`, `back`, `recording`, `stop`, `liveChat`, `epg`, `fullscreen`, and `close`. A value may be a string/glyph, a React element, or an icon component.
+Icon keys: `play`, `pause`, `restart`, `lock`, `unlock`, `mute`, `unmute`, `aspectRatio`, `videoOnly`, `audio`, `back`, `recording`, `stop`, `liveChat`, `epg`, `fullscreen`, and `close`. A value may be a string/glyph, a React element, or an icon component.
 
 ## Sources and link resolution
 

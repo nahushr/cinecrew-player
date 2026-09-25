@@ -143,7 +143,6 @@ export default function App() {
             integrations={integrations}
             actions={{
               onBack: () => setStatus('Back action — connect your app navigation.'),
-              onMinimize: () => setStatus('Minimize action — connect your app layout.'),
             }}
             features={{ diagnostics: true }}
             onBuffering={(buffering) => setStatus(buffering ? 'Buffering…' : 'Ready')}
