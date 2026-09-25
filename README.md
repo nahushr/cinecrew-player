@@ -157,12 +157,15 @@ The items below are planned for more consistent, user-facing support across plat
 
 [![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
 
+[Try the Android demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20Android&dependencies=%40cinecrew%2Fcinecrew-player%2Cexpo-document-picker&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=android&supportedPlatforms=android) · [Try the iOS demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20iOS&dependencies=%40cinecrew%2Fcinecrew-player%2Cexpo-document-picker&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=ios&supportedPlatforms=ios)
+
 ## Demos
 
 - **[React + Vite web demo](examples/web-demo)** — try YouTube, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
 - **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
+- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — both platform links load the same five-test native playground (YouTube, `.ts`, `.mp4`, `.mkv`, and local-file upload), with full-player and inline-player modes. Snack runs in Expo Go, which cannot load this package's custom VLC module; MPEG-TS and MKV playback should be tested in a native development build. [Expo documents this Expo Go limitation](https://docs.expo.dev/faq/#what-can-i-do-or-cannot-do-with-expo-go).
 
-Both demos use the single package in this repository (`file:../..`) so they can build before and after the public release. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. The Expo native entry bundles VLC into the same installed package. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
+The React/Vite and Expo Web demos use the single package in this repository (`file:../..`) so they can build before and after the public release. Snack loads the native example from this repository's `main` branch and installs `@cinecrew/cinecrew-player` from npm, so those links become runnable once the example is pushed and the package is published. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. The Expo native entry bundles VLC into the same installed package. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
 
 Run either demo:
 
