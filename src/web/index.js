@@ -1,10 +1,11 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
 import { YouTubeVideoPlayer } from '../native/media/YouTubeVideoPlayer.web.js';
 import { getYouTubeVideoId, getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
+import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
 import './styles.css';
 
 const h = React.createElement;
@@ -563,13 +564,16 @@ function formatChatTimestamp(value) {
     : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-const CHAT_EMOJIS = ['😀', '😂', '😍', '🥳', '👏', '🔥', '❤️', '😮', '😢', '🙏', '⚽', '🎉'];
+const EMOJI_BATCH_SIZE = 96;
 
 function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose, messagePageSize = 50 }) {
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(integrations.user || null);
   const [message, setMessage] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiGroup, setEmojiGroup] = useState(EMOJI_GROUPS[0].name);
+  const [emojiQuery, setEmojiQuery] = useState('');
+  const [emojiVisibleCount, setEmojiVisibleCount] = useState(EMOJI_BATCH_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -577,11 +581,23 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const rowsRef = useRef([]);
+  const emojiListRef = useRef(null);
   const channelId = String(source.streamId || source.mediaId || source.id || '');
   const isChat = kind === 'chat';
   const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
   const emptyStateMessage = isChat ? 'No messages yet.' : 'No programme information available.';
   const sendButtonLabel = sending ? 'Sending…' : 'Send';
+  const activeEmojiGroup = EMOJI_GROUPS.find((group) => group.name === emojiGroup) || EMOJI_GROUPS[0];
+  const filteredEmojis = useMemo(
+    () => emojiQuery.trim() ? searchEmojis(emojiQuery) : activeEmojiGroup.items,
+    [activeEmojiGroup, emojiQuery],
+  );
+  const visibleEmojis = filteredEmojis.slice(0, emojiVisibleCount);
+
+  useEffect(() => {
+    setEmojiVisibleCount(EMOJI_BATCH_SIZE);
+    if (emojiListRef.current) emojiListRef.current.scrollTop = 0;
+  }, [emojiGroup, emojiQuery]);
 
   const updateRows = (nextRows) => {
     rowsRef.current = nextRows;
@@ -735,13 +751,51 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
           maxLength: 1000,
         }),
         h('button', { type: 'submit', disabled: sending || !message.trim() || typeof integration.sendMessage !== 'function' }, sendButtonLabel),
-        emojiOpen ? h('div', { className: 'cinecrew-player__emoji-picker', role: 'group', 'aria-label': 'Choose an emoji' },
-          CHAT_EMOJIS.map((emoji) => h('button', {
-            key: emoji,
-            type: 'button',
-            onClick: () => setMessage((current) => `${current}${emoji}`),
-            'aria-label': `Insert ${emoji}`,
-          }, emoji))) : null))) : null);
+        emojiOpen ? h('div', { className: 'cinecrew-player__emoji-picker', role: 'dialog', 'aria-label': 'Choose an emoji' },
+          h('input', {
+            className: 'cinecrew-player__emoji-search',
+            type: 'search',
+            value: emojiQuery,
+            onChange: (event) => setEmojiQuery(event.target.value),
+            placeholder: 'Search all emojis',
+            'aria-label': 'Search all emojis',
+          }),
+          h('nav', { className: 'cinecrew-player__emoji-categories', 'aria-label': 'Emoji categories' },
+            EMOJI_GROUPS.map((group) => h('button', {
+              key: group.name,
+              type: 'button',
+              className: !emojiQuery.trim() && group.name === emojiGroup ? 'is-active' : '',
+              onClick: () => {
+                setEmojiGroup(group.name);
+                setEmojiQuery('');
+              },
+              'aria-label': group.name,
+              title: group.name,
+              'aria-pressed': !emojiQuery.trim() && group.name === emojiGroup,
+            }, group.icon))),
+          h('div', {
+            className: 'cinecrew-player__emoji-grid',
+            role: 'grid',
+            ref: emojiListRef,
+            onScroll: (event) => {
+              const element = event.currentTarget;
+              if (element.scrollTop + element.clientHeight >= element.scrollHeight - 32) {
+                setEmojiVisibleCount((count) => Math.min(count + EMOJI_BATCH_SIZE, filteredEmojis.length));
+              }
+            },
+          },
+            visibleEmojis.map((item) => h('button', {
+              key: item.codepoints,
+              type: 'button',
+              onClick: () => setMessage((current) => `${current}${item.emoji}`),
+              'aria-label': `Insert ${item.short_name}`,
+              title: item.short_name,
+            }, item.emoji)),
+            emojiVisibleCount < filteredEmojis.length ? h('button', {
+              type: 'button',
+              className: 'cinecrew-player__emoji-load-more',
+              onClick: () => setEmojiVisibleCount((count) => Math.min(count + EMOJI_BATCH_SIZE, filteredEmojis.length)),
+            }, 'Load more emojis') : null)) : null))) : null);
 }
 
 /**

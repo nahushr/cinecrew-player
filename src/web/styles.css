@@ -486,14 +486,41 @@
   right: 0;
   bottom: calc(100% + 12px);
   z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(6, 36px);
-  gap: 4px;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(390px, 65vh);
+  padding: 10px;
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 14px;
   background: var(--cinecrew-surface);
   box-shadow: 0 10px 30px rgba(0, 0, 0, .42);
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-search {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 10px;
+  outline: 0;
+  padding: 9px 11px;
+  color: inherit;
+  background: rgba(0, 0, 0, .2);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-search:focus {
+  border-color: var(--cinecrew-accent);
+}
+
+.cinecrew-player__emoji-categories {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 2px;
 }
 
 .cinecrew-player__emoji-picker button,
@@ -506,10 +533,60 @@
   font: inherit;
 }
 
-.cinecrew-player__emoji-picker button {
-  width: 36px;
-  height: 36px;
+.cinecrew-player__chat-composer .cinecrew-player__emoji-categories button {
+  display: grid;
+  min-width: 0;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
   font-size: 19px;
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-categories button:hover,
+.cinecrew-player__chat-composer .cinecrew-player__emoji-categories button.is-active {
+  border-color: var(--cinecrew-accent);
+  background: color-mix(in srgb, var(--cinecrew-accent) 14%, transparent);
+}
+
+.cinecrew-player__emoji-grid {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-content: start;
+  gap: 3px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-grid button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  font-size: 19px;
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-grid button:hover {
+  background: rgba(255, 255, 255, .12);
+}
+
+.cinecrew-player__chat-composer .cinecrew-player__emoji-grid .cinecrew-player__emoji-load-more {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: var(--cinecrew-accent);
+  background: rgba(255, 255, 255, .06);
+  font-size: 12px;
 }
 
 .cinecrew-player__load-more {
