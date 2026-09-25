@@ -37,12 +37,18 @@ export default function App() {
   const [status, setStatus] = useState('Ready');
   const [drawerMode, setDrawerMode] = useState('overlay');
   const [sampleMessages, setSampleMessages] = useState(createSampleChatMessages);
+  const [chatToast, setChatToast] = useState('');
   const sampleMessagesRef = useRef(sampleMessages);
+  const chatToastTimerRef = useRef(null);
   sampleMessagesRef.current = sampleMessages;
 
   useEffect(() => () => {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
+
+  useEffect(() => () => {
+    if (chatToastTimerRef.current) clearTimeout(chatToastTimerRef.current);
+  }, []);
 
   const integrations = useMemo(() => ({
     user: { id: 'demo-viewer', username: 'You' },
@@ -55,12 +61,16 @@ export default function App() {
         return { messages: messages.slice(start, end), hasMore: start > 0 };
       },
       sendMessage: async ({ username, comment }) => {
+        const completeMessage = String(comment || '');
         setSampleMessages((current) => [...current, {
           id: `demo-message-${Date.now()}`,
           username,
-          comment,
+          comment: completeMessage,
           timestamp: new Date().toISOString(),
         }]);
+        setChatToast(`${username || 'You'}: ${completeMessage}`);
+        if (chatToastTimerRef.current) clearTimeout(chatToastTimerRef.current);
+        chatToastTimerRef.current = setTimeout(() => setChatToast(''), 5000);
       },
     },
     epg: {
@@ -175,7 +185,6 @@ export default function App() {
             controls={allControls}
             integrations={integrations}
             drawerMode={drawerMode}
-            drawerStyle={{ background: 'rgba(7, 17, 30, 0.84)', borderLeft: '1px solid rgba(0, 229, 255, 0.24)' }}
             messagePageSize={5}
             actions={{
               onBack: () => setStatus('Back action — connect your app navigation.'),
@@ -189,6 +198,12 @@ export default function App() {
       </section>
 
       <p className="footnote">The chat drawer has 15 sample messages and loads 5 per page to demonstrate “See more”; production defaults to 50. Choose overlay or resized-video drawer layout above.</p>
+      {chatToast ? (
+        <div className="chat-toast" role="status" aria-live="polite">
+          <strong>Message sent</strong>
+          <span>{chatToast}</span>
+        </div>
+      ) : null}
     </main>
   );
 }

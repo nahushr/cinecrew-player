@@ -119,6 +119,124 @@ const TAB_META = {
   diagnostics: { icon: 'pulse', title: 'Stream Diagnostics' },
 };
 
+function LiveChatPanel({
+  messagesLoading,
+  messages,
+  flatListRef,
+  renderMessageItem,
+  hasMoreMessages,
+  loadOlderMessages,
+  loadingOlderMessages,
+  chatError,
+  handleQuickReaction,
+  inputText,
+  setInputText,
+  handleSend,
+  isSending,
+  setShowEmojiPicker,
+  showEmojiPicker,
+  handleSelectEmoji,
+  colors,
+}) {
+  return (
+    <>
+      <View style={styles.welcomeBanner}>
+        <PlayerIcon name="shield-check" size={16} color="#00E5FF" style={{ marginTop: 2 }} />
+        <Text style={styles.welcomeText}>
+          Welcome to live chat! Remember to guard your privacy and abide by community guidelines.
+        </Text>
+      </View>
+
+      {messagesLoading && messages.length === 0 ? (
+        <View style={styles.chatLoadingWrap}>
+          <ActivityIndicator size="small" color="#00E5FF" />
+          <Text style={styles.epgStatusText}>Loading live chat…</Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item, index) => chatMessageKey(item, index)}
+          renderItem={renderMessageItem}
+          contentContainerStyle={styles.messagesList}
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={hasMoreMessages ? (
+            <TouchableOpacity
+              style={styles.loadMoreMessages}
+              onPress={loadOlderMessages}
+              disabled={loadingOlderMessages}
+              accessibilityRole="button"
+            >
+              {loadingOlderMessages ? <ActivityIndicator size="small" color="#00E5FF" /> : null}
+              <Text style={styles.loadMoreMessagesText}>
+                {loadingOlderMessages ? 'Loading older messages…' : 'See more messages'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
+        />
+      )}
+      {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
+
+      <View style={styles.quickReactionsRow}>
+        {QUICK_REACTIONS.map((emoji) => (
+          <TouchableOpacity
+            key={emoji}
+            style={styles.quickReactionBtn}
+            onPress={() => handleQuickReaction(emoji)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.quickReactionEmoji}>{emoji}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.inputBarContainer}>
+        <View style={styles.inputPill}>
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Chat..."
+            placeholderTextColor="rgba(255, 255, 255, 0.4)"
+            onSubmitEditing={() => handleSend()}
+            returnKeyType="send"
+            maxLength={400}
+          />
+          <TouchableOpacity
+            style={styles.emojiToggleBtn}
+            onPress={() => setShowEmojiPicker(true)}
+            hitSlop={6}
+          >
+            <PlayerIcon name="emoticon-happy-outline" size={22} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.sendBtn, (!inputText.trim() || isSending) && styles.sendBtnDisabled]}
+          onPress={() => handleSend()}
+          disabled={!inputText.trim() || isSending}
+          hitSlop={8}
+        >
+          <PlayerIcon
+            name="send"
+            size={18}
+            color={inputText.trim() && !isSending ? '#000' : 'rgba(255, 255, 255, 0.3)'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <EmojiPickerModal
+        visible={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        onSelectEmoji={handleSelectEmoji}
+        colors={colors}
+      />
+    </>
+  );
+}
+
 export const LiveChatDrawer = ({
   videoId,
   userId,
@@ -546,112 +664,27 @@ export const LiveChatDrawer = ({
       </View>
 
       {/* --- Tab 1: Live Chat --- */}
-      {activeTab === 'chat' && chatAvailable && (
-        <>
-          {/* Community Notice */}
-          <View style={styles.welcomeBanner}>
-            <PlayerIcon name="shield-check" size={16} color="#00E5FF" style={{ marginTop: 2 }} />
-            <Text style={styles.welcomeText}>
-              Welcome to live chat! Remember to guard your privacy and abide by community guidelines.
-            </Text>
-          </View>
-
-          {/* Messages List */}
-          {messagesLoading && messages.length === 0 ? (
-            <View style={styles.chatLoadingWrap}>
-              <ActivityIndicator size="small" color="#00E5FF" />
-              <Text style={styles.epgStatusText}>Loading live chat…</Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item, index) => chatMessageKey(item, index)}
-              renderItem={renderMessageItem}
-              contentContainerStyle={styles.messagesList}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-              ListHeaderComponent={hasMoreMessages ? (
-                <TouchableOpacity
-                  style={styles.loadMoreMessages}
-                  onPress={loadOlderMessages}
-                  disabled={loadingOlderMessages}
-                  accessibilityRole="button"
-                >
-                  {loadingOlderMessages ? <ActivityIndicator size="small" color="#00E5FF" /> : null}
-                  <Text style={styles.loadMoreMessagesText}>
-                    {loadingOlderMessages ? 'Loading older messages…' : 'See more messages'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
-            />
-          )}
-          {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
-
-          {/* Quick Reaction Bar */}
-          <View style={styles.quickReactionsRow}>
-            {QUICK_REACTIONS.map((emoji) => (
-              <TouchableOpacity
-                key={emoji}
-                style={styles.quickReactionBtn}
-                onPress={() => handleQuickReaction(emoji)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.quickReactionEmoji}>{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Bottom Input Bar */}
-          <View style={styles.inputBarContainer}>
-            <View style={styles.inputPill}>
-              <TextInput
-                style={styles.textInput}
-                value={inputText}
-                onChangeText={setInputText}
-                placeholder="Chat..."
-                placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                onSubmitEditing={() => handleSend()}
-                returnKeyType="send"
-                maxLength={400}
-              />
-
-              <TouchableOpacity
-                style={styles.emojiToggleBtn}
-                onPress={() => setShowEmojiPicker(true)}
-                hitSlop={6}
-              >
-                <PlayerIcon name="emoticon-happy-outline" size={22} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.sendBtn,
-                (!inputText.trim() || isSending) && styles.sendBtnDisabled,
-              ]}
-              onPress={() => handleSend()}
-              disabled={!inputText.trim() || isSending}
-              hitSlop={8}
-            >
-              <PlayerIcon
-                name="send"
-                size={18}
-                color={inputText.trim() && !isSending ? '#000' : 'rgba(255, 255, 255, 0.3)'}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Emoji Picker Modal */}
-          <EmojiPickerModal
-            visible={showEmojiPicker}
-            onClose={() => setShowEmojiPicker(false)}
-            onSelectEmoji={handleSelectEmoji}
-            colors={colors}
-          />
-        </>
-      )}
+      {activeTab === 'chat' && chatAvailable ? (
+        <LiveChatPanel
+          messagesLoading={messagesLoading}
+          messages={messages}
+          flatListRef={flatListRef}
+          renderMessageItem={renderMessageItem}
+          hasMoreMessages={hasMoreMessages}
+          loadOlderMessages={loadOlderMessages}
+          loadingOlderMessages={loadingOlderMessages}
+          chatError={chatError}
+          handleQuickReaction={handleQuickReaction}
+          inputText={inputText}
+          setInputText={setInputText}
+          handleSend={handleSend}
+          isSending={isSending}
+          setShowEmojiPicker={setShowEmojiPicker}
+          showEmojiPicker={showEmojiPicker}
+          handleSelectEmoji={handleSelectEmoji}
+          colors={colors}
+        />
+      ) : null}
 
       {activeTab === 'epg' && epgAvailable && (
         <>

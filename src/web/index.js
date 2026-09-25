@@ -117,6 +117,25 @@ function getPanelActionName(panel) {
 }
 
 function WebSeekControl({ currentTime, duration, theme, onSeek }) {
+  const [seekDraft, setSeekDraft] = useState(currentTime);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!isDragging) setSeekDraft(currentTime);
+  }, [currentTime, isDragging]);
+
+  const updateSeek = (event) => {
+    const nextTime = Number(event.currentTarget.value);
+    setSeekDraft(nextTime);
+    onSeek(nextTime);
+  };
+
+  const finishSeek = (event) => {
+    if (!isDragging) return;
+    updateSeek(event);
+    setIsDragging(false);
+  };
+
   return h('div', { className: 'cinecrew-player__seek' },
     h('span', null, formatTime(currentTime)),
     h('input', {
@@ -125,8 +144,16 @@ function WebSeekControl({ currentTime, duration, theme, onSeek }) {
       min: 0,
       max: duration,
       step: 'any',
-      value: Math.min(currentTime, duration),
-      onChange: (event) => onSeek(Number(event.target.value)),
+      value: Math.min(isDragging ? seekDraft : currentTime, duration),
+      onChange: updateSeek,
+      onPointerDown: (event) => {
+        event.stopPropagation();
+        setIsDragging(true);
+        setSeekDraft(Number(event.currentTarget.value));
+      },
+      onPointerUp: finishSeek,
+      onPointerCancel: finishSeek,
+      onBlur: finishSeek,
       style: { accentColor: theme.accentColor },
     }),
     h('span', null, formatTime(duration)));
@@ -383,7 +410,6 @@ function buildUnlockedControls({
   hasChat, hasEpg, hasDiagnostics, handleOpenPanel, setRecording, backVisible,
 }) {
   const leftControls = [control('back', 'Back', onBack, { defaultVisible: backVisible })];
-  const rightControls = [];
   let recordingControl = null;
   if (hasRecording) {
     const recordingLabel = recording ? 'Stop recording' : 'Start recording';
@@ -398,21 +424,37 @@ function buildUnlockedControls({
   }
   const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
   const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
-  rightControls.push(
+  const rightControls = [
     recordingControl,
     control('liveChat', chatLabel, () => handleOpenPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
-    control('epg', epgLabel, () => handleOpenPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }));
-  if (!isLive) rightControls.push(control('restart', 'Restart', restart));
+    control('epg', epgLabel, () => handleOpenPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
+    ...(!isLive ? [control('restart', 'Restart', restart)] : []),
+  ];
   const muteLabel = muted ? 'Unmute' : 'Mute';
-  rightControls.push(control('mute', muteLabel, toggleMute, { icon: muted ? 'mute' : 'unmute' }));
-  rightControls.push(control('diagnostics', 'Stream diagnostics', () => handleOpenPanel('diagnostics'), { active: activePanel === 'diagnostics', defaultVisible: hasDiagnostics }));
-  rightControls.push(control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }));
+  rightControls.push(
+    control('mute', muteLabel, toggleMute, { icon: muted ? 'mute' : 'unmute' }),
+    control('diagnostics', 'Stream diagnostics', () => handleOpenPanel('diagnostics'), { active: activePanel === 'diagnostics', defaultVisible: hasDiagnostics }),
+    control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
+  );
   return { left: leftControls, right: rightControls };
 }
 
+function getDrawerLabel(activePanel) {
+  if (activePanel === 'chat') return 'Live chat drawer';
+  if (activePanel === 'epg') return 'Programme guide drawer';
+  return 'Stream diagnostics drawer';
+}
+
+function getPlaybackStatus(error, buffering, paused) {
+  if (error) return 'Error';
+  if (buffering) return 'Buffering';
+  return paused ? 'Paused' : 'Playing';
+}
+
 function WebPlayerLayout(props) {
-  const controlLayer = !props.error && !props.audioOnly
-    ? h(WebPlayerControls, {
+  let controlLayer = null;
+  if (!props.error && !props.audioOnly) {
+    controlLayer = h(WebPlayerControls, {
       locked: props.locked,
       buffering: props.buffering,
       overrides: props.controlOverrides,
@@ -423,25 +465,29 @@ function WebPlayerLayout(props) {
       paused: props.isPaused,
       togglePlay: props.togglePlay,
       bottomProps: props.bottomControlProps,
-    })
-    : null;
-  const playerTitle = props.title && !props.audioOnly
-    ? h('div', { className: 'cinecrew-player__title', style: { color: props.theme.controlColor } }, props.title)
-    : null;
-  const loadingNotice = props.buffering && !props.error
-    ? h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
+    });
+  }
+  let playerTitle = null;
+  if (props.title && !props.audioOnly) {
+    playerTitle = h('div', { className: 'cinecrew-player__title', style: { color: props.theme.controlColor } }, props.title);
+  }
+  let loadingNotice = null;
+  if (props.buffering && !props.error) {
+    loadingNotice = h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
       h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…')
-    : null;
-  const audioCard = props.audioOnly
-    ? h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, onSwitchToVideo: props.onSwitchToVideo })
-    : null;
-  const panelNode = props.activePanel && props.webPanel
-    ? h('aside', {
+  }
+  let audioCard = null;
+  if (props.audioOnly) {
+    audioCard = h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, onSwitchToVideo: props.onSwitchToVideo });
+  }
+  let panelNode = null;
+  if (props.activePanel && props.webPanel) {
+    panelNode = h('aside', {
       className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}`,
       style: { color: props.theme.controlColor, ...props.drawerStyle },
-      'aria-label': props.activePanel === 'chat' ? 'Live chat drawer' : props.activePanel === 'epg' ? 'Programme guide drawer' : 'Stream diagnostics drawer',
-    }, props.webPanel)
-    : null;
+      'aria-label': getDrawerLabel(props.activePanel),
+    }, props.webPanel);
+  }
   return h('div', {
     ref: props.playerRef,
     className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
@@ -566,14 +612,131 @@ function formatChatTimestamp(value) {
 
 const EMOJI_BATCH_SIZE = 96;
 
+function WebEmojiPicker({ onSelect }) {
+  const [emojiGroup, setEmojiGroup] = useState(EMOJI_GROUPS[0].name);
+  const [emojiQuery, setEmojiQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(EMOJI_BATCH_SIZE);
+  const listRef = useRef(null);
+  const activeGroup = EMOJI_GROUPS.find((group) => group.name === emojiGroup) || EMOJI_GROUPS[0];
+  const filteredEmojis = useMemo(
+    () => emojiQuery.trim() ? searchEmojis(emojiQuery) : activeGroup.items,
+    [activeGroup, emojiQuery],
+  );
+  const visibleEmojis = filteredEmojis.slice(0, visibleCount);
+
+  useEffect(() => {
+    setVisibleCount(EMOJI_BATCH_SIZE);
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [emojiGroup, emojiQuery]);
+
+  const loadMore = () => setVisibleCount((count) => Math.min(count + EMOJI_BATCH_SIZE, filteredEmojis.length));
+  const handleScroll = (event) => {
+    const element = event.currentTarget;
+    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 32) loadMore();
+  };
+
+  return h('div', { className: 'cinecrew-player__emoji-picker', role: 'dialog', 'aria-label': 'Choose an emoji' },
+    h('input', {
+      className: 'cinecrew-player__emoji-search',
+      type: 'search',
+      value: emojiQuery,
+      onChange: (event) => setEmojiQuery(event.target.value),
+      placeholder: 'Search all emojis',
+      'aria-label': 'Search all emojis',
+    }),
+    h('nav', { className: 'cinecrew-player__emoji-categories', 'aria-label': 'Emoji categories' },
+      EMOJI_GROUPS.map((group) => h('button', {
+        key: group.name,
+        type: 'button',
+        className: !emojiQuery.trim() && group.name === emojiGroup ? 'is-active' : '',
+        onClick: () => {
+          setEmojiGroup(group.name);
+          setEmojiQuery('');
+        },
+        'aria-label': group.name,
+        title: group.name,
+        'aria-pressed': !emojiQuery.trim() && group.name === emojiGroup,
+      }, group.icon))),
+    h('div', {
+      className: 'cinecrew-player__emoji-grid',
+      role: 'grid',
+      ref: listRef,
+      onScroll: handleScroll,
+    },
+    visibleEmojis.map((item) => h('button', {
+      key: item.codepoints,
+      type: 'button',
+      onClick: () => onSelect(item.emoji),
+      'aria-label': `Insert ${item.short_name}`,
+      title: item.short_name,
+    }, item.emoji)),
+    visibleCount < filteredEmojis.length ? h('button', {
+      type: 'button',
+      className: 'cinecrew-player__emoji-load-more',
+      onClick: loadMore,
+    }, 'Load more emojis') : null));
+}
+
+function WebChatComposer({ sending, canSend, onSend }) {
+  const [message, setMessage] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const comment = message.trim();
+    if (!comment || sending || !canSend) return;
+    const sent = await onSend(comment);
+    if (sent) setMessage('');
+  };
+  const insertEmoji = (emoji) => setMessage((current) => `${current}${emoji}`);
+
+  return h('form', { className: 'cinecrew-player__chat-form', onSubmit: handleSubmit },
+    h('div', { className: 'cinecrew-player__chat-composer' },
+      h('button', {
+        type: 'button',
+        className: 'cinecrew-player__emoji-toggle',
+        onClick: () => setEmojiOpen((open) => !open),
+        'aria-label': emojiOpen ? 'Close emoji picker' : 'Open emoji picker',
+      }, '☺'),
+      h('input', {
+        value: message,
+        onChange: (event) => setMessage(event.target.value),
+        placeholder: 'Add a message…',
+        'aria-label': 'Chat message',
+        maxLength: 1000,
+      }),
+      h('button', { type: 'submit', disabled: sending || !message.trim() || !canSend }, sending ? 'Sending…' : 'Send')),
+    emojiOpen ? h(WebEmojiPicker, { onSelect: insertEmoji }) : null);
+}
+
+function WebPanelRow({ row, index, isChat }) {
+  if (isChat) {
+    const timestamp = row.createdAt ?? row.timestamp ?? row.sentAt ?? row.time;
+    return h('article', { key: row.id ?? row.messageId ?? index, className: 'cinecrew-player__chat-message' },
+      h('header', null,
+        h('strong', null, row.username || row.userName || row.name || 'Viewer'),
+        timestamp ? h('time', { dateTime: String(timestamp) }, formatChatTimestamp(timestamp)) : null),
+      h('span', null, row.comment || row.message || row.text || ''));
+  }
+  const start = row.startMs ?? row.start ?? row.startTime;
+  const end = row.endMs ?? row.end ?? row.endTime;
+  return h('article', { key: row.id ?? row.startMs ?? index, className: 'cinecrew-player__epg-item' },
+    h('small', null, [formatListingTime(start), formatListingTime(end)].filter(Boolean).join(' – ')),
+    h('strong', null, row.title || row.name || 'Programme'),
+    row.description ? h('span', null, row.description) : null);
+}
+
+function WebLoadMoreMessages({ loading, onClick }) {
+  return h('button', {
+    type: 'button',
+    className: 'cinecrew-player__load-more',
+    onClick,
+    disabled: loading,
+  }, loading ? 'Loading more…' : 'See more messages');
+}
+
 function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose, messagePageSize = 50 }) {
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(integrations.user || null);
-  const [message, setMessage] = useState('');
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const [emojiGroup, setEmojiGroup] = useState(EMOJI_GROUPS[0].name);
-  const [emojiQuery, setEmojiQuery] = useState('');
-  const [emojiVisibleCount, setEmojiVisibleCount] = useState(EMOJI_BATCH_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -581,23 +744,10 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const rowsRef = useRef([]);
-  const emojiListRef = useRef(null);
   const channelId = String(source.streamId || source.mediaId || source.id || '');
   const isChat = kind === 'chat';
   const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
   const emptyStateMessage = isChat ? 'No messages yet.' : 'No programme information available.';
-  const sendButtonLabel = sending ? 'Sending…' : 'Send';
-  const activeEmojiGroup = EMOJI_GROUPS.find((group) => group.name === emojiGroup) || EMOJI_GROUPS[0];
-  const filteredEmojis = useMemo(
-    () => emojiQuery.trim() ? searchEmojis(emojiQuery) : activeEmojiGroup.items,
-    [activeEmojiGroup, emojiQuery],
-  );
-  const visibleEmojis = filteredEmojis.slice(0, emojiVisibleCount);
-
-  useEffect(() => {
-    setEmojiVisibleCount(EMOJI_BATCH_SIZE);
-    if (emojiListRef.current) emojiListRef.current.scrollTop = 0;
-  }, [emojiGroup, emojiQuery]);
 
   const updateRows = (nextRows) => {
     rowsRef.current = nextRows;
@@ -678,10 +828,8 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
     }
   };
 
-  const send = async (event) => {
-    event.preventDefault();
-    const comment = message.trim();
-    if (!comment || sending || !integration.sendMessage) return;
+  const send = async (comment) => {
+    if (!comment || sending || !integration.sendMessage) return false;
     setSending(true);
     try {
       await integration.sendMessage({
@@ -690,10 +838,11 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
         username: user?.username || 'Viewer',
         comment,
       });
-      setMessage('');
       await load();
+      return true;
     } catch (sendError) {
       setError(sendError?.message || 'Could not send your message.');
+      return false;
     } finally {
       setSending(false);
     }
@@ -710,92 +859,14 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
   !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
-  h('div', { className: 'cinecrew-player__panel-list' },
-    isChat && hasMoreMessages ? h('button', {
-      type: 'button',
-      className: 'cinecrew-player__load-more',
-      onClick: loadOlderMessages,
-      disabled: loadingOlder,
-    }, loadingOlder ? 'Loading more…' : 'See more messages') : null,
-    rows.map((row, index) => {
-    const key = row.id ?? row.messageId ?? row.startMs ?? index;
-    if (isChat) {
-      const timestamp = row.createdAt ?? row.timestamp ?? row.sentAt ?? row.time;
-      return h('article', { key, className: 'cinecrew-player__chat-message' },
-        h('header', null,
-          h('strong', null, row.username || row.userName || row.name || 'Viewer'),
-          timestamp ? h('time', { dateTime: String(timestamp) }, formatChatTimestamp(timestamp)) : null),
-        h('span', null, row.comment || row.message || row.text || ''));
-    }
-    const start = row.startMs ?? row.start ?? row.startTime;
-    const end = row.endMs ?? row.end ?? row.endTime;
-    return h('article', { key, className: 'cinecrew-player__epg-item' },
-      h('small', null, [formatListingTime(start), formatListingTime(end)].filter(Boolean).join(' – ')),
-      h('strong', null, row.title || row.name || 'Programme'),
-      row.description ? h('span', null, row.description) : null);
-  })),
-  isChat ? h(React.Fragment, null,
-    h('form', { className: 'cinecrew-player__chat-form', onSubmit: send },
-      h('div', { className: 'cinecrew-player__chat-composer' },
-        h('button', {
-          type: 'button',
-          className: 'cinecrew-player__emoji-toggle',
-          onClick: () => setEmojiOpen((open) => !open),
-          'aria-label': emojiOpen ? 'Close emoji picker' : 'Open emoji picker',
-        }, '☺'),
-        h('input', {
-          value: message,
-          onChange: (event) => setMessage(event.target.value),
-          placeholder: 'Add a message…',
-          'aria-label': 'Chat message',
-          maxLength: 1000,
-        }),
-        h('button', { type: 'submit', disabled: sending || !message.trim() || typeof integration.sendMessage !== 'function' }, sendButtonLabel),
-        emojiOpen ? h('div', { className: 'cinecrew-player__emoji-picker', role: 'dialog', 'aria-label': 'Choose an emoji' },
-          h('input', {
-            className: 'cinecrew-player__emoji-search',
-            type: 'search',
-            value: emojiQuery,
-            onChange: (event) => setEmojiQuery(event.target.value),
-            placeholder: 'Search all emojis',
-            'aria-label': 'Search all emojis',
-          }),
-          h('nav', { className: 'cinecrew-player__emoji-categories', 'aria-label': 'Emoji categories' },
-            EMOJI_GROUPS.map((group) => h('button', {
-              key: group.name,
-              type: 'button',
-              className: !emojiQuery.trim() && group.name === emojiGroup ? 'is-active' : '',
-              onClick: () => {
-                setEmojiGroup(group.name);
-                setEmojiQuery('');
-              },
-              'aria-label': group.name,
-              title: group.name,
-              'aria-pressed': !emojiQuery.trim() && group.name === emojiGroup,
-            }, group.icon))),
-          h('div', {
-            className: 'cinecrew-player__emoji-grid',
-            role: 'grid',
-            ref: emojiListRef,
-            onScroll: (event) => {
-              const element = event.currentTarget;
-              if (element.scrollTop + element.clientHeight >= element.scrollHeight - 32) {
-                setEmojiVisibleCount((count) => Math.min(count + EMOJI_BATCH_SIZE, filteredEmojis.length));
-              }
-            },
-          },
-            visibleEmojis.map((item) => h('button', {
-              key: item.codepoints,
-              type: 'button',
-              onClick: () => setMessage((current) => `${current}${item.emoji}`),
-              'aria-label': `Insert ${item.short_name}`,
-              title: item.short_name,
-            }, item.emoji)),
-            emojiVisibleCount < filteredEmojis.length ? h('button', {
-              type: 'button',
-              className: 'cinecrew-player__emoji-load-more',
-              onClick: () => setEmojiVisibleCount((count) => Math.min(count + EMOJI_BATCH_SIZE, filteredEmojis.length)),
-            }, 'Load more emojis') : null)) : null))) : null);
+    h('div', { className: 'cinecrew-player__panel-list' },
+      isChat && hasMoreMessages ? h(WebLoadMoreMessages, { loading: loadingOlder, onClick: loadOlderMessages }) : null,
+      rows.map((row, index) => h(WebPanelRow, { key: getChatMessageKey(row, index), row, index, isChat }))),
+    isChat ? h(WebChatComposer, {
+      sending,
+      canSend: typeof integration.sendMessage === 'function',
+      onSend: send,
+    }) : null);
 }
 
 /**
@@ -1184,7 +1255,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onClose: () => setActivePanel(null),
     diagnostics: {
       streamMode,
-      status: error ? 'Error' : buffering ? 'Buffering' : isPaused ? 'Paused' : 'Playing',
+      status: getPlaybackStatus(error, buffering, isPaused),
       currentTime,
       duration,
       videoRef,

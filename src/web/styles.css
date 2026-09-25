@@ -139,8 +139,8 @@
   flex: 1;
   min-width: 50px;
   min-height: 24px;
-  touch-action: none;
-  cursor: pointer;
+  touch-action: auto;
+  cursor: ew-resize;
 }
 
 .cinecrew-player__button {
@@ -275,18 +275,19 @@
 .cinecrew-player__menu-wrap--aspect .cinecrew-player__menu {
   right: auto;
   left: 0;
-  width: min(180px, calc(100vw - 80px));
+  box-sizing: border-box;
+  width: min(180px, calc(100vw - 32px));
   min-width: 0;
-  max-width: calc(100vw - 80px);
-  max-height: min(120px, calc(100vh - 160px));
+  max-width: calc(100vw - 32px);
+  max-height: min(220px, calc(100vh - 32px));
   overflow-y: auto;
 }
 
 @supports (width: 1cqw) and (height: 1cqh) {
   .cinecrew-player__menu-wrap--aspect .cinecrew-player__menu {
-    width: min(180px, calc(100cqw - 76px));
-    max-width: calc(100cqw - 76px);
-    max-height: min(220px, calc(100cqh - 88px));
+    width: min(180px, max(0px, calc(100cqw - 28px)));
+    max-width: max(0px, calc(100cqw - 28px));
+    max-height: min(220px, max(80px, calc(100cqh - 28px)));
   }
 }
 
@@ -299,6 +300,10 @@
   cursor: pointer;
   text-align: left;
   font: inherit;
+}
+
+.cinecrew-player__menu-wrap--aspect .cinecrew-player__menu button {
+  padding-block: 6px;
 }
 
 .cinecrew-player__diagnostics {
@@ -638,7 +643,7 @@
   inset: 0 0 0 auto;
   z-index: 6;
   box-sizing: border-box;
-  width: min(420px, 38%);
+  width: min(420px, 92%);
   max-width: 92%;
   overflow: auto;
   padding: 16px;
@@ -650,7 +655,7 @@
   animation: cinecrew-drawer-in 180ms ease-out both;
 }
 
-.cinecrew-player--drawer-resize .cinecrew-player__panel { width: min(420px, 38%); }
+.cinecrew-player--drawer-resize .cinecrew-player__panel { width: min(420px, 36%); }
 
 .cinecrew-player__panel.is-resizing { background: rgba(13, 26, 44, .88); }
 

@@ -208,7 +208,15 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   return React.createElement('div', {
     ref: hostRef,
     className: 'cinecrew-player__youtube',
-    style: { position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000', ...style },
+    style: {
+      position: 'absolute',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+      background: '#000',
+      ...style,
+      pointerEvents: 'none',
+    },
   });
 });
 
