@@ -42,7 +42,7 @@ jobs:
           args: >-
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.sources=src,packages/react-native-vlc-media-player/android/src/main/java,packages/react-native-vlc-media-player/ios/RCTVLCPlayer,packages/react-native-vlc-media-player/expo
+            -Dsonar.sources=src,android/src/main/java,packages/react-native-vlc-media-player/ios/RCTVLCPlayer,packages/react-native-vlc-media-player/expo
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.gradle/**,**/.scannerwork/**,**/coverage/**
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600

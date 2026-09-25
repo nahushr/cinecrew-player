@@ -45,10 +45,12 @@ test('published package metadata and export targets are complete', () => {
 test('native VLC implementation is bundled inside the single player package', () => {
   assert.ok(manifest.files.includes('android/'));
   assert.ok(manifest.files.includes('packages/react-native-vlc-media-player/ios/RCTVLCPlayer/'));
+  assert.ok(manifest.files.includes('packages/react-native-vlc-media-player/expo/'));
   assert.ok(manifest.files.includes('CineCrewPlayer.podspec'));
   assert.ok(manifest.files.includes('app.plugin.cjs'));
   assert.ok(existsSync(path.join(root, 'android/build.gradle')));
   assert.ok(existsSync(path.join(root, 'android/src/main/java/com/yuanzhou/vlc/ReactVlcPlayerPackage.java')));
+  assert.ok(existsSync(path.join(root, 'android/.npmignore')));
   assert.equal(existsSync(path.join(root, 'react-native.config.js')), false);
   assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/package.json')), false);
   assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/.github/workflows/npmpublish.yml')), false);
