@@ -56,16 +56,23 @@ test('native VLC implementation is bundled inside the single player package', ()
   assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/.github/workflows/npmpublish.yml')), false);
 });
 
-test('Vite demo lockfile includes the Linux optional Rolldown binding', () => {
+test('Vite demo lockfile includes Linux optional native build bindings', () => {
   const lock = JSON.parse(readFileSync(path.join(root, 'examples/web-demo/package-lock.json'), 'utf8'));
   const rolldown = lock.packages['node_modules/rolldown'];
-  const linuxBinding = lock.packages['node_modules/@rolldown/binding-linux-x64-gnu'];
+  const rolldownBinding = lock.packages['node_modules/@rolldown/binding-linux-x64-gnu'];
+  const lightningcss = lock.packages['node_modules/lightningcss'];
+  const lightningcssBinding = lock.packages['node_modules/lightningcss-linux-x64-gnu'];
 
   assert.ok(rolldown.optionalDependencies['@rolldown/binding-linux-x64-gnu']);
-  assert.equal(linuxBinding.version, rolldown.optionalDependencies['@rolldown/binding-linux-x64-gnu']);
-  assert.deepEqual(linuxBinding.os, ['linux']);
-  assert.deepEqual(linuxBinding.cpu, ['x64']);
-  assert.equal(linuxBinding.optional, true);
+  assert.equal(rolldownBinding.version, rolldown.optionalDependencies['@rolldown/binding-linux-x64-gnu']);
+  assert.deepEqual(rolldownBinding.os, ['linux']);
+  assert.deepEqual(rolldownBinding.cpu, ['x64']);
+  assert.equal(rolldownBinding.optional, true);
+  assert.ok(lightningcss.optionalDependencies['lightningcss-linux-x64-gnu']);
+  assert.equal(lightningcssBinding.version, lightningcss.optionalDependencies['lightningcss-linux-x64-gnu']);
+  assert.deepEqual(lightningcssBinding.os, ['linux']);
+  assert.deepEqual(lightningcssBinding.cpu, ['x64']);
+  assert.equal(lightningcssBinding.optional, true);
 });
 
 test('README documents every public control and action key', () => {
