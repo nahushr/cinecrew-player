@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #07111e; color: #f3f7fc; font: 15px/1.5 system-ui, sans-serif; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.demo-shell { max-width: 1060px; margin: 0 auto; padding: 32px 20px 56px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.page-header h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); }
+.eyebrow { margin: 0; color: #16c7d9; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
+.platform-tag, .sample, .file-button, .url-form button { border: 1px solid #29415d; border-radius: 999px; padding: 9px 15px; background: #12243a; color: #edf6ff; }
+.source-card, .player-card { border: 1px solid #203650; border-radius: 18px; background: #0d1a2a; padding: 18px; }
+.source-card { margin-bottom: 16px; }
+.sample-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.sample.active, .url-form button { background: #087f91; border-color: #16c7d9; }
+.url-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.url-form input { min-width: 240px; flex: 1; border: 1px solid #29415d; border-radius: 10px; padding: 10px 12px; background: #07111e; color: inherit; }
+.file-button { display: inline-flex; align-items: center; position: relative; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.inline-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; }
+.source-note, .footnote { margin: 10px 0 0; color: #a9bbcf; font-size: 13px; }
+.player-card { min-height: 250px; padding: 12px; }
+.player-card .cinecrew-player { width: 100%; min-height: 220px; }
+.demo-panel { padding: 14px; color: #f3f7fc; }
+.demo-panel header { display: flex; justify-content: space-between; align-items: center; }
+.demo-panel button { border: 0; background: transparent; color: inherit; font-size: 22px; }
+@media (max-width: 600px) { .demo-shell { padding: 22px 12px; } .source-card { padding: 12px; } .url-form input { min-width: 100%; } }

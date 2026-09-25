@@ -2,6 +2,29 @@
 
 An embeddable video player for **React** and **React Native** with a shared, customizable control API. Pass local media or a URL using any scheme your platform supports; the player does not rewrite protocols or impose app-specific proxy rules. It supports HLS and MPEG-TS on web, native VLC playback, configurable controls and icons, YouTube embeds, and optional chat, EPG, and recording integrations.
 
+[![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
+
+## Demos
+
+- **[React + Vite web demo](examples/web-demo)** — try YouTube, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
+- **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
+
+Both demos currently depend on the package in this repository (`file:../..`) so they work before the first public npm release. Once `cinecrew-player` is published, replace that dependency with `"cinecrew-player": "latest"` and run `npm install` in the demo directory. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
+
+Run either demo:
+
+```sh
+cd examples/web-demo
+npm install
+npm run dev
+```
+
+```sh
+cd examples/expo-web-demo
+npm install
+npm run web
+```
+
 > Direct media sources are passed through to the platform engine. A page/share URL is not necessarily a playable media source; use `resolveSource` to resolve it. The player does not rewrite protocols, proxy media, or impose host-specific CORS rules.
 
 ## Install

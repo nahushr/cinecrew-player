@@ -1,0 +1,17 @@
+{
+  "name": "cinecrew-player-expo-web-demo",
+  "private": true,
+  "main": "expo/AppEntry",
+  "scripts": {
+    "web": "expo start --web",
+    "build": "expo export --platform web"
+  },
+  "dependencies": {
+    "cinecrew-player": "file:../..",
+    "expo": "~57.0.25",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-web": "~0.21.0"
+  }
+}
