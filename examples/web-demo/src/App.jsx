@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react';
 import '@cinecrew/cinecrew-player/styles.css';
-import { allControls, asPlayerSource, sampleSources } from '../../shared/samples.js';
+import { allControls, asPlayerSource, sampleSources } from './samples.js';
 
 const playerTheme = {
   accentColor: '#16c7d9',

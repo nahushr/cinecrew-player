@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react-native-web';
 import '@cinecrew/cinecrew-player/styles.css';
-import { allControls, asPlayerSource, sampleSources } from '../shared/samples.js';
+import { allControls, asPlayerSource, sampleSources } from '../web-demo/src/samples.js';
 
 const theme = {
   accentColor: '#16c7d9',
