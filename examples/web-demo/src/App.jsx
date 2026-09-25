@@ -1,16 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react';
 import '@cinecrew/cinecrew-player/styles.css';
 import { allControls, asPlayerSource, sampleSources } from './samples.js';
 
-function DemoPanel({ title, source, onClose }) {
-  return (
-    <section className="demo-panel">
-      <header><strong>{title}</strong><button onClick={onClose} aria-label="Close">×</button></header>
-      <p>{source.title || source.uri}</p>
-      <p>This is a demo adapter. Connect your own chat or EPG service here.</p>
-    </section>
-  );
+function createSampleChatMessages() {
+  const messages = [
+    ['Maya', 'That replay was unreal!'],
+    ['Aarav', 'The keeper never saw it coming 😄'],
+    ['Jordan', 'What a finish!'],
+    ['Maya', 'This match keeps getting better.'],
+    ['Leo', 'The crowd is electric tonight 🔥'],
+    ['Aarav', 'Great pass to set that up.'],
+    ['Priya', 'Who do you think takes the next one?'],
+    ['Jordan', 'Going with the home side.'],
+    ['Leo', 'Same here — they look sharp.'],
+    ['Maya', 'That was so close!'],
+    ['Priya', '👏👏👏'],
+    ['Aarav', 'Best game this week.'],
+    ['Jordan', 'One more goal would seal it.'],
+    ['Leo', 'Here we go again!'],
+    ['Maya', 'Enjoying the stream, everyone 💙'],
+  ];
+  return messages.map(([username, comment], index) => ({
+    id: `demo-message-${index + 1}`,
+    username,
+    comment,
+    timestamp: new Date(Date.now() - (messages.length - index - 1) * 4 * 60 * 1000).toISOString(),
+  }));
 }
 
 export default function App() {
@@ -19,14 +35,43 @@ export default function App() {
   const [inline, setInline] = useState(false);
   const [live, setLive] = useState(false);
   const [status, setStatus] = useState('Ready');
+  const [drawerMode, setDrawerMode] = useState('overlay');
+  const [sampleMessages, setSampleMessages] = useState(createSampleChatMessages);
+  const sampleMessagesRef = useRef(sampleMessages);
+  sampleMessagesRef.current = sampleMessages;
 
   useEffect(() => () => {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
 
   const integrations = useMemo(() => ({
-    liveChat: { render: (props) => <DemoPanel {...props} title="Live chat" /> },
-    epg: { render: (props) => <DemoPanel {...props} title="Programme guide" /> },
+    user: { id: 'demo-viewer', username: 'You' },
+    liveChat: {
+      pollIntervalMs: 10000,
+      loadMessages: async ({ limit, offset = 0 }) => {
+        const messages = sampleMessagesRef.current;
+        const end = Math.max(0, messages.length - offset);
+        return messages.slice(Math.max(0, end - limit), end);
+      },
+      sendMessage: async ({ username, comment }) => {
+        setSampleMessages((current) => [...current, {
+          id: `demo-message-${Date.now()}`,
+          username,
+          comment,
+          timestamp: new Date().toISOString(),
+        }]);
+      },
+    },
+    epg: {
+      loadListings: async () => {
+        const now = Date.now();
+        return [
+          { id: 'demo-epg-1', title: 'Live coverage', startMs: now - 20 * 60_000, endMs: now + 40 * 60_000, description: 'The event is underway.' },
+          { id: 'demo-epg-2', title: 'Post-match analysis', startMs: now + 40 * 60_000, endMs: now + 90 * 60_000 },
+          { id: 'demo-epg-3', title: 'Highlights', startMs: now + 90 * 60_000, endMs: now + 120 * 60_000 },
+        ];
+      },
+    },
     recording: {
       start: async () => setStatus('Demo recording adapter: connect your recorder/storage.'),
       stop: async () => setStatus('Recording stopped.'),
@@ -95,6 +140,13 @@ export default function App() {
           <input type="checkbox" checked={live} onChange={(event) => setLive(event.target.checked)} />
           Treat source as live
         </label>
+        <label className="inline-toggle">
+          Drawer layout
+          <select aria-label="Drawer layout" value={drawerMode} onChange={(event) => setDrawerMode(event.target.value)}>
+            <option value="overlay">Overlay video</option>
+            <option value="resize">Resize video</option>
+          </select>
+        </label>
         <p className="source-note">{status} · Browser format and CORS support depend on the source host.</p>
       </section>
 
@@ -121,6 +173,9 @@ export default function App() {
             muted={isYouTubeSource}
             controls={allControls}
             integrations={integrations}
+            drawerMode={drawerMode}
+            drawerStyle={{ background: 'rgba(7, 17, 30, 0.84)', borderLeft: '1px solid rgba(0, 229, 255, 0.24)' }}
+            messagePageSize={5}
             actions={{
               onBack: () => setStatus('Back action — connect your app navigation.'),
               onMinimize: () => setStatus('Minimize action — connect your app layout.'),
@@ -133,7 +188,7 @@ export default function App() {
         )}
       </section>
 
-      <p className="footnote">The full player enables every control and demo integration. Inline mode shows its compact play, mute, and fullscreen controls.</p>
+      <p className="footnote">The chat drawer has 15 sample messages and loads 5 per page to demonstrate “See more”; production defaults to 50. Choose overlay or resized-video drawer layout above.</p>
     </main>
   );
 }
