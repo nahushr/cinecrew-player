@@ -154,6 +154,15 @@ jobs:
             npm publish --ignore-scripts --registry=https://npm.pkg.github.com
           fi
 
+      - name: Point the React demo at the published npm version
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: >-
+          npm install --package-lock-only --ignore-scripts --save-exact
+          "@cinecrew/cinecrew-player@$VERSION"
+          --prefix examples/web-demo
+          --registry=https://registry.npmjs.org
+
       - name: Commit the released version for the next main build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,5 +172,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add package.json package-lock.json
+          git add examples/web-demo/package.json examples/web-demo/package-lock.json
           git commit -m "chore(release): sync package version $VERSION [skip ci]"
           git push origin HEAD:main

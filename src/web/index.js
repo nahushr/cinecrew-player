@@ -231,7 +231,7 @@ function WebBottomControls(props) {
         renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }))));
 }
 
-function WebPlayerControls({ locked, overrides, theme, icons, unlockedControls, toggleLock, paused, togglePlay, bottomProps }) {
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, togglePlay, bottomProps }) {
   let leftControls = unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -243,10 +243,12 @@ function WebPlayerControls({ locked, overrides, theme, icons, unlockedControls, 
   let centerControls = null;
   let bottomControls = null;
   if (!locked) {
-    const playLabel = paused ? 'Play' : 'Pause';
-    const playIcon = paused ? 'play' : 'pause';
-    centerControls = h('div', { className: 'cinecrew-player__center-controls' },
-      renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }));
+    if (!buffering) {
+      const playLabel = paused ? 'Play' : 'Pause';
+      const playIcon = paused ? 'play' : 'pause';
+      centerControls = h('div', { className: 'cinecrew-player__center-controls' },
+        renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }));
+    }
     bottomControls = h(WebBottomControls, bottomProps);
   }
   return h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
@@ -413,6 +415,7 @@ function WebPlayerLayout(props) {
   const controlLayer = !props.error && !props.audioOnly
     ? h(WebPlayerControls, {
       locked: props.locked,
+      buffering: props.buffering,
       overrides: props.controlOverrides,
       theme: props.theme,
       icons: props.icons,

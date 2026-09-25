@@ -91,7 +91,7 @@ flowchart LR
 | 🎨 Colors and shape | `theme`: accent, background, control, surface, error colors, border radius, and native palette |
 | 🪄 Icons | `icons`: provide a glyph/string, React node, or icon component; omitted icons keep CineCrew defaults |
 | 🧠 Per-control behavior | `actions`: override only the actions your app wants to own; built-in behavior remains the default otherwise |
-| 🧱 App-owned panels | `renderLiveChat`, `renderEpg`, or integration render callbacks |
+| 🧱 Chat and EPG drawers | `drawerMode`, `drawerStyle`, and optional app-owned `renderLiveChat` / `renderEpg` views |
 | 🔗 Source handling | `resolveSource` for share pages or host-specific resolution; direct media sources pass through unchanged |
 | 📐 Layout | `style`, web `className`, inline preview geometry, and `InlineLivePlayer` height |
 | 📣 Events and state | Lifecycle callbacks plus progress, presence, analytics, and sleep-timer integrations |
@@ -348,6 +348,9 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `features` | feature flags | `{}` | Optional player features, including web stream diagnostics with `{ diagnostics: true }`. |
 | `actions` | `PlayerActions` | `{}` | Replace the built-in behavior for individual actions. If a callback is provided, that callback owns the action. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
+| `drawerMode` | `'overlay' \| 'resize'` | `'overlay'` | Web/Electron drawer behavior: overlay the video or resize it to make room for chat, EPG, and diagnostics. |
+| `drawerStyle` | `CSSProperties`-like object | — | Style the web/Electron chat, EPG, and diagnostics drawer. |
+| `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older pages load from the drawer’s “See more” control. |
 | `theme` | `PlayerTheme` | built-in theme | Customize player colors, borders, and shape. |
 | `icons` | `PlayerIcons` | built-in icons | Override any control icon by key. |
 | `style` | platform style | — | Outer player style. On web this is a CSS style object; native uses React Native style props. |
@@ -494,7 +497,7 @@ Integrations are optional. The package has no CineCrew account, database, or wor
     user: { id: currentUser.id, username: currentUser.name },
     liveChat: {
       pollIntervalMs: 5000,
-      loadMessages: ({ channelId, limit }) => api.loadChat(channelId, limit),
+      loadMessages: ({ channelId, limit, offset }) => api.loadChat(channelId, { limit, offset }),
       sendMessage: ({ channelId, userId, username, comment }) =>
         api.sendChat({ channelId, userId, username, comment }),
     },
@@ -518,7 +521,9 @@ Integrations are optional. The package has no CineCrew account, database, or wor
 />
 ```
 
-`loadMessages` returns an array of messages with `username` and `comment` (or `message`) fields. `loadListings` returns EPG entries with `startMs` and `endMs` epoch-millisecond timestamps. The native player renders the built-in chat and EPG UI from these adapters. On web, an app can use `renderLiveChat` / `renderEpg`, or provide `integrations.liveChat.render` / `integrations.epg.render`.
+On web and Electron, the player supplies the chat drawer UI—including the composer and emoji picker—when `integrations.liveChat.loadMessages` is provided. `sendMessage` connects the built-in composer to your chat service; omit it to show a read-only chat. Messages may include `id`, `username`, `comment` (or `message`), and `timestamp` (or `createdAt`). The drawer requests the newest page with `offset: 0`, then requests older pages with the same `limit` and an increasing `offset` when “See more messages” is selected. Return each page in chronological order (oldest first); return `{ messages, hasMore }` when your service can report whether older pages exist. Otherwise, a full page implies there may be more. Live chat polls for new messages at `pollIntervalMs` (defaults to five seconds).
+
+The EPG drawer uses `integrations.epg.loadListings`, which returns entries with `startMs` and `endMs` epoch-millisecond timestamps. Both drawers default to a semi-transparent right-side overlay, so video size does not change. Set `drawerMode="resize"` to reserve space and shrink the video; customize the drawer with `drawerStyle`. You may supply `renderLiveChat` / `renderEpg` or integration render callbacks to replace the built-in drawer contents. The native player renders its platform-native chat and EPG UI from the same adapters.
 
 ## Themes and icons
 

@@ -476,7 +476,9 @@ function InlinePreviewFrame({
             onPress={onPromotePreview}
           />
           <InlinePreviewTopActions controls={controls} muted={muted} videoOnlyMode={videoOnlyMode} handleMuteAction={handleMuteAction} />
-          <InlinePreviewCenterAction controls={controls} colors={colors} isPlaying={isPlaying} handlePlayPauseAction={handlePlayPauseAction} />
+          {!isLoading ? (
+            <InlinePreviewCenterAction controls={controls} colors={colors} isPlaying={isPlaying} handlePlayPauseAction={handlePlayPauseAction} />
+          ) : null}
           <InlinePreviewBottomActions
             controls={controls}
             title={title}
@@ -573,7 +575,7 @@ function FullscreenControlsPanel(props) {
         onMinimize={props.handleMinimizeAction}
       />
       <CenterControls
-        visible={!props.isAudioOnly && props.controls.playPause !== false}
+        visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
