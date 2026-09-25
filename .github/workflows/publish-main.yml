@@ -1,0 +1,166 @@
+name: Build, quality gates, and publish CineCrew Player
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-cinecrew-player-main
+  cancel-in-progress: false
+
+jobs:
+  platform-build:
+    name: Test package and platform demos
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install package dependencies
+        run: npm ci
+
+      - name: Test package contract and declarations
+        run: |
+          npm test
+          npm run check:types
+          npm pack --dry-run
+
+      - name: Install React web demo dependencies
+        run: npm ci --prefix examples/web-demo
+
+      - name: Build React web renderer
+        run: npm run build --prefix examples/web-demo
+
+      - name: Build Electron renderer entry
+        run: npm run build:electron --prefix examples/web-demo
+
+      - name: Install Expo demo dependencies
+        run: npm ci --prefix examples/expo-web-demo
+
+      - name: Validate the package's Expo config plugin
+        working-directory: examples/expo-web-demo
+        run: npx expo config --type prebuild --json > "$RUNNER_TEMP/expo-prebuild-config.json"
+
+      - name: Verify Expo autolinks the bundled native adapter
+        working-directory: examples/expo-web-demo
+        run: |
+          npx expo-modules-autolinking react-native-config --platform android --project-root . --json > "$RUNNER_TEMP/android-autolinking.json"
+          npx expo-modules-autolinking react-native-config --platform ios --project-root . --json > "$RUNNER_TEMP/ios-autolinking.json"
+          node -e "const fs=require('node:fs');const android=fs.readFileSync(process.argv[1],'utf8');const ios=fs.readFileSync(process.argv[2],'utf8');if(!android.includes('ReactVlcPlayerPackage'))throw new Error('Bundled Android VLC package did not autolink');if(!ios.includes('CineCrewPlayer.podspec'))throw new Error('Bundled iOS VLC podspec did not autolink');console.log('Bundled VLC module autolinks on Android and iOS.')" "$RUNNER_TEMP/android-autolinking.json" "$RUNNER_TEMP/ios-autolinking.json"
+
+      - name: Build Expo Web bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform web --output-dir dist-web
+
+      - name: Build React Native Android bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform android --output-dir dist-android
+
+      - name: Build React Native iOS bundle
+        working-directory: examples/expo-web-demo
+        run: npx expo export --platform ios --output-dir dist-ios
+
+  quality-gates:
+    name: Sonar, Snyk, and Checkstyle
+    needs: platform-build
+    uses: ./.github/workflows/quality-gates.yml
+    secrets: inherit
+
+  publish:
+    name: Publish one player package to npm and GitHub Packages
+    needs: [platform-build, quality-gates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up npm registry authentication
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          scope: '@cinecrew'
+
+      - name: Install package dependencies and increment patch version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm version patch --no-git-tag-version --ignore-scripts
+          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        id: release
+
+      - name: Publish public npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          package="@cinecrew/cinecrew-player@$VERSION"
+          if npm view "$package" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "$package is already on npm; skipping this registry to make retries safe."
+          else
+            npm publish --access public --registry=https://registry.npmjs.org
+          fi
+
+      - name: Pack the same version for GitHub Packages
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gpr"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/gpr"
+          tarball=$(find "$RUNNER_TEMP/gpr" -maxdepth 1 -type f -name '*.tgz' -printf '%f\n' | head -n 1)
+          test -n "$tarball"
+          mkdir -p "$RUNNER_TEMP/gpr/package"
+          tar -xzf "$RUNNER_TEMP/gpr/$tarball" --strip-components=1 -C "$RUNNER_TEMP/gpr/package"
+          npm pkg set name='@nahushr/cinecrew-player' --prefix "$RUNNER_TEMP/gpr/package"
+
+      - name: Set up GitHub Packages authentication
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@nahushr'
+
+      - name: Publish the same version to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        working-directory: ${{ runner.temp }}/gpr/package
+        run: |
+          set -euo pipefail
+          package="@nahushr/cinecrew-player@$VERSION"
+          if npm view "$package" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "$package is already on GitHub Packages; skipping this registry to make retries safe."
+          else
+            npm publish --ignore-scripts --registry=https://npm.pkg.github.com
+          fi
+
+      - name: Commit the released version for the next main build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git commit -m "chore(release): sync package version $VERSION [skip ci]"
+          git push origin HEAD:main

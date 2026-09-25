@@ -11,7 +11,7 @@ repositories {
 sourceSets {
     main {
         java {
-            srcDirs = ['packages/react-native-vlc-media-player/android/src/main/java']
+            srcDirs = ['android/src/main/java']
         }
     }
 }
@@ -29,7 +29,7 @@ tasks.named('checkstyleMain') {
 
 spotless {
     java {
-        target 'packages/react-native-vlc-media-player/android/src/main/java/**/*.java'
+        target 'android/src/main/java/**/*.java'
         googleJavaFormat('1.29.0')
         removeUnusedImports()
         trimTrailingWhitespace()

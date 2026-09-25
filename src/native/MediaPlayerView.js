@@ -12,7 +12,7 @@ import {
   BackHandler,
   Modal,
 } from 'react-native';
-import { VLCPlayer } from '@cinecrew/react-native-vlc-media-player';
+import VLCPlayer from '../../packages/react-native-vlc-media-player/VLCPlayer.js';
 import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
 import { YouTubeVideoPlayer } from './media/YouTubeVideoPlayer';
@@ -713,7 +713,8 @@ function FullscreenRecordingLayer(props) {
   );
 }
 
-function FullscreenSessionLayer({ locked, controlsVisible, insets, scale, onToggleLock }) {
+function FullscreenSessionLayer({ locked, controlsVisible, isAudioOnly, insets, scale, onToggleLock }) {
+  if (!locked || !controlsVisible || isAudioOnly) return null;
   return locked && controlsVisible ? (
         <TouchableOpacity
           style={[styles.floatingLockBtn, {
@@ -2703,6 +2704,7 @@ export const MediaPlayerView = ({
       <FullscreenSessionLayer
         locked={isLocked}
         controlsVisible={showControls}
+        isAudioOnly={isAudioOnly}
         insets={insets}
         scale={scale}
         onToggleLock={toggleLock}

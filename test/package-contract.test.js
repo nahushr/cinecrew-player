@@ -16,7 +16,7 @@ function exportTargets(value) {
 }
 
 test('published package metadata and export targets are complete', () => {
-  assert.equal(manifest.name, 'cinecrew-player');
+  assert.equal(manifest.name, '@cinecrew/cinecrew-player');
   assert.ok(manifest.description);
   assert.equal(manifest.license, 'MIT');
   assert.ok(manifest.repository.url.includes('nahushr/cinecrew-player'));
@@ -28,6 +28,8 @@ test('published package metadata and export targets are complete', () => {
     assert.ok(manifest.files.some((entry) => file.startsWith(entry)), `${file} is not included in npm files`);
   }
   assert.ok(manifest.dependencies['react-native-webview'], 'native YouTube playback requires the installed WebView dependency');
+  assert.equal(manifest.dependencies['@cinecrew/react-native-vlc-media-player'], undefined);
+  assert.equal(manifest.workspaces, undefined);
   assert.equal(manifest.exports['./react'].default, './src/web/index.js');
   assert.equal(manifest.exports['./electron'].default, './src/web/index.js');
   assert.equal(manifest.exports['./react-native'].default, './src/native/index.js');
@@ -40,11 +42,16 @@ test('published package metadata and export targets are complete', () => {
   assert.doesNotMatch(readme, /proxyUrlAvailable|webPlaybackError|WEB_NO_PROXY/);
 });
 
-test('the VLC fork version matches the runtime dependency', () => {
-  const fork = JSON.parse(readFileSync(path.join(root, 'packages/react-native-vlc-media-player/package.json'), 'utf8'));
-  assert.equal(manifest.dependencies[fork.name], fork.version);
-  assert.ok(fork.files.includes('android/src/'));
-  assert.ok(fork.files.includes('ios/RCTVLCPlayer/'));
+test('native VLC implementation is bundled inside the single player package', () => {
+  assert.ok(manifest.files.includes('android/'));
+  assert.ok(manifest.files.includes('packages/react-native-vlc-media-player/ios/RCTVLCPlayer/'));
+  assert.ok(manifest.files.includes('CineCrewPlayer.podspec'));
+  assert.ok(manifest.files.includes('app.plugin.cjs'));
+  assert.ok(existsSync(path.join(root, 'android/build.gradle')));
+  assert.ok(existsSync(path.join(root, 'android/src/main/java/com/yuanzhou/vlc/ReactVlcPlayerPackage.java')));
+  assert.equal(existsSync(path.join(root, 'react-native.config.js')), false);
+  assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/package.json')), false);
+  assert.equal(existsSync(path.join(root, 'packages/react-native-vlc-media-player/.github/workflows/npmpublish.yml')), false);
 });
 
 test('README documents every public control and action key', () => {
@@ -57,7 +64,7 @@ test('README documents every public control and action key', () => {
   assert.ok(actionKeys.length > 0, 'no PlayerActions keys found');
   for (const key of controlKeys) assert.ok(readme.includes(`\`${key}\``), `README does not mention control ${key}`);
   for (const key of actionKeys) assert.ok(readme.includes(`\`${key}\``), `README does not mention action ${key}`);
-  assert.match(readme, /npm install cinecrew-player/);
+  assert.match(readme, /npm install @cinecrew\/cinecrew-player/);
   assert.match(readme, /React \(web\)/);
   assert.match(readme, /React Native \/ Expo/);
 });

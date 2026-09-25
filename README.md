@@ -102,11 +102,11 @@ flowchart LR
 
 | Host | Public entry | Rendering / engine path | Key considerations |
 |---|---|---|---|
-| 🌐 React in browser | `cinecrew-player` or `cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js; YouTube embed | Browser codec support and origin CORS still apply |
-| 🖥️ Electron | `cinecrew-player/electron` | Same web renderer inside Electron Chromium | Chromium’s codec and network rules still apply |
-| 🤖 React Native Android | `cinecrew-player/native` or `cinecrew-player/react-native` | Native React Native surface with VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
-| 📱 React Native iOS | `cinecrew-player/native` or `cinecrew-player/react-native` | Native React Native surface with VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
-| 🧪 React Native Web / Expo Web | `cinecrew-player/react-native-web` | Browser renderer from a React Native Web host | Uses web media paths, not native VLC |
+| 🌐 React in browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js; YouTube embed | Browser codec support and origin CORS still apply |
+| 🖥️ Electron | `@cinecrew/cinecrew-player/electron` | Same web renderer inside Electron Chromium | Chromium’s codec and network rules still apply |
+| 🤖 React Native Android | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
+| 📱 React Native iOS | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
+| 🧪 React Native Web / Expo Web | `@cinecrew/cinecrew-player/react-native-web` | Browser renderer from a React Native Web host | Uses web media paths, not native VLC |
 
 | Media / source | Web & Electron | React Native | What the app may need to provide |
 |---|---|---|---|
@@ -125,7 +125,7 @@ flowchart LR
 |---|---|
 | UI & API | React · React Native · TypeScript declarations |
 | Web playback | HTML video · hls.js · patched mpegts.js · YouTube IFrame API |
-| Native playback | `@cinecrew/react-native-vlc-media-player` · `expo-video` fallback |
+| Native playback | VLC adapter bundled in `@cinecrew/cinecrew-player` · `expo-video` fallback |
 | Native UI / utilities | React Native · Expo config plugins · safe-area context · SVG · community slider |
 | Optional media utilities | Mediabunny / AC3 parsing support in relevant web playback paths |
 | Packaging | Platform-specific entry points · npm exports · bundled styles · native autolinking |
@@ -162,7 +162,7 @@ The items below are planned for more consistent, user-facing support across plat
 - **[React + Vite web demo](examples/web-demo)** — try YouTube, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
 - **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
 
-Both demos currently depend on the package in this repository (`file:../..`) so they work before the first public npm release. Once `cinecrew-player` is published, replace that dependency with `"cinecrew-player": "latest"` and run `npm install` in the demo directory. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
+Both demos use the single package in this repository (`file:../..`) so they can build before and after the public release. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. The Expo native entry bundles VLC into the same installed package. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
 
 Run either demo:
 
@@ -182,31 +182,31 @@ npm run web
 
 ## Install
 
-> 📦 **Public npm release pending.** The package is not currently available from the npm registry; use the repository demos while developing. After publication, install it with:
+Install the player from the public npm registry:
 
 ```sh
-npm install cinecrew-player
+npm install @cinecrew/cinecrew-player
 ```
 
-React is the shared peer dependency. Native React Native builds use the VLC adapter plus the `expo-video` fallback; those native modules must be autolinked and compiled into the app binary.
+React is the shared peer dependency. Native React Native builds use the VLC adapter bundled in this package plus the `expo-video` fallback; native code is autolinked and compiled into the app binary. Plain React web consumers use the browser entry and do not execute or compile the bundled Android/iOS source.
 
 ### Supported targets and entry points
 
-The package has one public player API with a renderer selected for the host. The React DOM/Electron entry has no React Native renderer or WebView import; the React Native entry uses native views and native playback adapters.
+The package has one public player API with a renderer selected for the host. The React DOM/Electron entry has no React Native renderer or WebView import; bundled Android/iOS files are only compiled when a React Native host selects the native entry and autolinks the native module.
 
 | Host app | Import | Renderer / playback |
 | --- | --- | --- |
-| React DOM in a browser | `cinecrew-player` or `cinecrew-player/react` | HTML video, hls.js, patched mpegts.js, and the browser YouTube embed. |
-| React DOM inside Electron (macOS `.dmg`, Windows `.exe`) | `cinecrew-player/electron` | Same renderer as React web, using Electron's Chromium media stack. No WebView or custom Electron IPC bridge is needed. |
-| React Native Android / iOS | `cinecrew-player` or `cinecrew-player/react-native` | React Native UI with VLC and the Expo video fallback; YouTube uses `react-native-webview`. |
-| React Native Web / Expo Web | `cinecrew-player` or `cinecrew-player/react-native-web` | React DOM adapter hosted inside the React Native Web app; uses browser playback engines and does not load native VLC or WebView code. |
+| React DOM in a browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | HTML video, hls.js, patched mpegts.js, and the browser YouTube embed. |
+| React DOM inside Electron (macOS `.dmg`, Windows `.exe`) | `@cinecrew/cinecrew-player/electron` | Same renderer as React web, using Electron's Chromium media stack. No WebView or custom Electron IPC bridge is needed. |
+| React Native Android / iOS | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native` | React Native UI with the bundled VLC adapter and Expo video fallback; YouTube uses `react-native-webview`. |
+| React Native Web / Expo Web | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native-web` | React DOM adapter hosted inside the React Native Web app; uses browser playback engines and does not load native VLC or WebView code. |
 
 Metro selects the React Native entry for native builds; regular React bundlers select the React DOM entry. The explicit subpaths let you pin the renderer when preferred.
 
 ### React Native / Expo
 
 ```tsx
-import CineCrewPlayer from 'cinecrew-player/native';
+import CineCrewPlayer from '@cinecrew/cinecrew-player/native';
 
 export function WatchScreen() {
   return (
@@ -219,12 +219,12 @@ export function WatchScreen() {
 }
 ```
 
-For an Expo prebuild project, add the VLC config plugin and rebuild the native app (a JavaScript reload cannot add a native module). `react-native-webview` is used only as the native YouTube embed surface; regular native streams use VLC / `expo-video`. Browser and Electron YouTube playback use the YouTube IFrame API instead.
+For an Expo prebuild project, add the CineCrew Player config plugin and rebuild the native app (a JavaScript reload cannot add a native module). The VLC native implementation ships inside this same package; there is no second VLC package to install. `react-native-webview` is used only as the native YouTube embed surface; regular native streams use VLC / `expo-video`. Browser and Electron YouTube playback use the YouTube IFrame API instead.
 
 ```json
 {
   "expo": {
-    "plugins": ["@cinecrew/react-native-vlc-media-player"]
+    "plugins": ["@cinecrew/cinecrew-player"]
   }
 }
 ```
@@ -234,7 +234,7 @@ Then run `npx expo prebuild` as appropriate for your project and rebuild/install
 The component opens the native player as a full-screen player. To show a compact live preview in a channel list, use the companion component:
 
 ```tsx
-import { InlineLivePlayer } from 'cinecrew-player/native';
+import { InlineLivePlayer } from '@cinecrew/cinecrew-player/native';
 
 <InlineLivePlayer
   url={channelUrl}
@@ -249,8 +249,8 @@ import { InlineLivePlayer } from 'cinecrew-player/native';
 The web entry exports the same compact preview component:
 
 ```tsx
-import { InlineLivePlayer } from 'cinecrew-player/web';
-import 'cinecrew-player/styles.css';
+import { InlineLivePlayer } from '@cinecrew/cinecrew-player/web';
+import '@cinecrew/cinecrew-player/styles.css';
 
 <InlineLivePlayer
   source={{ uri: channelUrl, isLive: true }}
@@ -264,8 +264,8 @@ import 'cinecrew-player/styles.css';
 ### React (web)
 
 ```tsx
-import CineCrewPlayer from 'cinecrew-player';
-import 'cinecrew-player/styles.css';
+import CineCrewPlayer from '@cinecrew/cinecrew-player';
+import '@cinecrew/cinecrew-player/styles.css';
 
 export function WatchScreen() {
   return (
@@ -388,7 +388,7 @@ type PlayerSource = string | {
 
 ### Inline live preview props
 
-`InlineLivePlayer` is exported from `cinecrew-player/native` and `cinecrew-player/web`. It renders a compact channel preview/poster and can promote playback to the host app's full player.
+`InlineLivePlayer` is exported from `@cinecrew/cinecrew-player/native` and `@cinecrew/cinecrew-player/web`. It renders a compact channel preview/poster and can promote playback to the host app's full player.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -568,4 +568,4 @@ npm test
 npm pack --dry-run
 ```
 
-The repository includes the native VLC module under `packages/react-native-vlc-media-player` because native autolinking and native build files must ship as an installable dependency.
+The native VLC source and its Android/iOS autolinking configuration are included inside the `@cinecrew/cinecrew-player` package. The repository publishes only this player package; the adapter is not a separate npm package.

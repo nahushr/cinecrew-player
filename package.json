@@ -1,5 +1,5 @@
 {
-  "name": "cinecrew-player",
+  "name": "@cinecrew/cinecrew-player",
   "version": "0.1.0",
   "type": "module",
   "description": "Customizable cross-platform live and on-demand video player for React and React Native.",
@@ -10,6 +10,12 @@
     "url": "https://github.com/nahushr/cinecrew-player.git"
   },
   "homepage": "https://github.com/nahushr/cinecrew-player#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "expo": {
+    "plugin": "./app.plugin.cjs"
+  },
   "bugs": {
     "url": "https://github.com/nahushr/cinecrew-player/issues"
   },
@@ -56,7 +62,6 @@
     "./native": {
       "types": "./types/index.d.ts",
       "react-native": "./src/native/index.js",
-      "browser": "./src/native/index.js",
       "default": "./src/native/index.js"
     },
     "./web": {
@@ -64,6 +69,7 @@
       "default": "./src/web/index.js"
     },
     "./styles.css": "./src/web/styles.css",
+    "./app.plugin": "./app.plugin.cjs",
     "./package.json": "./package.json"
   },
   "files": [
@@ -71,6 +77,14 @@
     "types/",
     "assets/",
     "vendor/mpegts.js/",
+    "app.plugin.cjs",
+    "CineCrewPlayer.podspec",
+    "packages/react-native-vlc-media-player/VLCPlayer.js",
+    "packages/react-native-vlc-media-player/index.d.ts",
+    "android/",
+    "packages/react-native-vlc-media-player/ios/RCTVLCPlayer/",
+    "packages/react-native-vlc-media-player/expo/",
+    "packages/react-native-vlc-media-player/LICENSE",
     "LICENSE",
     "NOTICE",
     "README.md"
@@ -81,24 +95,22 @@
     "prepack": "npm run check:types"
   },
   "devDependencies": {
+    "@expo/config-plugins": "^57.0.9",
     "@types/react": "^19.2.4",
     "typescript": "^6.0.3"
   },
-  "workspaces": [
-    "packages/react-native-vlc-media-player"
-  ],
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "@hiraku-ai/react-native-emoji-picker": "^1.2.4",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "^5.2.0",
-    "@cinecrew/react-native-vlc-media-player": "1.0.98-cinecrew.0",
     "expo-video": "^57.0.2",
     "hls.js": "^1.7.3",
     "mediabunny": "^1.59.0",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-svg": "^15.15.4",
-    "react-native-webview": "^13.16.1"
+    "react-native-webview": "^13.16.1",
+    "prop-types": "^15.8.1"
   },
   "peerDependencies": {
     "react": ">=18",

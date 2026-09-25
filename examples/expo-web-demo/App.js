@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import CineCrewPlayer, { InlineLivePlayer } from 'cinecrew-player/react-native-web';
-import 'cinecrew-player/styles.css';
+import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react-native-web';
+import '@cinecrew/cinecrew-player/styles.css';
 import { allControls, asPlayerSource, sampleSources } from '../shared/samples.js';
 
 const theme = {

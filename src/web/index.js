@@ -336,6 +336,105 @@ function WebPlayerError({ error, theme, renderBackButton }) {
     renderBackButton());
 }
 
+function getDirectVideoSource({ mpegTs, useHls, sourceType, activeUrl }) {
+  if (mpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType)) return undefined;
+  return activeUrl;
+}
+
+function isAudioPlaybackEnabled(muted, videoOnly) {
+  return !muted && !videoOnly;
+}
+
+function getPanelIntegration(activePanel, integrations) {
+  return activePanel === 'chat' ? integrations.liveChat : integrations.epg;
+}
+
+function getActiveMediaUrl(youtubeVideoId, streamUrl) {
+  return youtubeVideoId ? '' : streamUrl;
+}
+
+function getInlinePlayerStyle(inlinePreview, rect) {
+  if (!inlinePreview || !rect) return {};
+  return { position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height };
+}
+
+function buildUnlockedControls({
+  control, actions, onBack, isLive, restart, toggleLock, hasRecording,
+  recording, integrations, action, videoRef, streamUrl, title, activePanel,
+  hasChat, hasEpg, handleOpenPanel, handleMinimize, setRecording, backVisible, minimizeVisible,
+}) {
+  const controls = [
+    control('back', 'Back', onBack, { defaultVisible: backVisible }),
+    ...(!isLive ? [control('restart', 'Restart', restart)] : []),
+    control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
+  ];
+  let recordingControl = null;
+  if (hasRecording) {
+    const recordingLabel = recording ? 'Stop recording' : 'Start recording';
+    const recordingAction = recording ? 'onRecordingStop' : 'onRecordingStart';
+    const handleRecordingToggle = async () => {
+      const handler = recording ? integrations.recording?.stop : integrations.recording?.start;
+      const fallback = handler ? () => handler({ getVideoElement: () => videoRef.current, streamUrl, title }) : undefined;
+      await action(recordingAction, fallback, { source: streamUrl, title });
+      setRecording((value) => !value);
+    };
+    recordingControl = control('recording', recordingLabel, handleRecordingToggle, { active: recording });
+  }
+  const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
+  const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
+  return [
+    ...controls,
+    recordingControl,
+    control('liveChat', chatLabel, () => handleOpenPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
+    control('epg', epgLabel, () => handleOpenPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
+    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: minimizeVisible }),
+  ];
+}
+
+function WebPlayerLayout(props) {
+  const controlLayer = !props.error && !props.audioOnly
+    ? h(WebPlayerControls, {
+      locked: props.locked,
+      overrides: props.controlOverrides,
+      theme: props.theme,
+      icons: props.icons,
+      unlockedControls: props.unlockedControls,
+      toggleLock: props.toggleLock,
+      paused: props.isPaused,
+      togglePlay: props.togglePlay,
+      bottomProps: props.bottomControlProps,
+    })
+    : null;
+  const playerTitle = props.title && !props.audioOnly
+    ? h('div', { className: 'cinecrew-player__title', style: { color: props.theme.controlColor } }, props.title)
+    : null;
+  const loadingNotice = props.buffering && !props.error
+    ? h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
+      h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…')
+    : null;
+  const audioCard = props.audioOnly
+    ? h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, onSwitchToVideo: props.onSwitchToVideo })
+    : null;
+  const panelNode = props.activePanel && props.webPanel
+    ? h('div', { className: 'cinecrew-player__panel', style: { background: props.theme.surfaceColor, color: props.theme.controlColor } }, props.webPanel)
+    : null;
+  return h('div', {
+    ref: props.playerRef,
+    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${props.className}`.trim(),
+    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor },
+    onWheel: props.onWheel,
+    'data-stream-mode': props.streamMode,
+  },
+  props.mediaSurface,
+  h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
+  playerTitle,
+  loadingNotice,
+  h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.renderBackButton }),
+  controlLayer,
+  audioCard,
+  panelNode);
+}
+
 function getStreamMode(youtubeVideoId, mpegTs, useHls) {
   if (youtubeVideoId) return 'youtube';
   if (mpegTs) return 'mpegts';
@@ -640,7 +739,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     if (liveChatNonce) setActivePanel('chat');
   }, [liveChatNonce]);
 
-  const activeUrl = youtubeVideoId ? '' : streamUrl;
+  const activeUrl = getActiveMediaUrl(youtubeVideoId, streamUrl);
 
   const mpegTs = useWebMpegTsPlayback({
     streamUrl,
@@ -662,7 +761,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
     streamUrl,
-    enabled: !muted && !videoOnly,
+    enabled: isAudioPlaybackEnabled(muted, videoOnly),
     paused: isPaused,
     volume: volume * 100,
     videoRef,
@@ -762,7 +861,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
   const hasRecording = !!integrations.recording || typeof actions.onRecordingStart === 'function';
   const sourceType = String(media.type || media.mimeType || '').toLowerCase();
-  const directVideoSource = mpegTs.useMpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType) ? undefined : activeUrl;
+  const directVideoSource = getDirectVideoSource({
+    mpegTs: mpegTs.useMpegTs,
+    useHls,
+    sourceType,
+    activeUrl,
+  });
 
   const handleYouTubeStateChange = useCallback((state) => {
     if (state === 'playing') setIsPaused(false);
@@ -836,41 +940,32 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   });
 
   const panelRenderer = getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations);
-  let panelIntegration = integrations.epg;
-  if (activePanel === 'chat') panelIntegration = integrations.liveChat;
+  const panelIntegration = getPanelIntegration(activePanel, integrations);
   const panelSource = mediaId == null ? media : { ...media, mediaId };
-  let rootStyle = {};
-  if (inlinePreview && inlinePreviewRect) {
-    rootStyle = {
-      position: 'absolute', left: inlinePreviewRect.x, top: inlinePreviewRect.y,
-      width: inlinePreviewRect.width, height: inlinePreviewRect.height,
-    };
-  }
-  const unlockedControls = [
-    control('back', 'Back', handleBack, { defaultVisible: typeof actions.onBack === 'function' || typeof onBack === 'function' || typeof props.onClose === 'function' }),
-    ...(!isLive ? [control('restart', 'Restart', restart)] : []),
-    control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
-  ];
-  let recordingControl = null;
-  if (hasRecording) {
-    const recordingLabel = recording ? 'Stop recording' : 'Start recording';
-    const recordingAction = recording ? 'onRecordingStop' : 'onRecordingStart';
-    const handleRecordingToggle = async () => {
-      const handler = recording ? integrations.recording?.stop : integrations.recording?.start;
-      const fallback = handler ? () => handler({ getVideoElement: () => videoRef.current, streamUrl, title }) : undefined;
-      await action(recordingAction, fallback, { source: streamUrl, title });
-      setRecording((value) => !value);
-    };
-    recordingControl = control('recording', recordingLabel, handleRecordingToggle, { active: recording });
-  }
-  const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
-  const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
-  unlockedControls.push(
-    recordingControl,
-    control('liveChat', chatLabel, () => openPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
-    control('epg', epgLabel, () => openPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
-    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: typeof actions.onMinimize === 'function' || typeof onMinimize === 'function' }),
-  );
+  const rootStyle = getInlinePlayerStyle(inlinePreview, inlinePreviewRect);
+  const unlockedControls = buildUnlockedControls({
+    control,
+    actions,
+    onBack: handleBack,
+    backVisible: typeof actions.onBack === 'function' || typeof onBack === 'function' || typeof props.onClose === 'function',
+    minimizeVisible: typeof actions.onMinimize === 'function' || typeof onMinimize === 'function',
+    isLive,
+    restart,
+    toggleLock,
+    hasRecording,
+    recording,
+    integrations,
+    action,
+    videoRef,
+    streamUrl,
+    title,
+    activePanel,
+    hasChat,
+    hasEpg,
+    handleOpenPanel: openPanel,
+    handleMinimize,
+    setRecording,
+  });
   const webPanel = createWebPanelNode({
     renderer: panelRenderer,
     integration: panelIntegration,
@@ -941,42 +1036,34 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     fullscreen,
     toggleFullscreen,
   };
-  const controlLayer = !error && !audioOnly
-    ? h(WebPlayerControls, { locked, overrides: controlOverrides, theme, icons, unlockedControls, toggleLock, paused: isPaused, togglePlay, bottomProps: bottomControlProps })
-    : null;
-  const playerTitle = title && !audioOnly
-    ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor } }, title)
-    : null;
-  const loadingNotice = buffering && !error
-    ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…')
-    : null;
-  const errorNotice = h(WebPlayerError, {
-    error,
+  return h(WebPlayerLayout, {
+    playerRef,
+    inlinePreview,
+    className,
+    rootStyle,
+    style,
     theme,
+    streamMode,
+    mediaSurface,
+    title,
+    poster,
+    error,
+    buffering,
+    audioOnly,
+    activePanel,
+    webPanel,
     renderBackButton: () => control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' }),
-  });
-  const audioCard = audioOnly
-    ? h(WebAudioOnlyCard, { poster, title, theme, onSwitchToVideo: () => setAudioOnlyMode(false) })
-    : null;
-  const panelNode = activePanel && webPanel
-    ? h('div', { className: 'cinecrew-player__panel', style: { background: theme.surfaceColor, color: theme.controlColor } }, webPanel)
-    : null;
-
-  return h('div', {
-    ref: playerRef,
-    className: `cinecrew-player${inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${className}`.trim(),
-    style: { ...rootStyle, ...style, background: theme.backgroundColor, borderRadius: theme.borderRadius, '--cinecrew-accent': theme.accentColor, '--cinecrew-text': theme.controlColor, '--cinecrew-surface': theme.surfaceColor },
+    onSwitchToVideo: () => setAudioOnlyMode(false),
+    locked,
+    controlOverrides,
+    icons,
+    unlockedControls,
+    toggleLock,
+    isPaused,
+    togglePlay,
+    bottomControlProps,
     onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
-    'data-stream-mode': streamMode,
-  },
-  mediaSurface,
-  h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
-  playerTitle,
-  loadingNotice,
-  errorNotice,
-  controlLayer,
-  audioCard,
-  panelNode);
+  });
 });
 
 export default CineCrewPlayer;

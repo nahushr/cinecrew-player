@@ -3,7 +3,7 @@ import webConfig from './vite.config.js';
 
 export default mergeConfig(webConfig, {
   resolve: {
-    alias: [{ find: /^cinecrew-player$/, replacement: 'cinecrew-player/electron' }],
+    alias: [{ find: /^@cinecrew\/cinecrew-player$/, replacement: '@cinecrew/cinecrew-player/electron' }],
   },
   build: {
     outDir: 'dist-electron',

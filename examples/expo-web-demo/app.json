@@ -3,6 +3,7 @@
     "name": "CineCrew Player Expo Web Demo",
     "slug": "cinecrew-player-expo-web-demo",
     "version": "1.0.0",
+    "plugins": ["@cinecrew/cinecrew-player"],
     "web": {
       "bundler": "metro"
     }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import CineCrewPlayer, { InlineLivePlayer } from 'cinecrew-player/react';
-import 'cinecrew-player/styles.css';
+import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react';
+import '@cinecrew/cinecrew-player/styles.css';
 import { allControls, asPlayerSource, sampleSources } from '../../shared/samples.js';
 
 const playerTheme = {
