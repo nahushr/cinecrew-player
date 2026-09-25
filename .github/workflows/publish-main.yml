@@ -115,10 +115,31 @@ jobs:
         run: |
           set -euo pipefail
           package="@cinecrew/cinecrew-player@$VERSION"
-          if npm view "$package" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+          registry_cache="$RUNNER_TEMP/npm-release-cache"
+          wait_for_npm_version() {
+            for attempt in $(seq 1 36); do
+              if npm view "$package" version --prefer-online --cache="$registry_cache" \
+                --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+                echo "$package is visible on npm."
+                return 0
+              fi
+              echo "Waiting for npm to index $package ($attempt/36)."
+              sleep 10
+            done
+            return 1
+          }
+
+          if npm view "$package" version --prefer-online --cache="$registry_cache" \
+            --registry=https://registry.npmjs.org >/dev/null 2>&1; then
             echo "$package is already on npm; skipping this registry to make retries safe."
           else
-            npm publish --access public --registry=https://registry.npmjs.org
+            if ! npm publish --access public --registry=https://registry.npmjs.org; then
+              echo "Publish returned an error; checking whether npm accepted the version already."
+            fi
+            wait_for_npm_version || {
+              echo "::error::Timed out waiting for $package to appear on npm."
+              exit 1
+            }
           fi
 
       - name: Pack the same version for GitHub Packages
@@ -157,11 +178,20 @@ jobs:
       - name: Point the React demo at the published npm version
         env:
           VERSION: ${{ steps.release.outputs.version }}
-        run: >-
-          npm install --package-lock-only --ignore-scripts --save-exact
-          "@cinecrew/cinecrew-player@$VERSION"
-          --prefix examples/web-demo
-          --registry=https://registry.npmjs.org
+        run: |
+          set -euo pipefail
+          package="@cinecrew/cinecrew-player@$VERSION"
+          for attempt in $(seq 1 12); do
+            if npm install --package-lock-only --ignore-scripts --save-exact --prefer-online \
+              --cache="$RUNNER_TEMP/npm-release-cache" "$package" \
+              --prefix examples/web-demo --registry=https://registry.npmjs.org; then
+              exit 0
+            fi
+            echo "Retrying React demo lockfile update for $package ($attempt/12)."
+            sleep 10
+          done
+          echo "::error::Could not resolve the published npm package for the React demo."
+          exit 1
 
       - name: Commit the released version for the next main build
         env:
