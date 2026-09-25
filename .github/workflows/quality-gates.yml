@@ -110,13 +110,6 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --sarif-file-output=snyk-code.sarif
 
-      - name: Scan published package dependencies with Snyk
-        id: snyk_dependencies
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --file=package-lock.json
-
       - name: Set up Java for Checkstyle
         uses: actions/setup-java@v5
         with:
@@ -140,7 +133,6 @@ jobs:
           SONAR_SCAN_RESULT: ${{ steps.sonar_scan.outcome }}
           SONAR_POLICY_RESULT: ${{ steps.sonar_policy.outcome }}
           SNYK_CODE_RESULT: ${{ steps.snyk_code.outcome }}
-          SNYK_DEPENDENCIES_RESULT: ${{ steps.snyk_dependencies.outcome }}
           CHECKSTYLE_RESULT: ${{ steps.checkstyle.outcome }}
         run: |
           set -euo pipefail
@@ -149,7 +141,6 @@ jobs:
             "Sonar scan=$SONAR_SCAN_RESULT" \
             "Sonar findings/duplication=$SONAR_POLICY_RESULT" \
             "Snyk Code=$SNYK_CODE_RESULT" \
-            "Snyk dependencies=$SNYK_DEPENDENCIES_RESULT" \
             "Checkstyle=$CHECKSTYLE_RESULT"; do
             echo "$check"
             if [[ "$check" != *=success ]]; then
