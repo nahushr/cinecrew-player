@@ -27,6 +27,17 @@ test('published package metadata and export targets are complete', () => {
   for (const file of ['README.md', 'LICENSE', 'NOTICE', 'types/index.d.ts']) {
     assert.ok(manifest.files.some((entry) => file.startsWith(entry)), `${file} is not included in npm files`);
   }
+  assert.ok(manifest.dependencies['react-native-webview'], 'native YouTube playback requires the installed WebView dependency');
+  assert.equal(manifest.exports['./react'].default, './src/web/index.js');
+  assert.equal(manifest.exports['./electron'].default, './src/web/index.js');
+  assert.equal(manifest.exports['./react-native'].default, './src/native/index.js');
+  assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  assert.doesNotMatch(webEntry, /from ['"](?:react-native|react-native-webview|@expo\/vector-icons)['"]/);
+  assert.ok(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js')));
+  assert.ok(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.native.js')));
+  assert.doesNotMatch(declarations, /WEB_(?:AC3|NO_PROXY)_/);
+  assert.doesNotMatch(readme, /proxyUrlAvailable|webPlaybackError|WEB_NO_PROXY/);
 });
 
 test('the VLC fork version matches the runtime dependency', () => {

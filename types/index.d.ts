@@ -4,7 +4,7 @@ export type AspectRatio = 'FIT' | 'FILL' | 'STRETCH' | 'FILL_SCREEN' | string;
 export type PlayerMediaType = 'live' | 'channel' | 'movie' | 'series' | string;
 
 export interface PlayerSource {
-  /** Direct media URL. Supply a browser-readable URL on web. */
+  /** Local media or a URL the target platform can play. */
   uri?: string;
   /** Alias for `uri`. */
   url?: string;
@@ -15,8 +15,6 @@ export interface PlayerSource {
   mimeType?: string;
   mediaType?: PlayerMediaType;
   isLive?: boolean;
-  webPlaybackError?: string | Error;
-  proxyUrlAvailable?: boolean;
   id?: string | number;
   streamId?: string | number;
   mediaId?: string | number;
@@ -205,8 +203,8 @@ export interface CineCrewPlayerProps {
   style?: unknown;
   className?: string;
   videoOnly?: boolean;
-  proxyUrlAvailable?: boolean;
-  webPlaybackError?: string | Error;
+  /** Optional resolver for share pages or other non-media links. */
+  resolveSource?: (source: PlayerSource, context: { platform: 'web' | 'native' | 'electron' }) => PlayerSource | string | Promise<PlayerSource | string>;
   audioTracks?: AudioTrack[];
   selectedAudioTrack?: string | number;
   resumePosition?: number;
@@ -267,11 +265,4 @@ export interface InlineLivePlayerProps {
 export const CineCrewPlayer: React.ForwardRefExoticComponent<CineCrewPlayerProps & React.RefAttributes<PlayerApi>>;
 export const InlineLivePlayer: React.MemoExoticComponent<React.FC<InlineLivePlayerProps>>;
 export const PlayerCustomizationProvider: React.FC<{ icons?: PlayerIcons; theme?: PlayerTheme; children?: React.ReactNode }>;
-export const WEB_AC3_UNSUPPORTED_CODE: string;
-export const WEB_AC3_UNSUPPORTED_MESSAGE: string;
-export const WEB_NO_PROXY_URL_CODE: string;
-export const WEB_NO_PROXY_URL_MESSAGE: string;
-export const WEB_AC3_UNSUPPORTED_ERROR: string;
-export const WEB_NO_PROXY_ERROR: string;
-
 export default CineCrewPlayer;

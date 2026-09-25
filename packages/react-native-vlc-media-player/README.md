@@ -1,4 +1,4 @@
-# react-native-vlc-media-player
+# @cinecrew/react-native-vlc-media-player
 
 ## Supported RN Versions
 
@@ -19,15 +19,15 @@ Play MKV, multiple audio tracks (including 5.1), and subtitles tracks (including
 
 Run
 
-`npm i react-native-vlc-media-player --save`
+`npm i @cinecrew/react-native-vlc-media-player --save`
 
 or
 
-`yarn add react-native-vlc-media-player`
+`yarn add @cinecrew/react-native-vlc-media-player`
 
 If not using Expo also run
 
-`react-native link react-native-vlc-media-player`
+`react-native link @cinecrew/react-native-vlc-media-player`
 
 ## Android
 
@@ -95,14 +95,14 @@ In root project select "Build Settings", find "Bitcode" and select "Enable Bitco
 
 This package works with Expo, Expo Go does not include custom native code so you must use a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
 
-To enable just insert the `react-native-vlc-media-player` plugin to the "plugins" array from `app.config.js` or `app.json`:
+To enable just insert the `@cinecrew/react-native-vlc-media-player` plugin to the "plugins" array from `app.config.js` or `app.json`:
 
 ```json
 {
   "expo": {
     "plugins": [
       [
-        "react-native-vlc-media-player",
+        "@cinecrew/react-native-vlc-media-player",
         {
           "ios": {
               "includeVLCKit": false
@@ -127,7 +127,7 @@ Then rebuild your app as described in the ["Adding custom native code"](https://
 ## Usage
 
 ```jsx
-import { VLCPlayer, VlCPlayerView } from 'react-native-vlc-media-player';
+import { VLCPlayer, VlCPlayerView } from '@cinecrew/react-native-vlc-media-player';
 import Orientation from 'react-native-orientation';
 
 <VLCPlayer

@@ -12,9 +12,10 @@ import {
   BackHandler,
   Modal,
 } from 'react-native';
-import { VLCPlayer } from '@nahushr/react-native-vlc-media-player';
+import { VLCPlayer } from '@cinecrew/react-native-vlc-media-player';
 import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
+import { YouTubeVideoPlayer } from './media/YouTubeVideoPlayer';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { LiveRecordingNotice, LiveRecordingOverlay } from './media/LiveRecordingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -77,6 +78,7 @@ const DEFAULT_ASPECT_RATIO = 'FIT';
 export const MediaPlayerView = ({
   visible,
   streamUrl,
+  youtubeVideoId,
   title,
   mediaType = 'live',
   onClose,
@@ -112,8 +114,6 @@ export const MediaPlayerView = ({
   integrations = {},
   theme,
   icons,
-  webProxyAvailable,
-  webPlaybackError,
   videoOnly = false,
   initialAudioOnly = false,
   initialPaused = false,
@@ -1847,7 +1847,37 @@ export const MediaPlayerView = ({
   );
 
   let videoPlayer;
-  if (isElectron()) {
+  if (youtubeVideoId) {
+    videoPlayer = (
+      <YouTubeVideoPlayer
+        key={`youtube-${youtubeVideoId}`}
+        ref={vlcRef}
+        videoId={youtubeVideoId}
+        paused={!isPlaying}
+        muted={muted || videoOnlyMode}
+        volume={volume / 100}
+        playbackRate={playbackRate}
+        onReady={(event) => {
+          clearBufferingIndicator();
+          handleNativeOpen(event);
+        }}
+        onProgress={handleProgress}
+        onPlaying={handleNativePlaying}
+        onStateChange={(state) => {
+          if (state === 'playing') {
+            isPlayingRef.current = true;
+            setIsPlaying(true);
+          } else if (state === 'paused' || state === 'ended') {
+            isPlayingRef.current = false;
+            setIsPlaying(false);
+          }
+        }}
+        onBuffering={(buffering) => handleWebBuffering(buffering)}
+        onEnded={handleEpisodeEnded}
+        onError={handleWebError}
+      />
+    );
+  } else if (isElectron()) {
     videoPlayer = (
       <ElectronVideoPlayer
         key={`electron-vlc-${playerStreamUrl}`}
@@ -1876,7 +1906,7 @@ export const MediaPlayerView = ({
     );
   } else if (isWeb()) {
     videoPlayer = (
-        <WebVideoPlayer
+      <WebVideoPlayer
         key={`web-${playerStreamUrl}`}
         ref={vlcRef}
         streamUrl={playerStreamUrl}
@@ -1888,10 +1918,8 @@ export const MediaPlayerView = ({
         title={title}
         posterUrl={posterUrl}
         isLive={isLive}
-          audioOnly={isAudioOnly}
-          videoOnly={videoOnlyMode}
-          webProxyAvailable={webProxyAvailable}
-          webPlaybackError={webPlaybackError}
+        audioOnly={isAudioOnly}
+        videoOnly={videoOnlyMode}
         audioTrack={selectedAudioTrack}
         onTracksChanged={handleTracksChanged}
         onProgress={handleProgress}

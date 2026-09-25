@@ -1,5 +1,5 @@
 {
-  "name": "@nahushr/react-native-vlc-media-player",
+  "name": "@cinecrew/react-native-vlc-media-player",
   "version": "1.0.98-cinecrew.0",
   "description": "React native media player for video streaming and playing. Supports RTSP,RTMP and other protocols supported by VLC player",
   "main": "index.js",
@@ -42,6 +42,9 @@
     "directory": "packages/react-native-vlc-media-player"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bugs": {
     "url": "https://github.com/nahushr/cinecrew-player/issues"
   },

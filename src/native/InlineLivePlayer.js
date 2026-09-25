@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { VLCPlayer } from '@nahushr/react-native-vlc-media-player';
+import { VLCPlayer } from '@cinecrew/react-native-vlc-media-player';
 import { PlayerCustomizationProvider, PlayerIcon } from './customization';
 import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';

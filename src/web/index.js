@@ -1,12 +1,12 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
+import { YouTubeVideoPlayer } from '../native/media/YouTubeVideoPlayer.web.js';
+import { getYouTubeVideoId, getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
 import {
   WEB_AC3_UNSUPPORTED_MESSAGE,
-  WEB_NO_PROXY_URL_MESSAGE,
 } from '../native/media/web/webPlaybackErrors';
 import './styles.css';
 
@@ -27,8 +27,28 @@ const DEFAULT_ICONS = {
   liveChat: 'comment-text-multiple-outline', epg: 'television-classic', fullscreen: 'fullscreen', close: 'close',
 };
 
-export const WEB_AC3_UNSUPPORTED_ERROR = WEB_AC3_UNSUPPORTED_MESSAGE;
-export const WEB_NO_PROXY_ERROR = WEB_NO_PROXY_URL_MESSAGE;
+// Inline SVG keeps the React DOM/Electron entry independent of React Native,
+// Expo, and native icon-font packages. The native entry uses Expo vector icons.
+const WEB_ICON_PATHS = {
+  play: 'M8 5v14l11-7z',
+  pause: 'M6 5h4v14H6zm8 0h4v14h-4z',
+  restart: 'M12 5V1L7 6l5 5V7a6 6 0 1 1-5.65 8H4.26A9 9 0 1 0 12 5z',
+  lock: 'M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
+  'lock-open': 'M18 8h-1V6a5 5 0 0 0-9.8-1H9a3 3 0 0 1 6 .8V8H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
+  'volume-mute': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z',
+  'volume-high': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z',
+  'aspect-ratio': 'M3 5h18v14H3zm2 2v10h14V7zm2 2h4v2H9v4H7zm10 6h-4v-2h2V9h2z',
+  video: 'M18 7V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2l4 4V5zm-2 12H4V5h12z',
+  'music-note': 'M12 3v12.26A4 4 0 1 0 14 19V7h6V3z',
+  'arrow-collapse': 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
+  'arrow-left': 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z',
+  'record-rec': 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z',
+  stop: 'M6 6h12v12H6z',
+  'comment-text-multiple-outline': 'M4 4h16v12H7l-3 3zm2 2v8h12V6zm2 2h8v2H8zm0 3h6v2H8z',
+  'television-classic': 'M21 3H3a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h7v2h4v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 15H3V5h18zM5 7h14v9H5z',
+  fullscreen: 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
+  close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+};
 
 function getSource(source, url) {
   const value = source ?? url ?? '';
@@ -53,13 +73,11 @@ function Icon({ name, icons, color }) {
   if (typeof icon === 'string' && !/^[a-z0-9-]+$/i.test(icon)) {
     return h('span', { className: 'cinecrew-player__icon', style: { color }, 'aria-hidden': true }, icon);
   }
-  return h(MaterialCommunityIcons, {
-    name: icon || DEFAULT_ICONS[name] || 'help-circle-outline',
-    size: 18,
-    color,
-    accessibilityElementsHidden: true,
-    importantForAccessibility: 'no',
-  });
+  const iconName = icon || DEFAULT_ICONS[name] || name;
+  const path = WEB_ICON_PATHS[iconName] || WEB_ICON_PATHS[name];
+  return path
+    ? h('svg', { className: 'cinecrew-player__icon', viewBox: '0 0 24 24', width: 18, height: 18, fill: 'currentColor', style: { color }, 'aria-hidden': true }, h('path', { d: path }))
+    : h('span', { className: 'cinecrew-player__icon', style: { color }, 'aria-hidden': true }, '•');
 }
 
 function PlayerButton({ name, label, icons, theme, onClick, active, disabled, children }) {
@@ -226,10 +244,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     icons = {},
     style,
     className = '',
+    resolveSource,
     videoOnly: videoOnlyProp = false,
     audioOnly: audioOnlyProp = false,
-    proxyUrlAvailable,
-    webPlaybackError,
     audioTracks: tracksProp,
     selectedAudioTrack,
     renderLiveChat,
@@ -254,11 +271,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onEnded,
     onPlaybackRoute,
   } = props;
-  const media = useMemo(() => getSource(source, url), [source, url]);
+  const resolution = useResolvedPlayerSource(source, url, resolveSource, getWebRuntimePlatform());
+  const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
+  const youtubeVideoId = getYouTubeVideoId(media);
   const isLive = liveProp ?? media.isLive ?? false;
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const videoRef = useRef(null);
+  const youtubeRef = useRef(null);
   const playerRef = useRef(null);
   const publicPlayerRef = useRef(null);
   const pausedRef = useRef(pausedProp ?? !autoPlay);
@@ -270,7 +290,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const [audioOnly, setAudioOnly] = useState(!!audioOnlyProp);
   const [aspectRatio, setAspectRatio] = useState('FIT');
   const [locked, setLocked] = useState(false);
-  const [buffering, setBuffering] = useState(Boolean(streamUrl));
+  const [buffering, setBuffering] = useState(Boolean(streamUrl) || resolution.loading);
   const [error, setError] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -303,23 +323,21 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onBuffering?.(!!next);
   };
 
-  const unsupportedReason = webPlaybackError
-    || media.webPlaybackError
-    || (proxyUrlAvailable === false || media.proxyUrlAvailable === false ? WEB_NO_PROXY_URL_MESSAGE : '');
   useEffect(() => {
     setError('');
-    setBuffering(Boolean(streamUrl));
+    setBuffering(Boolean(streamUrl) || resolution.loading);
     setCurrentTime(0);
     setDuration(0);
     setAvailableTracks([]);
-    if (!streamUrl) {
-      setBuffering(false);
+    if (resolution.error) {
+      handleError(resolution.error);
       return;
     }
-    if (isLive && unsupportedReason) {
-      handleError(typeof unsupportedReason === 'string' ? unsupportedReason : unsupportedReason.message || WEB_NO_PROXY_URL_MESSAGE);
+    if (!streamUrl) {
+      setBuffering(Boolean(resolution.loading));
+      return;
     }
-  }, [streamUrl, isLive, unsupportedReason, handleError]);
+  }, [streamUrl, resolution.loading, resolution.error, handleError]);
 
   useEffect(() => {
     if (pausedProp !== undefined) setPausedState(!!pausedProp);
@@ -347,7 +365,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     if (liveChatNonce) setActivePanel('chat');
   }, [liveChatNonce]);
 
-  const activeUrl = unsupportedReason ? '' : streamUrl;
+  const activeUrl = youtubeVideoId ? '' : streamUrl;
 
   const mpegTs = useWebMpegTsPlayback({
     streamUrl,
@@ -377,12 +395,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || unsupportedReason) return;
+    if (!video) return;
     if (paused) video.pause();
     else video.play().catch((playError) => {
       if (playError?.name !== 'NotAllowedError') handleError(playError);
     });
-  }, [paused, streamUrl, unsupportedReason, handleError]);
+  }, [paused, streamUrl, youtubeVideoId, handleError]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -390,13 +408,13 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     video.muted = muted || videoOnly;
     video.volume = volume;
     video.playbackRate = Number(playbackRate) || 1;
-  }, [muted, volume, playbackRate, videoOnly, streamUrl]);
+  }, [muted, volume, playbackRate, videoOnly, streamUrl, youtubeVideoId]);
 
   useEffect(() => {
-    if (!streamUrl || unsupportedReason) return undefined;
+    if (!streamUrl) return undefined;
     onPlaybackRoute?.(streamUrl);
     return undefined;
-  }, [streamUrl, unsupportedReason, onPlaybackRoute]);
+  }, [streamUrl, onPlaybackRoute]);
 
   const setPaused = useCallback((next) => {
     const value = typeof next === 'boolean' ? next : !pausedRef.current;
@@ -414,6 +432,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const restart = useCallback(() => action('onRestart', () => {
     const video = videoRef.current;
     if (video) video.currentTime = 0;
+    else youtubeRef.current?.seekTo?.(0);
     setPaused(false);
   }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, setPaused]);
   const toggleMute = useCallback(() => action('onMute', () => setMuted((value) => !value), { muted: !muted }), [action, muted]);
@@ -430,6 +449,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const setPlaybackRateAction = useCallback((next) => action('onPlaybackRateChange', () => setPlaybackRate(next), { playbackRate: next }), [action]);
   const seekTo = useCallback((seconds) => action('onSeek', () => {
     if (videoRef.current) videoRef.current.currentTime = Math.max(0, Number(seconds) || 0);
+    else youtubeRef.current?.seekTo?.(Math.max(0, Number(seconds) || 0));
   }, { seconds: Number(seconds) || 0 }), [action]);
   const handleBack = useCallback(() => action('onBack', onBack || props.onClose, { title, source: media }), [action, onBack, props.onClose, title, media]);
   const handleMinimize = useCallback(() => action('onMinimize', onMinimize, { title, source: media }), [action, onMinimize, title, media]);
@@ -451,7 +471,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setVideoOnly: setVideoOnlyMode,
       setPlaybackRate: setPlaybackRateAction,
       seekTo,
-      seekBy: (delta) => seekTo((Number(videoRef.current?.currentTime) || 0) + (Number(delta) || 0)),
+      seekBy: (delta) => seekTo((Number(videoRef.current?.currentTime) || currentTime) + (Number(delta) || 0)),
       back: handleBack,
       minimize: handleMinimize,
       getVideoElement: () => videoRef.current,
@@ -461,7 +481,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     };
     publicPlayerRef.current = api;
     return api;
-  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnlyMode, setVideoOnlyMode, setPlaybackRateAction, seekTo, handleBack, handleMinimize, availableTracks, tracksProp]);
+  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnlyMode, setVideoOnlyMode, setPlaybackRateAction, seekTo, handleBack, handleMinimize, availableTracks, tracksProp, currentTime]);
 
   const enabled = (name, fallback = true) => controlOverrides[name] ?? fallback;
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
@@ -469,6 +489,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const hasRecording = !!integrations.recording || typeof actions.onRecordingStart === 'function';
   const sourceType = String(media.type || media.mimeType || '').toLowerCase();
   const directVideoSource = mpegTs.useMpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType) ? undefined : activeUrl;
+
+  const handleYouTubeStateChange = useCallback((state) => {
+    if (state === 'playing') setPausedState(false);
+    if (state === 'paused' || state === 'ended') setPausedState(true);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -571,9 +596,27 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     className: `cinecrew-player${inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${className}`.trim(),
     style: { ...rootStyle, ...style, background: theme.backgroundColor, borderRadius: theme.borderRadius, '--cinecrew-accent': theme.accentColor, '--cinecrew-text': theme.controlColor, '--cinecrew-surface': theme.surfaceColor },
     onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
-    'data-stream-mode': mpegTs.useMpegTs ? 'mpegts' : useHls ? 'hls' : 'native',
+    'data-stream-mode': youtubeVideoId ? 'youtube' : mpegTs.useMpegTs ? 'mpegts' : useHls ? 'hls' : 'native',
   },
-  streamUrl && !unsupportedReason ? h('video', {
+  youtubeVideoId ? h(YouTubeVideoPlayer, {
+    ref: youtubeRef,
+    videoId: youtubeVideoId,
+    paused,
+    muted: muted || videoOnly,
+    volume,
+    playbackRate,
+    onReady,
+    onProgress: (event) => {
+      setCurrentTime(Number(event.currentTime) / 1000 || 0);
+      setDuration(Number(event.duration) / 1000 || 0);
+      onProgress?.(event);
+    },
+    onPlaying,
+    onBuffering: onBufferingRef.current,
+    onStateChange: handleYouTubeStateChange,
+    onError: handleError,
+    onEnded,
+  }) : streamUrl ? h('video', {
     ref: videoRef,
     className: 'cinecrew-player__video',
     src: directVideoSource,
@@ -582,7 +625,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     muted: muted || videoOnly,
     playsInline: true,
     preload: 'auto',
-    crossOrigin: 'anonymous',
     style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
     onClick: inlinePreview ? onPromotePreview : undefined,
     onError: (event) => {
@@ -592,12 +634,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }) : h('div', { className: 'cinecrew-player__empty' }),
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
   title && !audioOnly ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor } }, title) : null,
-  buffering && !error && !unsupportedReason ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…') : null,
-  (error || unsupportedReason) ? h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
+  buffering && !error ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…') : null,
+  error ? h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
     h('strong', { style: { color: theme.errorColor } }, 'Playback error'),
-    h('span', null, error || (typeof unsupportedReason === 'string' ? unsupportedReason : unsupportedReason?.message)),
+    h('span', null, error),
       control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' })) : null,
-  !error && !unsupportedReason && !audioOnly ? h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
+  !error && !audioOnly ? h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
     h('div', { className: 'cinecrew-player__top-controls' }, locked
       ? control('lock', 'Unlock controls', toggleLock, { active: true, defaultVisible: true })
       : unlockedControls),

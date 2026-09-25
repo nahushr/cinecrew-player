@@ -1,7 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useEffect, useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { WEB_NO_PROXY_URL_CODE, WEB_NO_PROXY_URL_MESSAGE } from './web/webPlaybackErrors';
-
 import { useWebMediaSession } from './web/useWebMediaSession';
 import { useWebVideoAspectRatio } from './web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from './web/useWebMpegTsPlayback';
@@ -20,8 +18,6 @@ export const WebVideoPlayer = forwardRef(({
   isLive,
   audioOnly = false,
   videoOnly = false,
-  webProxyAvailable,
-  webPlaybackError,
   onProgress,
   onPlaying,
   onBuffering,
@@ -117,27 +113,16 @@ export const WebVideoPlayer = forwardRef(({
     }
   }, [onProgress]);
 
-  // The host supplies a playable URL. Provider-specific resolution stays out
-  // of the player so the same package works with any backend.
+  // The host supplies the media URL. Scheme and source resolution are left to
+  // the consumer and the playback engine on each platform.
   useEffect(() => {
     if (!streamUrl) {
       setActiveUrl('');
       return undefined;
     }
-    if (isLive && (webProxyAvailable === false || webPlaybackError)) {
-      setActiveUrl('');
-      onErrorRef.current?.({
-        code: WEB_NO_PROXY_URL_CODE,
-        blockPlayback: true,
-        message: typeof webPlaybackError === 'string'
-          ? webPlaybackError
-          : webPlaybackError?.message || WEB_NO_PROXY_URL_MESSAGE,
-      });
-      return undefined;
-    }
     setActiveUrl(streamUrl);
     return undefined;
-  }, [isLive, streamUrl, webProxyAvailable, webPlaybackError]);
+  }, [streamUrl]);
 
   // MediaSession API
   useWebMediaSession({

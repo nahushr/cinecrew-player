@@ -36,6 +36,23 @@
       "browser": "./src/web/index.js",
       "default": "./src/web/index.js"
     },
+    "./react": {
+      "types": "./types/index.d.ts",
+      "default": "./src/web/index.js"
+    },
+    "./electron": {
+      "types": "./types/index.d.ts",
+      "default": "./src/web/index.js"
+    },
+    "./react-native": {
+      "types": "./types/index.d.ts",
+      "react-native": "./src/native/index.js",
+      "default": "./src/native/index.js"
+    },
+    "./react-native-web": {
+      "types": "./types/index.d.ts",
+      "default": "./src/web/index.js"
+    },
     "./native": {
       "types": "./types/index.d.ts",
       "react-native": "./src/native/index.js",
@@ -74,12 +91,13 @@
     "@hiraku-ai/react-native-emoji-picker": "^1.2.4",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "^5.2.0",
-    "@nahushr/react-native-vlc-media-player": "1.0.98-cinecrew.0",
+    "@cinecrew/react-native-vlc-media-player": "1.0.98-cinecrew.0",
     "expo-video": "^57.0.2",
     "hls.js": "^1.7.3",
     "mediabunny": "^1.59.0",
     "react-native-safe-area-context": "^5.7.0",
-    "react-native-svg": "^15.15.4"
+    "react-native-svg": "^15.15.4",
+    "react-native-webview": "^13.16.1"
   },
   "peerDependencies": {
     "react": ">=18",

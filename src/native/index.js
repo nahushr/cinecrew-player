@@ -1,14 +1,10 @@
-import React, { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { PlayerCustomizationProvider } from './customization';
 import { MediaPlayerView } from './MediaPlayerView';
 import { InlineLivePlayer } from './InlineLivePlayer';
-import { WEB_AC3_UNSUPPORTED_CODE, WEB_AC3_UNSUPPORTED_MESSAGE, WEB_NO_PROXY_URL_CODE, WEB_NO_PROXY_URL_MESSAGE } from './media/web/webPlaybackErrors';
-
-function normalizeSource(source, url) {
-  const value = source ?? url ?? '';
-  if (typeof value === 'string') return { uri: value };
-  return value && typeof value === 'object' ? value : { uri: '' };
-}
+import { isElectron, isWeb } from '../utils/runtimePlatform';
+import { getYouTubeVideoId, useResolvedPlayerSource } from '../utils/sourceUtils';
 
 /** Full-screen player for React Native and Electron applications. */
 export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
@@ -36,19 +32,36 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     theme,
     icons,
     style,
-    proxyUrlAvailable,
-    webPlaybackError,
+    resolveSource,
     onClose,
     onBack,
     ...metadata
   } = props;
   const playerApiRef = useRef({});
   useImperativeHandle(ref, () => playerApiRef.current, []);
-  const media = useMemo(() => normalizeSource(source, url), [source, url]);
+  const platform = isWeb() ? 'web' : isElectron() ? 'electron' : 'native';
+  const resolution = useResolvedPlayerSource(source, url, resolveSource, platform);
+  const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
   const resolvedIsLive = isLive ?? media.isLive ?? (media.mediaType === 'live');
   const resolvedMediaType = mediaType || media.mediaType || (resolvedIsLive ? 'live' : 'movie');
-  const isVisible = visible ?? Boolean(streamUrl);
+  const youtubeVideoId = getYouTubeVideoId(media);
+  const isVisible = visible ?? Boolean(streamUrl || youtubeVideoId);
+
+  React.useEffect(() => {
+    if (resolution.error) props.onError?.(resolution.error);
+  }, [resolution.error, props.onError]);
+
+  if (resolution.loading || resolution.error) {
+    const colors = theme?.colors || {};
+    return React.createElement(PlayerCustomizationProvider, { icons, theme },
+      React.createElement(View, { style: [styles.resolveScreen, style, { backgroundColor: theme?.backgroundColor || colors.background || '#050b14' }] },
+        resolution.loading
+          ? React.createElement(ActivityIndicator, { color: theme?.accentColor || colors.brandAccent || '#00D4FF' })
+          : null,
+        React.createElement(Text, { style: { color: theme?.textColor || colors.onSurfacePrimary || '#FFFFFF', marginTop: 12 } },
+          resolution.loading ? 'Resolving media source…' : (resolution.error?.message || 'Unable to resolve this media source.'))));
+  }
 
   return React.createElement(
     PlayerCustomizationProvider,
@@ -57,6 +70,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       ...metadata,
       visible: isVisible,
       streamUrl,
+      youtubeVideoId,
       title: title || media.title || '',
       posterUrl: poster || posterUrl || media.poster || media.posterUrl || '',
       mediaType: resolvedMediaType,
@@ -73,8 +87,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       theme,
       icons,
       style,
-      webProxyAvailable: proxyUrlAvailable ?? media.proxyUrlAvailable,
-      webPlaybackError: webPlaybackError ?? media.webPlaybackError,
       playerApiRef,
     }),
   );
@@ -83,5 +95,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 /** Compact inline live preview companion for channel lists and guides. */
 export { InlineLivePlayer };
 export { PlayerCustomizationProvider } from './customization';
-export { WEB_AC3_UNSUPPORTED_CODE, WEB_AC3_UNSUPPORTED_MESSAGE, WEB_NO_PROXY_URL_CODE, WEB_NO_PROXY_URL_MESSAGE };
 export default CineCrewPlayer;
+
+const styles = StyleSheet.create({
+  resolveScreen: { flex: 1, minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: 24 },
+});
