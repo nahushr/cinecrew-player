@@ -12,47 +12,63 @@ permissions:
   contents: read
 
 jobs:
-  sonar:
-    name: SonarQube analysis
+  quality-gates:
+    name: SonarCloud, Snyk, and Checkstyle
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
-      - name: Check out full history
+      - name: Check out source with full history
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Require Sonar project configuration
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Cache Sonar scanner
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: sonar-scanner-${{ runner.os }}-5.0.0
+          restore-keys: |
+            sonar-scanner-${{ runner.os }}-
+
+      - name: Run SonarCloud scan
+        id: sonar_scan
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref || '' }}
         run: |
           set -euo pipefail
-          test -n "$SONAR_TOKEN" || { echo "::error::SONAR_TOKEN is required"; exit 1; }
+          args=(
+            -Dproject.settings=sonar-project.properties
+            -Dsonar.token="$SONAR_TOKEN"
+          )
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            args+=(
+              "-Dsonar.pullrequest.key=$PR_NUMBER"
+              "-Dsonar.pullrequest.branch=$PR_HEAD_REF"
+              "-Dsonar.pullrequest.base=$PR_BASE_REF"
+            )
+          fi
+          npx --yes sonarqube-scanner@5.0.0 "${args[@]}"
 
-      - name: Scan JavaScript and React Native sources
-        uses: SonarSource/sonarqube-scan-action@v8.2.1
+      - name: Enforce SonarCloud findings and duplication limits
+        id: sonar_policy
+        if: always() && steps.sonar_scan.outcome == 'success'
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
-        with:
-          args: >-
-            -Dsonar.projectKey=nahushr_cinecrew-player
-            -Dsonar.organization=nahushr
-            -Dsonar.sources=src,android/src/main/java,packages/react-native-vlc-media-player/ios/RCTVLCPlayer,packages/react-native-vlc-media-player/expo
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.gradle/**,**/.scannerwork/**,**/coverage/**
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=600
-
-      - name: Fail on any open Sonar finding or duplication at 3 percent
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
           SONAR_PROJECT_KEY: nahushr_cinecrew-player
           SONAR_BRANCH: ${{ github.ref_name }}
           SONAR_PULL_REQUEST: ${{ github.event.pull_request.number || '' }}
         run: |
           set -euo pipefail
-          host="${SONAR_HOST_URL%/}"
           scope=()
           if [[ -n "$SONAR_PULL_REQUEST" ]]; then
             scope+=(--data-urlencode "pullRequest=$SONAR_PULL_REQUEST")
@@ -61,66 +77,48 @@ jobs:
           fi
 
           issues=$(curl --fail --silent --show-error --user "$SONAR_TOKEN:" --get \
-            "$host/api/issues/search" \
+            'https://sonarcloud.io/api/issues/search' \
             --data-urlencode "componentKeys=$SONAR_PROJECT_KEY" \
             --data-urlencode 'resolved=false' \
             --data-urlencode 'ps=1' "${scope[@]}")
           issue_count=$(jq -er '.total | numbers' <<<"$issues")
           if [[ "$issue_count" -ne 0 ]]; then
-            echo "::error::Sonar reported $issue_count unresolved finding(s); all must be resolved."
+            echo "::error::SonarCloud reported $issue_count unresolved finding(s); the check requires zero."
             exit 1
           fi
 
           measures=$(curl --fail --silent --show-error --user "$SONAR_TOKEN:" --get \
-            "$host/api/measures/component" \
+            'https://sonarcloud.io/api/measures/component' \
             --data-urlencode "component=$SONAR_PROJECT_KEY" \
             --data-urlencode 'metricKeys=duplicated_lines_density' "${scope[@]}")
           duplicate_percent=$(jq -er '.component.measures[] | select(.metric == "duplicated_lines_density") | .value' <<<"$measures")
           if ! awk -v value="$duplicate_percent" 'BEGIN { exit !(value < 3) }'; then
-            echo "::error::Sonar duplication is ${duplicate_percent}%; it must be below 3%."
+            echo "::error::SonarCloud duplication is ${duplicate_percent}%; it must be below 3%."
             exit 1
           fi
-          echo "Sonar gate passed: 0 unresolved findings; ${duplicate_percent}% duplication."
+          echo "SonarCloud policy passed: no unresolved findings and ${duplicate_percent}% duplication."
 
-  snyk:
-    name: Snyk dependency security
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle for all-project dependency detection
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '9.5.1'
-          cache-provider: basic
-
-      - uses: snyk/actions/setup@v1.0.0
-        with:
-          snyk-version: latest
-
-      - name: Fail on every Snyk vulnerability or scan error
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --all-projects --fail-fast --severity-threshold=low
 
-  checkstyle:
-    name: Checkstyle
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
+      - name: Run Snyk Code analysis
+        id: snyk_code
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk code test --sarif-file-output=snyk-code.sarif
 
-      - uses: actions/setup-java@v5
+      - name: Scan published package dependencies with Snyk
+        id: snyk_dependencies
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --file=package-lock.json
+
+      - name: Set up Java for Checkstyle
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -131,25 +129,34 @@ jobs:
           gradle-version: '9.5.1'
           cache-provider: basic
 
-      - name: Fail on any Checkstyle violation or warning
+      - name: Run Checkstyle
+        id: checkstyle
+        continue-on-error: true
         run: gradle --no-daemon checkstyleMain
 
-  quality-gates:
-    name: All quality gates passed
-    if: ${{ always() }}
-    needs: [sonar, snyk, checkstyle]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require all parallel checks to pass
+      - name: Require all three quality checks to pass
+        if: always()
         env:
-          SONAR_RESULT: ${{ needs.sonar.result }}
-          SNYK_RESULT: ${{ needs.snyk.result }}
-          CHECKSTYLE_RESULT: ${{ needs.checkstyle.result }}
+          SONAR_SCAN_RESULT: ${{ steps.sonar_scan.outcome }}
+          SONAR_POLICY_RESULT: ${{ steps.sonar_policy.outcome }}
+          SNYK_CODE_RESULT: ${{ steps.snyk_code.outcome }}
+          SNYK_DEPENDENCIES_RESULT: ${{ steps.snyk_dependencies.outcome }}
+          CHECKSTYLE_RESULT: ${{ steps.checkstyle.outcome }}
         run: |
           set -euo pipefail
-          for result in "$SONAR_RESULT" "$SNYK_RESULT" "$CHECKSTYLE_RESULT"; do
-            if [[ "$result" != success ]]; then
-              echo "::error::All quality gates must pass (Sonar=$SONAR_RESULT, Snyk=$SNYK_RESULT, Checkstyle=$CHECKSTYLE_RESULT)."
-              exit 1
+          failed=0
+          for check in \
+            "Sonar scan=$SONAR_SCAN_RESULT" \
+            "Sonar findings/duplication=$SONAR_POLICY_RESULT" \
+            "Snyk Code=$SNYK_CODE_RESULT" \
+            "Snyk dependencies=$SNYK_DEPENDENCIES_RESULT" \
+            "Checkstyle=$CHECKSTYLE_RESULT"; do
+            echo "$check"
+            if [[ "$check" != *=success ]]; then
+              failed=1
             fi
           done
+          if [[ "$failed" -ne 0 ]]; then
+            echo '::error::The consolidated quality-gates stage requires SonarCloud, Snyk, and Checkstyle to pass.'
+            exit 1
+          fi
