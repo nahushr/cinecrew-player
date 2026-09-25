@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/cinecrew-player-logo.svg" alt="CineCrew app logo and wordmark" width="470" />
+  <img src="https://raw.githubusercontent.com/nahushr/cinecrew-player/main/assets/cinecrew-player-logo.svg" alt="CineCrew app logo and wordmark" width="470" />
 </p>
 
 <h3 align="center">One player layer. Your app. Every screen.</h3>
