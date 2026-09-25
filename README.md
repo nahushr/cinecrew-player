@@ -2,6 +2,9 @@
   <img src="https://raw.githubusercontent.com/nahushr/cinecrew-player/main/assets/cinecrew-player-logo.svg" alt="CineCrew app logo and wordmark" width="470" />
 </p>
 
+[![CI](https://github.com/nahushr/cinecrew-player/actions/workflows/ci.yml/badge.svg)](https://github.com/nahushr/cinecrew-player/actions)
+[![npm version](https://img.shields.io/npm/v/@cinecrew/cinecrew-player.svg)](https://www.npmjs.com/package/@cinecrew/cinecrew-player)
+
 <h3 align="center">One player layer. Your app. Every screen.</h3>
 
 <p align="center">
