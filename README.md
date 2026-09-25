@@ -101,7 +101,7 @@ export function WatchScreen() {
 }
 ```
 
-Web playback is direct from the supplied URL. HLS and MPEG-TS clients fetch playlists/segments from the stream origin, so the origin must permit those browser requests. The package intentionally does not route video bytes through a Cloudflare Worker or another resolver.
+Web playback is direct from the supplied URL. HLS and MPEG-TS clients fetch playlists and segments from the stream origin, so the origin must permit those browser requests.
 
 ### YouTube and share links
 
