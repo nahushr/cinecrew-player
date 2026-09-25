@@ -143,21 +143,27 @@ export default function App() {
             <input type="file" accept=".ts,.mp4,.mkv,video/mp4,video/x-matroska,video/mp2t" onChange={loadFile} />
           </label>
         </form>
-        <label className="inline-toggle">
-          <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
-          Use compact inline player
-        </label>
-        <label className="inline-toggle">
-          <input type="checkbox" checked={live} onChange={(event) => setLive(event.target.checked)} />
-          Treat source as live
-        </label>
-        <label className="inline-toggle">
-          Drawer layout
-          <select aria-label="Drawer layout" value={drawerMode} onChange={(event) => setDrawerMode(event.target.value)}>
-            <option value="overlay">Overlay video</option>
-            <option value="resize">Resize video</option>
-          </select>
-        </label>
+        <div className="player-options">
+          <div className="player-options-row">
+            <label className="inline-toggle">
+              <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
+              Use compact inline player
+            </label>
+          </div>
+          <div className="player-options-row">
+            <label className="inline-toggle">
+              <input type="checkbox" checked={live} onChange={(event) => setLive(event.target.checked)} />
+              Treat source as live
+            </label>
+            <label className="inline-toggle">
+              Drawer layout
+              <select aria-label="Drawer layout" value={drawerMode} onChange={(event) => setDrawerMode(event.target.value)}>
+                <option value="overlay">Overlay video</option>
+                <option value="resize">Resize video</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <p className="source-note">{status} · Browser format and CORS support depend on the source host.</p>
       </section>
 

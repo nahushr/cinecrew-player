@@ -53,7 +53,7 @@ function AudioOnlyModeControl({ isAudioOnly, onToggle }) {
 function VideoOnlyControl({ isVideoOnly, onToggle }) {
   const palette = usePlayerColors();
   const selectedStyle = isVideoOnly ? { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor } : null;
-  return <TouchableOpacity style={[styles.speedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle?.(); }} accessibilityLabel={isVideoOnly ? 'Enable audio' : 'Video only'}><PlayerIcon name="video" size={18} color={isVideoOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
+  return <TouchableOpacity style={[styles.speedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle?.(); }} accessibilityLabel={isVideoOnly ? 'Disable video-only mode' : 'Video only'}><PlayerIcon name="video" size={18} color={isVideoOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
 }
 
 function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect }) {
@@ -81,7 +81,7 @@ function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect }) {
 
 function AudioTrackMenu({ open, audioTracks, selectedAudioTrack, onSelect, palette }) {
   if (!open) return null;
-  if (audioTracks.length <= 1) return <View style={[styles.speedPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}><Text style={[styles.speedOptionText, { color: palette.controlColor }]}>No other audio available</Text></View>;
+  if (audioTracks.length === 0) return <View style={[styles.speedPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}><Text style={[styles.speedOptionText, { color: palette.controlColor }]}>No audio tracks available</Text></View>;
   return (
     <View style={[styles.speedPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}>
       <Text style={[styles.speedPickerTitle, { color: palette.mutedColor }]}>Audio</Text>

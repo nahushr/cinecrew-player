@@ -6,6 +6,13 @@ export const sampleSources = [
     url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
   },
   {
+    id: 'hls',
+    label: 'M3U8',
+    title: 'Mux HLS test stream',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    type: 'hls',
+  },
+  {
     id: 'ts',
     label: 'MPEG-TS',
     title: 'Local MPEG-TS fixture',

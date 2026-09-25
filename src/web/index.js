@@ -21,7 +21,7 @@ const DEFAULT_THEME = {
 const DEFAULT_ICONS = {
   play: 'play', pause: 'pause', restart: 'restart', lock: 'lock', unlock: 'lock-open',
   mute: 'volume-mute', unmute: 'volume-high', aspectRatio: 'aspect-ratio', videoOnly: 'video',
-  audio: 'music-note', back: 'arrow-left', recording: 'record-rec', stop: 'stop',
+  audio: 'music-note', audioOnly: 'headphones', back: 'arrow-left', recording: 'record-rec', stop: 'stop',
   liveChat: 'comment-text-multiple-outline', epg: 'television-classic', diagnostics: 'logs',
   fullscreen: 'fullscreen', close: 'close',
 };
@@ -34,11 +34,12 @@ const WEB_ICON_PATHS = {
   restart: 'M12 5V1L7 6l5 5V7a6 6 0 1 1-5.65 8H4.26A9 9 0 1 0 12 5z',
   lock: 'M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
   'lock-open': 'M18 8h-1V6a5 5 0 0 0-9.8-1H9a3 3 0 0 1 6 .8V8H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
-  'volume-mute': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z',
+  'volume-mute': 'M3 9v6h4l5 5V4L7 9H3zm13.59 3 2.12-2.12 1.41 1.41L19 13.41l2.12 2.12-1.41 1.41-2.12-2.12-2.12 2.12-1.41-1.41 2.12-2.12-2.12-2.12 1.41-1.41z',
   'volume-high': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z',
   'aspect-ratio': 'M3 5h18v14H3zm2 2v10h14V7zm2 2h4v2H9v4H7zm10 6h-4v-2h2V9h2z',
   video: 'M18 7V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2l4 4V5zm-2 12H4V5h12z',
   'music-note': 'M12 3v12.26A4 4 0 1 0 14 19V7h6V3z',
+  headphones: 'M12 3a9 9 0 0 0-9 9v6a3 3 0 0 0 3 3h3v-9H5v-1a7 7 0 0 1 14 0v1h-4v9h3a3 3 0 0 0 3-3v-6a9 9 0 0 0-9-9z',
   'arrow-collapse': 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
   logs: 'M3 3h18v18H3zm2 2v14h14V5zm3 3h2v2H8zm4 0h7v2h-7zm-4 4h2v2H8zm4 0h7v2h-7zm-4 4h2v2H8zm4 0h7v2h-7z',
   'arrow-left': 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z',
@@ -48,6 +49,13 @@ const WEB_ICON_PATHS = {
   'television-classic': 'M21 3H3a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h7v2h4v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 15H3V5h18zM5 7h14v9H5z',
   fullscreen: 'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
   close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+  send: 'M2 21 23 12 2 3v7l15 2-15 2z',
+  network: 'M12 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4 16a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm16 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM10.7 7.4 5.3 16.7l1.7 1 5.4-9.3zm2.6 0 5.4 9.3-1.7 1-5.4-9.3z',
+  speedometer: 'M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-2.05-4.95l1.42-1.42A8.96 8.96 0 0 0 12 3zm7.7 1.3-6.4 6.4a2.5 2.5 0 1 0 1.4 1.4l6.4-6.4z',
+  buffer: 'M4 5h16v3H4zm0 5.5h16v3H4zm0 5.5h16v3H4z',
+  clock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm1-13h-2v6l5 3 1-1.7-4-2.3z',
+  display: 'M3 4h18v13H3zm2 2v9h14V6zm5 13h4v2h-4z',
+  frames: 'M4 4h16v12H4zm2 2v8h12V6zm-4 13h16v2H2zm4-3h16v2H6z',
 };
 
 function getSource(source, url) {
@@ -119,44 +127,62 @@ function getPanelActionName(panel) {
 function WebSeekControl({ currentTime, duration, theme, onSeek }) {
   const [seekDraft, setSeekDraft] = useState(currentTime);
   const [isDragging, setIsDragging] = useState(false);
+  const seekDraftRef = useRef(currentTime);
 
   useEffect(() => {
-    if (!isDragging) setSeekDraft(currentTime);
+    if (!isDragging) {
+      seekDraftRef.current = currentTime;
+      setSeekDraft(currentTime);
+    }
   }, [currentTime, isDragging]);
 
-  const updateSeek = (event) => {
+  const updateDraft = (event) => {
     const nextTime = Number(event.currentTarget.value);
+    seekDraftRef.current = nextTime;
     setSeekDraft(nextTime);
-    onSeek(nextTime);
   };
 
   const finishSeek = (event) => {
     if (!isDragging) return;
-    updateSeek(event);
+    const nextTime = event?.currentTarget && event.type !== 'blur'
+      ? Number(event.currentTarget.value)
+      : seekDraftRef.current;
+    seekDraftRef.current = nextTime;
+    setSeekDraft(nextTime);
     setIsDragging(false);
+    onSeek(nextTime);
   };
+  const displayTime = Math.min(isDragging ? seekDraft : currentTime, duration);
+  const remainingTime = Math.max(0, duration - displayTime);
 
   return h('div', { className: 'cinecrew-player__seek' },
-    h('span', null, formatTime(currentTime)),
+    h('span', null, formatTime(displayTime)),
     h('input', {
       type: 'range',
       'aria-label': 'Seek video',
       min: 0,
       max: duration,
       step: 'any',
-      value: Math.min(isDragging ? seekDraft : currentTime, duration),
-      onChange: updateSeek,
+      value: displayTime,
+      onChange: updateDraft,
       onPointerDown: (event) => {
         event.stopPropagation();
         setIsDragging(true);
-        setSeekDraft(Number(event.currentTarget.value));
+        seekDraftRef.current = Number(event.currentTarget.value);
+        setSeekDraft(seekDraftRef.current);
       },
       onPointerUp: finishSeek,
       onPointerCancel: finishSeek,
       onBlur: finishSeek,
+      onKeyDown: (event) => {
+        if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) setIsDragging(true);
+      },
+      onKeyUp: (event) => {
+        if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) finishSeek(event);
+      },
       style: { accentColor: theme.accentColor },
     }),
-    h('span', null, formatTime(duration)));
+    h('span', null, `−${formatTime(remainingTime)}`));
 }
 
 function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect }) {
@@ -179,11 +205,13 @@ function WebAudioTrackMenu({ open, tracks, theme, icons, onToggle, onSelect }) {
   let menu = null;
   if (open) {
     menu = h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } },
-      tracks.map((track) => h('button', {
-        key: track.id,
-        type: 'button',
-        onClick: () => onSelect(track.id),
-      }, track.name)));
+      tracks.length
+        ? tracks.map((track, index) => h('button', {
+          key: track.id ?? index,
+          type: 'button',
+          onClick: () => onSelect(track.id),
+        }, track.name || track.language || `Track ${index + 1}`))
+        : h('div', { className: 'cinecrew-player__menu-empty', role: 'status' }, 'No audio tracks available'));
   }
   return h('div', { className: 'cinecrew-player__menu-wrap', key: 'audioTracks' },
     h(PlayerButton, { name: 'audio', label: 'Audio tracks', icons, theme, onClick: onToggle, active: open }),
@@ -226,7 +254,7 @@ function WebBottomControls(props) {
     });
   }
   let audioTracks = null;
-  if (availableTracks.length > 1 && isControlEnabled(overrides, 'audioTracks', true)) {
+  if (isControlEnabled(overrides, 'audioTracks', true)) {
     audioTracks = h(WebAudioTrackMenu, {
       open: showAudioMenu,
       tracks: availableTracks,
@@ -243,25 +271,25 @@ function WebBottomControls(props) {
   if (isControlEnabled(overrides, 'playbackRate', true) && !isLive) {
     playbackRateControl = h(WebPlaybackRateControl, { value: playbackRate, onChange: setPlaybackRateAction });
   }
-  const videoOnlyLabel = videoOnly ? 'Enable audio' : 'Video only';
-  const audioOnlyLabel = audioOnly ? 'Switch to audio card' : 'Audio only';
+  const videoOnlyLabel = 'Video only';
+  const audioOnlyLabel = 'Audio only';
   const fullscreenLabel = fullscreen ? 'Exit full screen' : 'Full screen';
 
   return h('div', { className: 'cinecrew-player__bottom-controls' },
     seek,
     h('div', { className: 'cinecrew-player__bottom-actions' },
       h('div', { className: 'cinecrew-player__bottom-left-actions' },
+        renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { active: audioOnly }, overrides, icons, theme }),
         renderControlButton({ name: 'videoOnly', label: videoOnlyLabel, callback: () => setVideoOnlyMode(!videoOnly), options: { active: videoOnly, defaultVisible: false }, overrides, icons, theme }),
         aspect),
       h('div', { className: 'cinecrew-player__bottom-right-actions' },
-        renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { icon: 'audio', active: audioOnly }, overrides, icons, theme }),
         audioTracks,
         playbackRateControl,
         renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }))));
 }
 
 function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, togglePlay, bottomProps }) {
-  let leftControls = unlockedControls.left;
+  let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
     rightControls = renderControlButton({
@@ -330,7 +358,7 @@ function WebPlayerSurface({
       onStateChange,
       onError,
       onEnded,
-      style: drawerResize ? { width: '64%', height: '64%', inset: '18% auto auto 0' } : undefined,
+      style: drawerResize ? { width: 'var(--cinecrew-media-width, 64%)', height: '100%', inset: '0 auto 0 0' } : undefined,
     });
   }
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
@@ -345,7 +373,11 @@ function WebPlayerSurface({
     preload: 'auto',
     style: {
       ...videoStyle,
-      ...(drawerResize ? { width: '64%', height: '64%', top: '18%', right: 'auto', bottom: 'auto' } : {}),
+      ...(drawerResize
+        ? videoStyle.width === 'auto'
+          ? { left: 'calc(var(--cinecrew-media-width, 64%) / 2)', top: '50%', right: 'auto', bottom: 'auto', maxWidth: 'var(--cinecrew-media-width, 64%)', transform: 'translate(-50%, -50%)' }
+          : { width: 'var(--cinecrew-media-width, 64%)', height: '100%', left: 0, top: 0, right: 'auto', bottom: 0, transform: 'none' }
+        : {}),
       opacity: audioOnly ? 0 : 1,
     },
     onClick: inlinePreview ? onPromotePreview : undefined,
@@ -357,12 +389,15 @@ function WebPlayerSurface({
   });
 }
 
-function WebAudioOnlyCard({ poster, title, theme, onSwitchToVideo }) {
+function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo }) {
   return h('div', {
     className: 'cinecrew-player__audio-card',
     style: { background: theme.surfaceColor, color: theme.controlColor, borderColor: theme.accentColor },
   },
-  poster ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' }) : null,
+  poster
+    ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' })
+    : h('div', { className: 'cinecrew-player__audio-placeholder', role: 'img', 'aria-label': 'Audio artwork placeholder' },
+      h(Icon, { name: 'audioOnly', icons, color: theme.accentColor })),
   h('span', { className: 'cinecrew-player__audio-wave', style: { color: theme.accentColor }, 'aria-hidden': true }, '•••••••'),
   h('strong', null, title || 'Audio only'),
   h('button', {
@@ -478,7 +513,7 @@ function WebPlayerLayout(props) {
   }
   let audioCard = null;
   if (props.audioOnly) {
-    audioCard = h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, onSwitchToVideo: props.onSwitchToVideo });
+    audioCard = h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, icons: props.icons, onSwitchToVideo: props.onSwitchToVideo });
   }
   let panelNode = null;
   if (props.activePanel && props.webPanel) {
@@ -491,7 +526,7 @@ function WebPlayerLayout(props) {
   return h('div', {
     ref: props.playerRef,
     className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
-    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor },
+    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '64%' },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
@@ -499,7 +534,7 @@ function WebPlayerLayout(props) {
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
   playerTitle,
   loadingNotice,
-  h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.renderBackButton }),
+  h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.locked ? () => null : props.renderBackButton }),
   controlLayer,
   audioCard,
   panelNode);
@@ -544,11 +579,11 @@ function getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations) 
 }
 
 function createWebPanelNode({
-  renderer, integration, activePanel, integrations, source, title, theme, onClose,
+  renderer, integration, activePanel, integrations, source, title, theme, icons, onClose,
   diagnostics, messagePageSize,
 }) {
   if (activePanel === 'diagnostics') {
-    return h(WebDiagnosticsPanel, { title, theme, ...diagnostics });
+    return h(WebDiagnosticsPanel, { title, theme, icons, onClose, ...diagnostics });
   }
   if (renderer) return h(renderer, { title, source, onClose });
   if (!integration) return null;
@@ -568,26 +603,73 @@ function createWebPanelNode({
   });
 }
 
-function WebDiagnosticsPanel({ title, theme, streamMode, status, currentTime, duration, videoRef }) {
+function getBufferedAhead(video, currentTime) {
+  if (!video?.buffered) return null;
+  for (let index = 0; index < video.buffered.length; index += 1) {
+    const start = video.buffered.start(index);
+    const end = video.buffered.end(index);
+    if (currentTime >= start && currentTime <= end) return Math.max(0, end - currentTime);
+  }
+  return 0;
+}
+
+function getFrameQuality(video) {
+  try {
+    const quality = video?.getVideoPlaybackQuality?.();
+    if (quality) return { dropped: quality.droppedVideoFrames, total: quality.totalVideoFrames };
+  } catch {
+    // Playback quality is optional and may not be exposed by a media engine.
+  }
+  if (Number.isFinite(video?.webkitDroppedFrameCount) || Number.isFinite(video?.webkitDecodedFrameCount)) {
+    return { dropped: video.webkitDroppedFrameCount, total: video.webkitDecodedFrameCount };
+  }
+  return null;
+}
+
+function WebDiagnosticsPanel({ title, theme, icons, onClose, streamMode, status, currentTime, duration, videoRef }) {
   const video = videoRef?.current;
   const resolution = video?.videoWidth && video?.videoHeight
     ? `${video.videoWidth} × ${video.videoHeight}`
     : 'Not available';
-  const rows = [
-    ['Title', title || 'Untitled'],
-    ['Stream type', streamMode || 'Unknown'],
-    ['Playback', status || 'Unknown'],
-    ['Resolution', resolution],
-    ['Position', `${formatTime(currentTime)} / ${formatTime(duration)}`],
+  const connection = globalThis.navigator?.connection;
+  const buffered = getBufferedAhead(video, currentTime);
+  const frames = getFrameQuality(video);
+  const cards = [
+    { icon: 'display', label: 'Video resolution', value: resolution },
+    { icon: 'network', label: 'Connection rate', value: Number.isFinite(connection?.downlink) ? `${connection.downlink} Mbps` : 'Not reported' },
+    { icon: 'clock', label: 'Network RTT estimate', value: Number.isFinite(connection?.rtt) ? `${connection.rtt} ms` : 'Not reported' },
+    { icon: 'buffer', label: 'Buffered ahead', value: buffered === null ? 'Not reported' : `${buffered.toFixed(1)} sec` },
+    { icon: 'frames', label: 'Dropped / total frames', value: frames && Number.isFinite(frames.dropped) ? `${frames.dropped} / ${frames.total ?? '—'}` : 'Not reported' },
+    { icon: 'speedometer', label: 'Playback position', value: `${formatTime(currentTime)} / ${formatTime(duration)}` },
+    { icon: 'network', label: 'Connection type', value: connection?.effectiveType || 'Not reported' },
+    { icon: 'video', label: 'Stream format', value: streamMode || 'Unknown' },
   ];
   return h('section', {
     className: 'cinecrew-player__diagnostics',
     style: { color: theme.controlColor },
     'aria-label': 'Stream diagnostics',
   },
-  h('strong', null, 'Stream diagnostics'),
-  rows.map(([label, value]) => h('div', { className: 'cinecrew-player__diagnostic-row', key: label },
-    h('span', null, label), h('span', null, value))));
+  h('header', { className: 'cinecrew-player__diagnostics-heading' },
+    h('div', null,
+      h('strong', null, 'Stream diagnostics'),
+      h('span', null, title || 'Current playback')),
+    h('button', {
+      type: 'button',
+      className: 'cinecrew-player__diagnostics-close',
+      onClick: onClose,
+      'aria-label': 'Close stream diagnostics',
+      title: 'Close diagnostics',
+    }, h(Icon, { name: 'close', icons, color: theme.controlColor }))),
+  h('div', { className: 'cinecrew-player__diagnostics-status' },
+    h('span', { className: `cinecrew-player__status-dot is-${String(status || 'unknown').toLowerCase()}` }),
+    h('span', null, status || 'Unknown'),
+    h('span', null, streamMode || 'Unknown format')),
+  h('div', { className: 'cinecrew-player__diagnostic-grid' },
+    cards.map(({ icon, label, value }) => h('article', { className: 'cinecrew-player__diagnostic-card', key: label },
+      h('span', { className: 'cinecrew-player__diagnostic-icon' }, h(Icon, { name: icon, icons, color: theme.accentColor })),
+      h('span', { className: 'cinecrew-player__diagnostic-label' }, label),
+      h('strong', null, value)))),
+  h('small', { className: 'cinecrew-player__diagnostics-note' }, 'Network rate and RTT are browser-reported estimates when supported; no extra ping or stream requests are sent.'));
 }
 
 function getChatMessageKey(message, index = 0) {
@@ -704,7 +786,12 @@ function WebChatComposer({ sending, canSend, onSend }) {
         'aria-label': 'Chat message',
         maxLength: 1000,
       }),
-      h('button', { type: 'submit', disabled: sending || !message.trim() || !canSend }, sending ? 'Sending…' : 'Send')),
+      h('button', {
+        type: 'submit',
+        disabled: sending || !message.trim() || !canSend,
+        'aria-label': sending ? 'Sending message' : 'Send message',
+        title: sending ? 'Sending…' : 'Send message',
+      }, h(Icon, { name: 'send', color: '#07111e' }))),
     emojiOpen ? h(WebEmojiPicker, { onSelect: insertEmoji }) : null);
 }
 
@@ -1252,6 +1339,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     source: panelSource,
     title,
     theme,
+    icons,
     onClose: () => setActivePanel(null),
     diagnostics: {
       streamMode,

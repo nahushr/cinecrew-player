@@ -360,7 +360,7 @@ function InlinePreviewTopActions({ controls, muted, videoOnlyMode, handleMuteAct
             handleMuteAction();
           }}
         >
-          <PlayerIcon name={muted || videoOnlyMode ? 'volume-off' : 'volume-high'} size={19} color="#FFF" />
+          <PlayerIcon name={muted || videoOnlyMode ? 'mute' : 'unmute'} size={19} color="#FFF" />
         </TouchableOpacity>
       ) : null}
     </View>

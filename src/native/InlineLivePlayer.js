@@ -117,7 +117,7 @@ function InlinePlayerOverlay({
     palette,
   });
   const muteLabel = muted ? 'Unmute' : 'Mute';
-  const muteIcon = muted ? 'volume-off' : 'volume-high';
+  const muteIcon = muted ? 'mute' : 'unmute';
   const playbackLabel = paused ? 'Play' : 'Pause';
   const playbackIcon = paused ? 'play' : 'pause';
 

@@ -60,7 +60,7 @@ function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, o
   return (
     <>
       {!isLive && controls.restart !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onRestart(); }} hitSlop={12}><PlayerIcon name="restart" size={20} color={palette.controlColor} /></TouchableOpacity> : null}
-      {controls.mute !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onMute(); }} hitSlop={12}><PlayerIcon name={muted ? 'volume-off' : 'volume-high'} size={20} color={muted ? palette.errorColor : palette.controlColor} /></TouchableOpacity> : null}
+      {controls.mute !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onMute(); }} hitSlop={12}><PlayerIcon name={muted ? 'mute' : 'unmute'} size={20} color={muted ? palette.errorColor : palette.controlColor} /></TouchableOpacity> : null}
       {controls.lock !== false ? <TouchableOpacity style={styles.pill} onPress={(event) => { event.stopPropagation(); onLock(); }} hitSlop={12}><PlayerIcon name="lock-open-variant" size={20} color={palette.controlColor} /></TouchableOpacity> : null}
     </>
   );

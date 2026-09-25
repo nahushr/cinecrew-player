@@ -40,5 +40,6 @@ export function PlayerIcon({ name, pack = 'community', size = 20, color = '#FFFF
     return React.createElement(Text, { style: [{ fontSize: size, color }, style], accessibilityElementsHidden: true }, custom);
   }
   const IconSet = pack === 'material' ? MaterialIcons : MaterialCommunityIcons;
-  return React.createElement(IconSet, { name: typeof custom === 'string' ? custom : name, size, color, style });
+  const defaultIconNames = { mute: 'volume-off', unmute: 'volume-high' };
+  return React.createElement(IconSet, { name: typeof custom === 'string' ? custom : (defaultIconNames[name] || name), size, color, style });
 }

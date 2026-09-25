@@ -36,7 +36,17 @@ export function useWebVideoAspectRatio(videoAspectRatio, audioOnly) {
     width: useCustomRatio ? 'auto' : '100%',
     height: useCustomRatio ? 'auto' : '100%',
     ...(useCustomRatio
-      ? { maxWidth: '100%', maxHeight: '100%', aspectRatio: aspectRatioVal }
+      ? {
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: '100%',
+        maxHeight: '100%',
+        aspectRatio: aspectRatioVal,
+      }
       : {}),
     objectFit: useCustomRatio ? 'contain' : aspectFit,
     backgroundColor: '#000',
