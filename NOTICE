@@ -1,0 +1,6 @@
+This package includes a modified distribution build of mpegts.js.
+mpegts.js is Copyright (c) its respective authors and is distributed under
+the Apache License, Version 2.0. See vendor/mpegts.js/LICENSE.
+
+The native VLC adapter is based on react-native-vlc-media-player and retains
+its upstream MIT license and notices in packages/react-native-vlc-media-player.

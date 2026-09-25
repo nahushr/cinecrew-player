@@ -1,0 +1,96 @@
+{
+  "name": "cinecrew-player",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Customizable cross-platform live and on-demand video player for React and React Native.",
+  "license": "MIT",
+  "author": "Nahush Niraj Raichura",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nahushr/cinecrew-player.git"
+  },
+  "homepage": "https://github.com/nahushr/cinecrew-player#readme",
+  "bugs": {
+    "url": "https://github.com/nahushr/cinecrew-player/issues"
+  },
+  "keywords": [
+    "react",
+    "react-native",
+    "video-player",
+    "live-streaming",
+    "mpeg-ts",
+    "mpegts",
+    "hls",
+    "vlc",
+    "iptv"
+  ],
+  "main": "./src/web/index.js",
+  "module": "./src/web/index.js",
+  "browser": "./src/web/index.js",
+  "react-native": "./src/native/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "react-native": "./src/native/index.js",
+      "browser": "./src/web/index.js",
+      "default": "./src/web/index.js"
+    },
+    "./native": {
+      "types": "./types/index.d.ts",
+      "react-native": "./src/native/index.js",
+      "browser": "./src/native/index.js",
+      "default": "./src/native/index.js"
+    },
+    "./web": {
+      "types": "./types/index.d.ts",
+      "default": "./src/web/index.js"
+    },
+    "./styles.css": "./src/web/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/",
+    "types/",
+    "vendor/mpegts.js/",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check:types": "tsc --noEmit --skipLibCheck --strict types/index.d.ts",
+    "prepack": "npm run check:types"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.4",
+    "typescript": "^6.0.3"
+  },
+  "workspaces": [
+    "packages/react-native-vlc-media-player"
+  ],
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@hiraku-ai/react-native-emoji-picker": "^1.2.4",
+    "@mediabunny/ac3": "^1.59.0",
+    "@react-native-community/slider": "^5.2.0",
+    "@nahushr/react-native-vlc-media-player": "1.0.98-cinecrew.0",
+    "expo-video": "^57.0.2",
+    "hls.js": "^1.7.3",
+    "mediabunny": "^1.59.0",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-svg": "^15.15.4"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.73"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

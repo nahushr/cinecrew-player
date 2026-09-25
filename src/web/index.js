@@ -1,0 +1,690 @@
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
+import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
+import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
+import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
+import {
+  WEB_AC3_UNSUPPORTED_MESSAGE,
+  WEB_NO_PROXY_URL_MESSAGE,
+} from '../native/media/web/webPlaybackErrors';
+import './styles.css';
+
+const h = React.createElement;
+const DEFAULT_THEME = {
+  accentColor: '#00E5FF',
+  backgroundColor: '#050b14',
+  controlBackground: 'rgba(5, 11, 20, 0.76)',
+  controlColor: '#ffffff',
+  surfaceColor: 'rgba(13, 26, 44, 0.96)',
+  errorColor: '#ff647c',
+  borderRadius: 14,
+};
+const DEFAULT_ICONS = {
+  play: 'play', pause: 'pause', restart: 'restart', lock: 'lock', unlock: 'lock-open',
+  mute: 'volume-mute', unmute: 'volume-high', aspectRatio: 'aspect-ratio', videoOnly: 'video',
+  audio: 'music-note', minimize: 'arrow-collapse', back: 'arrow-left', recording: 'record-rec', stop: 'stop',
+  liveChat: 'comment-text-multiple-outline', epg: 'television-classic', fullscreen: 'fullscreen', close: 'close',
+};
+
+export const WEB_AC3_UNSUPPORTED_ERROR = WEB_AC3_UNSUPPORTED_MESSAGE;
+export const WEB_NO_PROXY_ERROR = WEB_NO_PROXY_URL_MESSAGE;
+
+function getSource(source, url) {
+  const value = source ?? url ?? '';
+  if (typeof value === 'string') return { uri: value };
+  return value && typeof value === 'object' ? value : { uri: '' };
+}
+
+function formatTime(seconds) {
+  const value = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const remainder = value % 60;
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function Icon({ name, icons, color }) {
+  const icon = icons?.[name];
+  if (React.isValidElement(icon)) return React.cloneElement(icon, { 'aria-hidden': true });
+  if (typeof icon === 'function') return h(icon, { size: 18, color, 'aria-hidden': true });
+  if (typeof icon === 'string' && !/^[a-z0-9-]+$/i.test(icon)) {
+    return h('span', { className: 'cinecrew-player__icon', style: { color }, 'aria-hidden': true }, icon);
+  }
+  return h(MaterialCommunityIcons, {
+    name: icon || DEFAULT_ICONS[name] || 'help-circle-outline',
+    size: 18,
+    color,
+    accessibilityElementsHidden: true,
+    importantForAccessibility: 'no',
+  });
+}
+
+function PlayerButton({ name, label, icons, theme, onClick, active, disabled, children }) {
+  return h('button', {
+    type: 'button',
+    className: `cinecrew-player__button${active ? ' is-active' : ''}`,
+    style: { color: theme.controlColor, background: theme.controlBackground },
+    'aria-label': label,
+    title: label,
+    onClick,
+    disabled,
+  }, h(Icon, { name, icons, color: active ? theme.accentColor : theme.controlColor }), children);
+}
+
+function normalizeTracks(video, suppliedTracks) {
+  if (Array.isArray(suppliedTracks) && suppliedTracks.length) return suppliedTracks;
+  const tracks = video?.audioTracks;
+  if (!tracks) return [];
+  return Array.from(tracks).map((track, index) => ({
+    id: track.id ?? index,
+    name: track.label || track.language || `Track ${index + 1}`,
+    nativeTrack: track,
+  }));
+}
+
+function responseRows(value, keys) {
+  if (Array.isArray(value)) return value;
+  for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+}
+
+function formatListingTime(value) {
+  const date = new Date(Number(value) || value);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [user, setUser] = useState(integrations.user || null);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const channelId = String(source.streamId || source.mediaId || source.id || '');
+  const isChat = kind === 'chat';
+
+  const load = useCallback(async () => {
+    if (!channelId) {
+      setError('A channel ID is required to load this panel.');
+      setLoading(false);
+      return;
+    }
+    try {
+      setError('');
+      const value = isChat
+        ? await integration.loadMessages({ channelId, limit: 50 })
+        : await integration.loadListings({ channelId, limit: integration.limit || 48 });
+      setRows(responseRows(value, isChat ? ['messages', 'items', 'comments'] : ['listings', 'programmes', 'epg', 'items']));
+    } catch (loadError) {
+      setError(loadError?.message || `Could not load ${isChat ? 'live chat' : 'the programme guide'}.`);
+    } finally {
+      setLoading(false);
+    }
+  }, [channelId, integration, isChat]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isChat && !user && integrations.getUser) {
+      Promise.resolve(integrations.getUser()).then((value) => {
+        if (!cancelled) setUser(value || null);
+      }).catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [isChat, user, integrations]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+    if (!isChat) return undefined;
+    const timer = setInterval(load, Math.max(1000, Number(integration.pollIntervalMs) || 5000));
+    return () => clearInterval(timer);
+  }, [load, isChat, integration.pollIntervalMs]);
+
+  const send = async (event) => {
+    event.preventDefault();
+    const comment = message.trim();
+    if (!comment || sending || !integration.sendMessage) return;
+    setSending(true);
+    try {
+      await integration.sendMessage({
+        channelId,
+        userId: user?.id,
+        username: user?.username || 'Viewer',
+        comment,
+      });
+      setMessage('');
+      await load();
+    } catch (sendError) {
+      setError(sendError?.message || 'Could not send your message.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return h('section', {
+    className: 'cinecrew-player__panel-content',
+    style: { color: theme.controlColor },
+    'aria-label': isChat ? 'Live chat' : 'Programme guide',
+  },
+  h('header', { className: 'cinecrew-player__panel-heading' },
+    h('strong', null, isChat ? 'Live chat' : `${title || 'Channel'} · EPG`),
+    h('button', { type: 'button', onClick: onClose, 'aria-label': 'Close panel' }, '×')),
+  loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
+  error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
+  !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, isChat ? 'No messages yet.' : 'No programme information available.') : null,
+  h('div', { className: 'cinecrew-player__panel-list' }, rows.map((row, index) => {
+    const key = row.id ?? row.messageId ?? row.startMs ?? index;
+    if (isChat) {
+      return h('article', { key, className: 'cinecrew-player__chat-message' },
+        h('strong', null, row.username || row.userName || row.name || 'Viewer'),
+        h('span', null, row.comment || row.message || row.text || ''));
+    }
+    const start = row.startMs ?? row.start ?? row.startTime;
+    const end = row.endMs ?? row.end ?? row.endTime;
+    return h('article', { key, className: 'cinecrew-player__epg-item' },
+      h('small', null, [formatListingTime(start), formatListingTime(end)].filter(Boolean).join(' – ')),
+      h('strong', null, row.title || row.name || 'Programme'),
+      row.description ? h('span', null, row.description) : null);
+  })),
+  isChat && typeof integration.sendMessage === 'function' ? h('form', { className: 'cinecrew-player__chat-form', onSubmit: send },
+    h('input', {
+      value: message,
+      onChange: (event) => setMessage(event.target.value),
+      placeholder: 'Add a message…',
+      'aria-label': 'Chat message',
+      maxLength: 1000,
+    }),
+    h('button', { type: 'submit', disabled: sending || !message.trim() }, sending ? 'Sending…' : 'Send')) : null);
+}
+
+/**
+ * URL-first browser player. It does not resolve provider URLs or proxy streams;
+ * pass a browser-playable URL and provide UI adapters for optional services.
+ */
+export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
+  const {
+    source,
+    url,
+    title = '',
+    poster,
+    isLive: liveProp,
+    autoPlay = true,
+    muted: mutedProp = false,
+    volume: volumeProp = 1,
+    playbackRate: playbackRateProp = 1,
+    paused: pausedProp,
+    controls: controlOverrides = {},
+    features = {},
+    actions = {},
+    theme: themeProp = {},
+    icons = {},
+    style,
+    className = '',
+    videoOnly: videoOnlyProp = false,
+    audioOnly: audioOnlyProp = false,
+    proxyUrlAvailable,
+    webPlaybackError,
+    audioTracks: tracksProp,
+    selectedAudioTrack,
+    renderLiveChat,
+    renderEpg,
+    integrations = {},
+    onPlayerHostRef,
+    onInlinePreviewWheel,
+    inlinePreview = false,
+    inlinePreviewRect,
+    onPromotePreview,
+    initialShowLiveChat = false,
+    liveChatNonce = 0,
+    onMinimize,
+    onBack,
+    mediaId,
+    onFullscreen,
+    onReady,
+    onProgress,
+    onPlaying,
+    onBuffering,
+    onError,
+    onEnded,
+    onPlaybackRoute,
+  } = props;
+  const media = useMemo(() => getSource(source, url), [source, url]);
+  const streamUrl = String(media.uri || media.url || '');
+  const isLive = liveProp ?? media.isLive ?? false;
+  const theme = { ...DEFAULT_THEME, ...themeProp };
+  const videoRef = useRef(null);
+  const playerRef = useRef(null);
+  const publicPlayerRef = useRef(null);
+  const pausedRef = useRef(pausedProp ?? !autoPlay);
+  const errorRef = useRef(onError);
+  const [paused, setPausedState] = useState(pausedProp ?? !autoPlay);
+  const [muted, setMuted] = useState(!!mutedProp);
+  const [volume, setVolume] = useState(Math.max(0, Math.min(1, Number(volumeProp) || 0)));
+  const [videoOnly, setVideoOnly] = useState(!!videoOnlyProp);
+  const [audioOnly, setAudioOnly] = useState(!!audioOnlyProp);
+  const [aspectRatio, setAspectRatio] = useState('FIT');
+  const [locked, setLocked] = useState(false);
+  const [buffering, setBuffering] = useState(Boolean(streamUrl));
+  const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showAspectMenu, setShowAspectMenu] = useState(false);
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const [activePanel, setActivePanel] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [availableTracks, setAvailableTracks] = useState([]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(Number(playbackRateProp) || 1);
+  const { videoStyle } = useWebVideoAspectRatio(aspectRatio, false);
+  const pausedStateRef = pausedRef;
+  pausedRef.current = paused;
+  errorRef.current = onError;
+
+  const handleError = useCallback((detail) => {
+    const message = typeof detail === 'string' ? detail : detail?.message || 'Unable to play this media source.';
+    setError(message);
+    setBuffering(false);
+    errorRef.current?.(detail instanceof Error ? detail : { ...detail, message });
+  }, []);
+  const onErrorRef = useRef(handleError);
+  onErrorRef.current = handleError;
+  const onBufferingRef = useRef((next) => {
+    setBuffering(!!next);
+    onBuffering?.(!!next);
+  });
+  onBufferingRef.current = (next) => {
+    setBuffering(!!next);
+    onBuffering?.(!!next);
+  };
+
+  const unsupportedReason = webPlaybackError
+    || media.webPlaybackError
+    || (proxyUrlAvailable === false || media.proxyUrlAvailable === false ? WEB_NO_PROXY_URL_MESSAGE : '');
+  useEffect(() => {
+    setError('');
+    setBuffering(Boolean(streamUrl));
+    setCurrentTime(0);
+    setDuration(0);
+    setAvailableTracks([]);
+    if (!streamUrl) {
+      setBuffering(false);
+      return;
+    }
+    if (isLive && unsupportedReason) {
+      handleError(typeof unsupportedReason === 'string' ? unsupportedReason : unsupportedReason.message || WEB_NO_PROXY_URL_MESSAGE);
+    }
+  }, [streamUrl, isLive, unsupportedReason, handleError]);
+
+  useEffect(() => {
+    if (pausedProp !== undefined) setPausedState(!!pausedProp);
+  }, [pausedProp]);
+
+  useEffect(() => setAudioOnly(!!audioOnlyProp), [audioOnlyProp]);
+
+  useEffect(() => {
+    setMuted(!!mutedProp);
+  }, [mutedProp]);
+
+  useEffect(() => setPlaybackRate(Number(playbackRateProp) || 1), [playbackRateProp]);
+  useEffect(() => setVolume(Math.max(0, Math.min(1, Number(volumeProp) || 0))), [volumeProp]);
+
+  useEffect(() => {
+    onPlayerHostRef?.(playerRef.current);
+    return () => onPlayerHostRef?.(null);
+  }, [onPlayerHostRef]);
+
+  useEffect(() => {
+    if (initialShowLiveChat) setActivePanel('chat');
+  }, [initialShowLiveChat]);
+
+  useEffect(() => {
+    if (liveChatNonce) setActivePanel('chat');
+  }, [liveChatNonce]);
+
+  const activeUrl = unsupportedReason ? '' : streamUrl;
+
+  const mpegTs = useWebMpegTsPlayback({
+    streamUrl,
+    activeUrl,
+    isLive,
+    videoOnly,
+    videoRef,
+    pausedRef: pausedStateRef,
+    onErrorRef,
+    onBufferingRef,
+  });
+  const useHls = useWebHlsPlayback({
+    activeUrl,
+    isLive,
+    videoRef,
+    pausedRef: pausedStateRef,
+    onErrorRef,
+  });
+  const ac3 = useWebAc3AudioPlayback({
+    active: mpegTs.useAc3Fallback,
+    streamUrl,
+    enabled: !muted && !videoOnly,
+    paused,
+    volume: volume * 100,
+    videoRef,
+  });
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || unsupportedReason) return;
+    if (paused) video.pause();
+    else video.play().catch((playError) => {
+      if (playError?.name !== 'NotAllowedError') handleError(playError);
+    });
+  }, [paused, streamUrl, unsupportedReason, handleError]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = muted || videoOnly;
+    video.volume = volume;
+    video.playbackRate = Number(playbackRate) || 1;
+  }, [muted, volume, playbackRate, videoOnly, streamUrl]);
+
+  useEffect(() => {
+    if (!streamUrl || unsupportedReason) return undefined;
+    onPlaybackRoute?.(streamUrl);
+    return undefined;
+  }, [streamUrl, unsupportedReason, onPlaybackRoute]);
+
+  const setPaused = useCallback((next) => {
+    const value = typeof next === 'boolean' ? next : !pausedRef.current;
+    pausedRef.current = value;
+    setPausedState(value);
+  }, []);
+
+  const action = useCallback((name, fallback, payload) => {
+    const callback = actions?.[name];
+    if (typeof callback === 'function') return callback(payload, { video: videoRef.current, player: publicPlayerRef.current });
+    return fallback?.(payload);
+  }, [actions]);
+
+  const togglePlay = useCallback(() => action('onPlayPause', () => setPaused(), { isPlaying: !pausedRef.current }), [action, setPaused]);
+  const restart = useCallback(() => action('onRestart', () => {
+    const video = videoRef.current;
+    if (video) video.currentTime = 0;
+    setPaused(false);
+  }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, setPaused]);
+  const toggleMute = useCallback(() => action('onMute', () => setMuted((value) => !value), { muted: !muted }), [action, muted]);
+  const toggleLock = useCallback(() => action('onLock', () => setLocked((value) => !value), { locked: !locked }), [action, locked]);
+  const selectAspect = useCallback((next) => action('onAspectRatioChange', () => setAspectRatio(next), { aspectRatio: next }), [action]);
+  const selectAudio = useCallback((id) => action('onAudioTrackChange', () => {
+    const track = availableTracks.find((item) => String(item.id) === String(id));
+    if (track?.nativeTrack) {
+      for (const item of availableTracks) item.nativeTrack.enabled = String(item.id) === String(id);
+    }
+  }, { trackId: id }), [action, availableTracks]);
+  const setVideoOnlyMode = useCallback((next) => action('onVideoOnlyChange', () => setVideoOnly(next), { enabled: next }), [action]);
+  const setAudioOnlyMode = useCallback((next) => action('onAudioOnlyChange', () => setAudioOnly(next), { enabled: next }), [action]);
+  const setPlaybackRateAction = useCallback((next) => action('onPlaybackRateChange', () => setPlaybackRate(next), { playbackRate: next }), [action]);
+  const seekTo = useCallback((seconds) => action('onSeek', () => {
+    if (videoRef.current) videoRef.current.currentTime = Math.max(0, Number(seconds) || 0);
+  }, { seconds: Number(seconds) || 0 }), [action]);
+  const handleBack = useCallback(() => action('onBack', onBack || props.onClose, { title, source: media }), [action, onBack, props.onClose, title, media]);
+  const handleMinimize = useCallback(() => action('onMinimize', onMinimize, { title, source: media }), [action, onMinimize, title, media]);
+  useImperativeHandle(ref, () => {
+    const api = {
+      play: () => setPaused(false),
+      pause: () => setPaused(true),
+      togglePlayPause: togglePlay,
+      restart,
+      toggleMute,
+      mute: () => setMuted(true),
+      unmute: () => setMuted(false),
+      setMuted,
+      setAspectRatio,
+      setAudioTrack: (id) => {
+        for (const item of availableTracks) if (item.nativeTrack) item.nativeTrack.enabled = String(item.id) === String(id);
+      },
+      setAudioOnly: setAudioOnlyMode,
+      setVideoOnly: setVideoOnlyMode,
+      setPlaybackRate: setPlaybackRateAction,
+      seekTo,
+      seekBy: (delta) => seekTo((Number(videoRef.current?.currentTime) || 0) + (Number(delta) || 0)),
+      back: handleBack,
+      minimize: handleMinimize,
+      getVideoElement: () => videoRef.current,
+      enterFullscreen: () => playerRef.current?.requestFullscreen?.(),
+      exitFullscreen: () => typeof document !== 'undefined' ? document.exitFullscreen?.() : undefined,
+      getAudioTracks: () => normalizeTracks(videoRef.current, tracksProp),
+    };
+    publicPlayerRef.current = api;
+    return api;
+  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnlyMode, setVideoOnlyMode, setPlaybackRateAction, seekTo, handleBack, handleMinimize, availableTracks, tracksProp]);
+
+  const enabled = (name, fallback = true) => controlOverrides[name] ?? fallback;
+  const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
+  const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
+  const hasRecording = !!integrations.recording || typeof actions.onRecordingStart === 'function';
+  const sourceType = String(media.type || media.mimeType || '').toLowerCase();
+  const directVideoSource = mpegTs.useMpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType) ? undefined : activeUrl;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+    const updateTracks = () => setAvailableTracks(normalizeTracks(video, tracksProp));
+    const updateTime = () => {
+      setCurrentTime(Number(video.currentTime) || 0);
+      if (Number.isFinite(video.duration)) setDuration(video.duration);
+      onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: (Number(video.duration) || 0) * 1000, target: video.currentTime });
+    };
+    const onReadyEvent = () => {
+      setBuffering(false);
+      updateTracks();
+      onReady?.(video);
+    };
+    const onPlayingEvent = () => {
+      setBuffering(false);
+      onPlaying?.(video);
+    };
+    const onWaitingEvent = () => setBuffering(true);
+    video.addEventListener('loadedmetadata', onReadyEvent);
+    video.addEventListener('canplay', onReadyEvent);
+    video.addEventListener('playing', onPlayingEvent);
+    video.addEventListener('waiting', onWaitingEvent);
+    video.addEventListener('timeupdate', updateTime);
+    const endedHandler = () => onEnded?.();
+    video.addEventListener('ended', endedHandler);
+    return () => {
+      video.removeEventListener('loadedmetadata', onReadyEvent);
+      video.removeEventListener('canplay', onReadyEvent);
+      video.removeEventListener('playing', onPlayingEvent);
+      video.removeEventListener('waiting', onWaitingEvent);
+      video.removeEventListener('timeupdate', updateTime);
+      video.removeEventListener('ended', endedHandler);
+    };
+  }, [onReady, onPlaying, onProgress, onEnded, tracksProp]);
+
+  useEffect(() => {
+    if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;
+    for (const track of availableTracks) {
+      if (track.nativeTrack) track.nativeTrack.enabled = String(track.id) === String(selectedAudioTrack);
+    }
+  }, [selectedAudioTrack, availableTracks]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setFullscreen(document.fullscreenElement === playerRef.current);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => action('onFullscreen', () => {
+    if (typeof onFullscreen === 'function') return onFullscreen({ isFullscreen: !fullscreen });
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else playerRef.current?.requestFullscreen?.();
+  }, { isFullscreen: !fullscreen });
+  const openPanel = (panel) => action(
+    panel === 'chat' ? 'onLiveChatOpen' : panel === 'epg' ? 'onEpgOpen' : 'onDiagnosticsOpen',
+    () => setActivePanel((current) => current === panel ? null : panel),
+    { tab: panel, isOpen: activePanel === panel, close: () => setActivePanel(null) },
+  );
+  const control = (name, label, callback, options = {}) => enabled(name, options.defaultVisible ?? true)
+    ? h(PlayerButton, {
+      key: name, name: options.icon || name, label, icons, theme,
+      onClick: callback, active: options.active, disabled: options.disabled,
+    }) : null;
+
+  const panelRenderer = activePanel === 'chat'
+    ? (renderLiveChat || integrations.liveChat?.render)
+    : activePanel === 'epg' ? (renderEpg || integrations.epg?.render) : null;
+  const panelIntegration = activePanel === 'chat' ? integrations.liveChat : integrations.epg;
+  const panelSource = mediaId == null ? media : { ...media, mediaId };
+  const rootStyle = inlinePreview && inlinePreviewRect
+    ? {
+      position: 'absolute', left: inlinePreviewRect.x, top: inlinePreviewRect.y,
+      width: inlinePreviewRect.width, height: inlinePreviewRect.height,
+    }
+    : {};
+  const unlockedControls = [
+    control('back', 'Back', handleBack, { defaultVisible: typeof actions.onBack === 'function' || typeof onBack === 'function' || typeof props.onClose === 'function' }),
+    !isLive ? control('restart', 'Restart', restart) : null,
+    control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
+    hasRecording ? control('recording', recording ? 'Stop recording' : 'Start recording', async () => {
+      const handler = recording ? integrations.recording?.stop : integrations.recording?.start;
+      await action(recording ? 'onRecordingStop' : 'onRecordingStart', handler ? () => handler({ getVideoElement: () => videoRef.current, streamUrl, title }) : undefined, { source: streamUrl, title });
+      setRecording((value) => !value);
+    }, { active: recording }) : null,
+    control('liveChat', activePanel === 'chat' ? 'Close live chat' : 'Live chat', () => openPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
+    control('epg', activePanel === 'epg' ? 'Close programme guide' : 'Programme guide', () => openPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
+    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: typeof actions.onMinimize === 'function' || typeof onMinimize === 'function' }),
+  ];
+  const webPanel = panelRenderer
+    ? h(panelRenderer, { title, source: panelSource, onClose: () => setActivePanel(null) })
+    : panelIntegration && ((activePanel === 'chat' && typeof panelIntegration.loadMessages === 'function')
+      || (activePanel === 'epg' && typeof panelIntegration.loadListings === 'function'))
+      ? h(WebIntegrationPanel, { kind: activePanel, integration: panelIntegration, integrations, source: panelSource, title, theme, onClose: () => setActivePanel(null) })
+      : null;
+
+  return h('div', {
+    ref: playerRef,
+    className: `cinecrew-player${inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${className}`.trim(),
+    style: { ...rootStyle, ...style, background: theme.backgroundColor, borderRadius: theme.borderRadius, '--cinecrew-accent': theme.accentColor, '--cinecrew-text': theme.controlColor, '--cinecrew-surface': theme.surfaceColor },
+    onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
+    'data-stream-mode': mpegTs.useMpegTs ? 'mpegts' : useHls ? 'hls' : 'native',
+  },
+  streamUrl && !unsupportedReason ? h('video', {
+    ref: videoRef,
+    className: 'cinecrew-player__video',
+    src: directVideoSource,
+    poster,
+    autoPlay,
+    muted: muted || videoOnly,
+    playsInline: true,
+    preload: 'auto',
+    crossOrigin: 'anonymous',
+    style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
+    onClick: inlinePreview ? onPromotePreview : undefined,
+    onError: (event) => {
+      const mediaError = event.currentTarget?.error;
+      handleError({ message: mediaError?.message || 'The browser could not load this stream. Check URL, codec and CORS support.', code: mediaError?.code, cause: mediaError });
+    },
+  }) : h('div', { className: 'cinecrew-player__empty' }),
+  h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
+  title && !audioOnly ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor } }, title) : null,
+  buffering && !error && !unsupportedReason ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…') : null,
+  (error || unsupportedReason) ? h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
+    h('strong', { style: { color: theme.errorColor } }, 'Playback error'),
+    h('span', null, error || (typeof unsupportedReason === 'string' ? unsupportedReason : unsupportedReason?.message)),
+      control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' })) : null,
+  !error && !unsupportedReason && !audioOnly ? h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
+    h('div', { className: 'cinecrew-player__top-controls' }, locked
+      ? control('lock', 'Unlock controls', toggleLock, { active: true, defaultVisible: true })
+      : unlockedControls),
+    !locked ? h('div', { className: 'cinecrew-player__center-controls' },
+      control('playPause', paused ? 'Play' : 'Pause', togglePlay, { icon: paused ? 'play' : 'pause' })) : null,
+    !locked ? h('div', { className: 'cinecrew-player__bottom-controls' },
+      duration > 0 && enabled('seek', true) ? h('div', { className: 'cinecrew-player__seek' },
+        h('span', null, formatTime(currentTime)),
+        h('input', { type: 'range', min: 0, max: duration, value: Math.min(currentTime, duration), onChange: (event) => seekTo(Number(event.target.value)), style: { accentColor: theme.accentColor } }),
+        h('span', null, formatTime(duration))) : null,
+      control('mute', muted ? 'Unmute' : 'Mute', toggleMute, { icon: muted ? 'mute' : 'unmute' }),
+      enabled('aspectRatio', true) ? h('div', { className: 'cinecrew-player__menu-wrap', key: 'aspectRatio' },
+        h(PlayerButton, { name: 'aspectRatio', label: 'Aspect ratio', icons, theme, onClick: () => setShowAspectMenu((value) => !value), active: showAspectMenu }),
+        showAspectMenu ? h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } }, ['FIT', 'FILL', 'STRETCH', '16:9', '4:3', '1:1'].map((ratio) => h('button', { key: ratio, type: 'button', onClick: () => { selectAspect(ratio); setShowAspectMenu(false); } }, ratio))) : null) : null,
+      control('videoOnly', videoOnly ? 'Enable audio' : 'Video only', () => setVideoOnlyMode(!videoOnly), { active: videoOnly, defaultVisible: false }),
+      control('audioOnly', audioOnly ? 'Switch to audio card' : 'Audio only', () => setAudioOnlyMode(true), { icon: 'audio', active: audioOnly }),
+      availableTracks.length > 1 && enabled('audioTracks', true) ? h('div', { className: 'cinecrew-player__menu-wrap', key: 'audioTracks' },
+        h(PlayerButton, { name: 'audio', label: 'Audio tracks', icons, theme, onClick: () => setShowAudioMenu((value) => !value), active: showAudioMenu }),
+        showAudioMenu ? h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } }, availableTracks.map((track) => h('button', { key: track.id, type: 'button', onClick: () => { selectAudio(track.id); setShowAudioMenu(false); } }, track.name))) : null) : null,
+      enabled('playbackRate', true) && !isLive ? h('select', { className: 'cinecrew-player__rate', 'aria-label': 'Playback speed', value: playbackRate, onChange: (event) => setPlaybackRateAction(Number(event.target.value)) }, [0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => h('option', { key: rate, value: rate }, `${rate}x`))) : null,
+      control('fullscreen', fullscreen ? 'Exit full screen' : 'Full screen', toggleFullscreen, { icon: 'fullscreen' })) : null) : null,
+  audioOnly ? h('div', { className: 'cinecrew-player__audio-card', style: { background: theme.surfaceColor, color: theme.controlColor, borderColor: theme.accentColor } },
+    poster ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' }) : null,
+    h('span', { className: 'cinecrew-player__audio-wave', style: { color: theme.accentColor }, 'aria-hidden': true }, '•••••••'),
+    h('strong', null, title || 'Audio only'),
+    h('button', { type: 'button', onClick: () => setAudioOnlyMode(false), style: { color: theme.accentColor, borderColor: theme.accentColor } }, 'Switch to video')) : null,
+  activePanel && webPanel ? h('div', { className: 'cinecrew-player__panel', style: { background: theme.surfaceColor, color: theme.controlColor } }, webPanel) : null);
+});
+
+export default CineCrewPlayer;
+
+export const InlineLivePlayer = React.memo(function InlineLivePlayer({
+  source,
+  url,
+  title = 'Live TV',
+  height = 220,
+  poster,
+  paused = false,
+  isActive = true,
+  onActivate,
+  onFullscreen,
+  controls = {},
+  actions = {},
+  theme,
+  icons,
+  style,
+  initialMuted = true,
+  onError,
+  onPlaying,
+}) {
+  const media = getSource(source, url);
+  const playbackSource = { ...media, isLive: true, title: title || media.title };
+  if (!isActive) {
+    return h('button', {
+      type: 'button',
+      className: 'cinecrew-player__inline-poster',
+      style: { height, ...style },
+      onClick: onActivate,
+      'aria-label': `Play ${title}`,
+    }, poster || media.poster || media.posterUrl
+      ? h('img', { src: poster || media.poster || media.posterUrl, alt: '' })
+      : h('span', null, '▶'));
+  }
+  return h(CineCrewPlayer, {
+    source: playbackSource,
+    title,
+    isLive: true,
+    autoPlay: !paused,
+    paused,
+    muted: initialMuted,
+    poster: poster || media.poster || media.posterUrl,
+    controls: {
+      back: false, restart: false, lock: false, recording: false, liveChat: false, epg: false,
+      seek: false, aspectRatio: false, videoOnly: false, audioOnly: false, audioTracks: false,
+      playbackRate: false, minimize: false, playPause: true, mute: true, fullscreen: true,
+      ...controls,
+    },
+    actions: {
+      ...actions,
+      ...(onFullscreen && !actions.onFullscreen ? { onFullscreen: () => onFullscreen() } : {}),
+    },
+    theme,
+    icons,
+    onError,
+    onPlaying,
+    inlinePreview: true,
+    onPromotePreview: onFullscreen,
+    style: { width: '100%', height, aspectRatio: '16 / 9', ...style },
+  });
+});

@@ -1,0 +1,293 @@
+import { useEffect, useRef, useState } from 'react';
+import mpegts from '../../../../vendor/mpegts.js/mpegts.js';
+import {
+  WEB_AC3_UNSUPPORTED_CODE,
+  WEB_AC3_UNSUPPORTED_MESSAGE,
+} from './webPlaybackErrors';
+
+if (mpegts.LoggingControl) {
+  mpegts.LoggingControl.enableAll = false;
+}
+
+const isRawLiveTransportStream = (url) => {
+  if (typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    return /\.ts$/i.test(parsed.pathname)
+      || (/\/live\//i.test(parsed.pathname) && !/\.m3u8$/i.test(parsed.pathname));
+  } catch {
+    return /\/live\/.*\.ts(?:\?|$)/i.test(url);
+  }
+};
+
+const isHlsUrl = (url) => /\.m3u8(?:$|[?#])/i.test(String(url || ''));
+
+export function useWebMpegTsPlayback({
+  streamUrl,
+  activeUrl,
+  isLive,
+  videoOnly = false,
+  videoRef,
+  pausedRef,
+  onErrorRef,
+  onBufferingRef,
+}) {
+  const [unavailableForUrl, setUnavailableForUrl] = useState('');
+  const [ac3FallbackForUrl, setAc3FallbackForUrl] = useState('');
+  const ac3FallbackForUrlRef = useRef('');
+  const useMpegTs = isLive
+    // The resolver may return an opaque temporary URL whose pathname no
+    // longer ends in .ts or /live/. Keep the source format from the original
+    // Xtream URL so those redirects still go through the TS demuxer. If the
+    // resolver explicitly returned HLS, let the HLS player own that source.
+    && (isRawLiveTransportStream(streamUrl) || isRawLiveTransportStream(activeUrl))
+    && !isHlsUrl(activeUrl)
+    && unavailableForUrl !== streamUrl;
+  const useVideoOnly = useMpegTs && videoOnly;
+  const useAc3Fallback = useMpegTs && !useVideoOnly && ac3FallbackForUrl === streamUrl;
+
+  useEffect(() => {
+    setUnavailableForUrl('');
+    ac3FallbackForUrlRef.current = '';
+    setAc3FallbackForUrl('');
+  }, [streamUrl]);
+
+  useEffect(() => {
+    if (!activeUrl || !useMpegTs || typeof window === 'undefined') return undefined;
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    let disposed = false;
+    let blockedByAudioCodec = false;
+    let player;
+    const previousVideoVisibility = video.style.visibility;
+    let recoveryTimer = null;
+    let recoveryAttempts = 0;
+    let recoveryPending = false;
+    let stallWatchdog = null;
+    let stablePlaybackTimer = null;
+    let lastPlaybackProgressAt = Date.now();
+    let lastPlaybackTime = Number(video.currentTime) || 0;
+
+    const clearStablePlaybackTimer = () => {
+      if (stablePlaybackTimer) {
+        clearTimeout(stablePlaybackTimer);
+        stablePlaybackTimer = null;
+      }
+    };
+
+    const notePlaybackProgress = () => {
+      const currentTime = Number(video.currentTime) || 0;
+      if (currentTime < lastPlaybackTime - 1) {
+        lastPlaybackTime = currentTime;
+        lastPlaybackProgressAt = Date.now();
+        return;
+      }
+      if (currentTime <= lastPlaybackTime + 0.05) return;
+      lastPlaybackTime = currentTime;
+      lastPlaybackProgressAt = Date.now();
+      if (stablePlaybackTimer || recoveryAttempts === 0) return;
+      stablePlaybackTimer = setTimeout(() => {
+        stablePlaybackTimer = null;
+        if (!disposed && !pausedRef.current && video.readyState >= 2
+          && Date.now() - lastPlaybackProgressAt < 2500) {
+          recoveryAttempts = 0;
+        }
+      }, 15000);
+    };
+
+    const scheduleRecovery = (message, httpStatus = null, error = null) => {
+      if (disposed || recoveryPending || pausedRef.current || !player) return;
+      if (recoveryAttempts >= 3) {
+        onErrorRef.current?.({
+          message: `The live stream connection failed after 3 reconnect attempts${message ? ` (${message})` : ''}.`,
+          httpStatus,
+          err: error,
+        });
+        return;
+      }
+
+      clearStablePlaybackTimer();
+      const delayMs = [500, 1200, 2500][recoveryAttempts];
+      recoveryAttempts += 1;
+      recoveryPending = true;
+      lastPlaybackProgressAt = Date.now();
+      onBufferingRef.current?.(true);
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = null;
+        recoveryPending = false;
+        if (disposed || !player || pausedRef.current) return;
+        try {
+          player.unload();
+          player.load();
+          lastPlaybackTime = Number(video.currentTime) || 0;
+          lastPlaybackProgressAt = Date.now();
+          const playResult = player.play();
+          playResult?.catch?.(() => {});
+        } catch (recoveryError) {
+          onErrorRef.current?.({
+            message: recoveryError?.message || 'Could not reconnect to the live stream.',
+            err: recoveryError,
+          });
+        }
+      }, delayMs);
+    };
+    const handlePlaying = () => {
+      lastPlaybackProgressAt = Date.now();
+      if (recoveryAttempts > 0 && !stablePlaybackTimer) {
+        stablePlaybackTimer = setTimeout(() => {
+          stablePlaybackTimer = null;
+          if (!disposed && !pausedRef.current && video.readyState >= 2
+            && Date.now() - lastPlaybackProgressAt < 2500) {
+            recoveryAttempts = 0;
+          }
+        }, 15000);
+      }
+    };
+    const handleWaiting = () => onBufferingRef.current?.(true);
+
+    const blockAc3Playback = () => {
+      if (disposed || blockedByAudioCodec) return;
+      blockedByAudioCodec = true;
+      video.dataset.mpegtsCodecGate = 'blocked';
+      video.style.visibility = 'hidden';
+      video.pause();
+      onBufferingRef.current?.(false);
+      try { player?.pause(); } catch (error) { void error; }
+      try { player?.unload(); } catch (error) { void error; }
+      onErrorRef.current?.({
+        code: WEB_AC3_UNSUPPORTED_CODE,
+        blockPlayback: true,
+        message: WEB_AC3_UNSUPPORTED_MESSAGE,
+      });
+    };
+
+    const handleMediaInfo = (info) => {
+      const codecSummary = [info?.audioCodec, info?.mimeType].filter(Boolean).join(' ');
+      if (/\b(?:e[- ]?ac[- ]?3|ac[- ]?3|dolby(?:\s+digital(?:\s+plus)?)?)\b/i.test(codecSummary)) {
+        blockAc3Playback();
+        return;
+      }
+      delete video.dataset.mpegtsCodecGate;
+      if (!pausedRef.current && player) {
+        const playResult = player.play();
+        playResult?.catch?.(() => {});
+      }
+    };
+
+    try {
+      if (!mpegts.isSupported()) {
+        setUnavailableForUrl(streamUrl);
+        return undefined;
+      }
+
+      player = mpegts.createPlayer({
+        type: 'mpegts',
+        url: activeUrl,
+        isLive: true,
+        hasAudio: !useAc3Fallback && !useVideoOnly,
+        hasVideo: true,
+      }, {
+        enableWorker: !useVideoOnly,
+        lazyLoad: false,
+        enableStashBuffer: true,
+        // Match the standalone Sony test: allow a deeper forward buffer to
+        // absorb provider jitter instead of constantly chasing the live edge.
+        stashInitialSize: useVideoOnly ? 2048 : 512 * 1024,
+        liveBufferLatencyChasing: !useVideoOnly,
+        liveBufferLatencyMaxLatency: 8,
+        liveBufferLatencyMinRemain: 3,
+        autoCleanupSourceBuffer: true,
+        autoCleanupMaxBackwardDuration: useVideoOnly ? 120 : 30,
+        autoCleanupMinBackwardDuration: useVideoOnly ? 60 : 15,
+        disableAudio: useAc3Fallback || useVideoOnly,
+      });
+      // Wait until the MPEG-TS demuxer reports its codecs so unsupported AC3
+      // streams can be stopped before the browser renders their video.
+      video.autoplay = false;
+      video.dataset.mpegtsCodecGate = 'pending';
+      player.on(mpegts.Events.MEDIA_INFO, handleMediaInfo);
+      video.addEventListener('timeupdate', notePlaybackProgress);
+      video.addEventListener('playing', handlePlaying);
+      video.addEventListener('waiting', handleWaiting);
+
+      player.on(mpegts.Events.ERROR, (type, detail, info) => {
+        if (disposed || recoveryPending || blockedByAudioCodec) return;
+        const detailCode = String(detail || type || '');
+        const mediaSourceMessage = String(info?.msg || info?.message || '');
+        const codecErrorText = [
+          detailCode,
+          mediaSourceMessage,
+          player?.mediaInfo?.audioCodec,
+          player?.mediaInfo?.mimeType,
+        ].filter(Boolean).join(' ');
+        if (/\b(?:e[- ]?ac[- ]?3|ac[- ]?3|dolby(?:\s+digital(?:\s+plus)?)?)\b/i.test(codecErrorText)) {
+          if (isLive) {
+            blockAc3Playback();
+            return;
+          }
+          if (ac3FallbackForUrlRef.current !== streamUrl) {
+            ac3FallbackForUrlRef.current = streamUrl;
+            setAc3FallbackForUrl(streamUrl);
+          }
+          return;
+        }
+        const responseStatus = Number(info?.code);
+        const safeMediaSourceMessage = mediaSourceMessage
+          .replace(/https?:\/\/[^\s"'<>]+/gi, '[stream endpoint]')
+          .replace(/\/live\/[^/\s]+\/[^/\s]+\/[^/?#\s]+/gi, '/live/[redacted]');
+        const isTransientFailure = detailCode === 'Exception'
+          || /NetworkError|Timeout/i.test(detailCode)
+          || [408, 425, 429].includes(responseStatus)
+          || responseStatus >= 500;
+        if (isTransientFailure && recoveryAttempts < 3) {
+          scheduleRecovery(safeMediaSourceMessage || detailCode, responseStatus, info || detail || type);
+          return;
+        }
+        const message = detailCode === 'HttpStatusCodeInvalid'
+          ? (Number.isFinite(responseStatus) && responseStatus > 0
+            ? `Stream request failed (HTTP ${responseStatus}).`
+            : 'Stream request failed with an unreadable HTTP response.')
+          : isTransientFailure && recoveryAttempts >= 3
+            ? `The live stream connection failed after 3 reconnect attempts${safeMediaSourceMessage ? ` (${safeMediaSourceMessage})` : ''}.`
+            : `${detailCode || 'Failed to load live stream.'}${safeMediaSourceMessage ? `: ${safeMediaSourceMessage}` : ''}`;
+        onErrorRef.current?.({
+          message,
+          httpStatus: Number.isFinite(responseStatus) && responseStatus > 0 ? responseStatus : null,
+          err: info || detail || type,
+        });
+      });
+      player.attachMediaElement(video);
+      player.load();
+      stallWatchdog = setInterval(() => {
+        if (disposed || pausedRef.current || recoveryPending || video.currentTime <= 0) return;
+        if (Date.now() - lastPlaybackProgressAt >= 12000) {
+          scheduleRecovery('playback stalled');
+        }
+      }, 3000);
+    } catch (error) {
+      setUnavailableForUrl(streamUrl);
+      onErrorRef.current?.({ message: error?.message || 'Failed to initialize live playback.', err: error });
+    }
+
+    return () => {
+      disposed = true;
+      if (recoveryTimer) clearTimeout(recoveryTimer);
+      if (stallWatchdog) clearInterval(stallWatchdog);
+      clearStablePlaybackTimer();
+      video.removeEventListener('timeupdate', notePlaybackProgress);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('waiting', handleWaiting);
+      delete video.dataset.mpegtsCodecGate;
+      video.autoplay = !pausedRef.current;
+      video.style.visibility = previousVideoVisibility;
+      if (!player) return;
+      try { player.pause(); } catch (error) { void error; }
+      try { player.unload(); } catch (error) { void error; }
+      try { player.detachMediaElement(); } catch (error) { void error; }
+      try { player.destroy(); } catch (error) { void error; }
+    };
+  }, [activeUrl, useMpegTs, useAc3Fallback, useVideoOnly, streamUrl, videoRef, pausedRef, onErrorRef, onBufferingRef]);
+
+  return { useMpegTs, useAc3Fallback };
+}

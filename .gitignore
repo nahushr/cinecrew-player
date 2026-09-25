@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.expo/
+.DS_Store
+npm-debug.log*
+**/android/build/
+**/.gradle/
+**/ios/**/xcuserdata/
+**/*.iml
