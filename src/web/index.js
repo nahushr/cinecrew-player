@@ -307,6 +307,7 @@ function WebPlayerSurface({
     style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
     onClick: inlinePreview ? onPromotePreview : undefined,
     onError: (event) => {
+      if (!directVideoSource) return;
       const mediaError = event.currentTarget?.error;
       handleError({ message: mediaError?.message || 'The browser could not load this stream. Check URL, codec and CORS support.', code: mediaError?.code, cause: mediaError });
     },
@@ -772,7 +773,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     if (!video) return;
     if (isPaused) video.pause();
     else video.play().catch((playError) => {
-      if (playError?.name !== 'NotAllowedError') handleError(playError);
+      if (playError?.name !== 'NotAllowedError' && playError?.name !== 'AbortError') {
+        handleError(playError);
+      }
     });
   }, [isPaused, streamUrl, youtubeVideoId, handleError]);
 

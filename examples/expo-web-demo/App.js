@@ -4,15 +4,6 @@ import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/reac
 import '@cinecrew/cinecrew-player/styles.css';
 import { allControls, asPlayerSource, sampleSources } from '../web-demo/src/samples.js';
 
-const theme = {
-  accentColor: '#16c7d9',
-  backgroundColor: '#07111e',
-  controlBackground: '#14253a',
-  controlColor: '#f8fbff',
-  surfaceColor: '#102033',
-  borderRadius: 16,
-};
-
 function DemoPanel({ title, source, onClose }) {
   return (
     <View style={styles.panel}>
@@ -136,7 +127,6 @@ export default function App() {
             isActive
             paused={false}
             controls={{ playPause: true, mute: true, fullscreen: true }}
-            theme={theme}
             onError={(error) => setStatus(error?.message || 'Playback error')}
             onPlaying={() => setStatus('Playing')}
           />
@@ -154,7 +144,6 @@ export default function App() {
               onMinimize: () => setStatus('Minimize action — connect your app layout.'),
             }}
             features={{ diagnostics: true }}
-            theme={theme}
             onBuffering={(buffering) => setStatus(buffering ? 'Buffering…' : 'Ready')}
             onPlaying={() => setStatus('Playing')}
             onError={(error) => setStatus(error?.message || 'Playback error')}

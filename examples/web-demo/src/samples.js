@@ -11,6 +11,7 @@ export const sampleSources = [
     title: 'Local MPEG-TS fixture',
     url: '/cinecrew-mpegts-fixture.ts',
     type: 'mpegts',
+    isLive: true,
   },
   {
     id: 'mp4',
@@ -49,9 +50,12 @@ export function asPlayerSource(item) {
   const detectedType = item.type || (/\.m3u8(?:$|[?#])/.test(`${item.url} ${item.title}`)
     ? 'hls'
     : /\.ts(?:$|[?#])/.test(`${item.url} ${item.title}`) ? 'mpegts' : undefined);
+  const uri = typeof window !== 'undefined' && item.url.startsWith('/')
+    ? new URL(item.url, window.location.href).href
+    : item.url;
 
   return {
-    uri: item.url,
+    uri,
     title: item.title,
     type: detectedType,
     mediaType: item.isLive ? 'live' : 'movie',

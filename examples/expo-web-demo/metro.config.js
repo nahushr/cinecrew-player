@@ -9,6 +9,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(__dirname, 'node_modules'),
   path.resolve(repositoryRoot, 'node_modules'),
 ];
+config.resolver.disableHierarchicalLookup = true;
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
   react: path.resolve(__dirname, 'node_modules/react'),
