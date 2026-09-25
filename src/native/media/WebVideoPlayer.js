@@ -286,7 +286,14 @@ export const WebVideoPlayer = forwardRef(({
             });
           }}
         >
-          {captions.map((caption, index) => (
+          <track
+            kind="captions"
+            src={captions[0]?.src || 'data:text/vtt,WEBVTT%0A%0A'}
+            srcLang={captions[0]?.language || 'und'}
+            label={captions[0]?.label || 'Captions'}
+            default={!captions.length || Boolean(captions[0]?.default)}
+          />
+          {captions.slice(1).map((caption, index) => (
             <track
               key={caption.id || caption.src || index}
               kind="captions"

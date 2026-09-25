@@ -10,6 +10,34 @@ import {
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
+function sendProgress(player, onProgress) {
+  if (typeof onProgress !== 'function') return;
+  const duration = Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0;
+  const currentTime = Number.isFinite(player.currentTime) && player.currentTime > 0 ? player.currentTime : 0;
+  onProgress({ currentTime: currentTime * 1000, duration: duration * 1000, target: currentTime });
+}
+
+function handleReadyStatus(player, callbacks) {
+  callbacks.onPlaying?.();
+  callbacks.onBuffering?.(false);
+  if (!callbacks.paused) callbacks.withActivePlayer((activePlayer) => activePlayer.play());
+  callbacks.onTracksChanged?.({ audioTracks: player.audioTracks ? Array.from(player.audioTracks) : [] });
+  sendProgress(player, callbacks.onProgress);
+}
+
+function notifyPlayerStatus(event, callbacks) {
+  const { status, error } = event;
+  if (status === 'readyToPlay') {
+    handleReadyStatus(callbacks.player, callbacks);
+    return;
+  }
+  if (status === 'loading' || status === 'idle') {
+    callbacks.onBuffering?.(true);
+    return;
+  }
+  if (status === 'error') callbacks.onError?.({ message: 'Failed to load stream.', error });
+}
+
 /**
  * Native fallback player (expo-video) used when the VLC native module is not
  * registered — e.g. running inside Expo Go, where react-native-vlc-media-player
@@ -192,36 +220,18 @@ export const ExoVideoFallback = forwardRef(function ExoVideoFallback(
           if (activePlayerRef.current !== player) return;
           if (isPlaying && typeof onBuffering === 'function') onBuffering(false);
         }),
-        player.addListener('statusChange', ({ status, error }) => {
+        player.addListener('statusChange', (event) => {
           if (activePlayerRef.current !== player) return;
-
-          if (status === 'readyToPlay') {
-            if (typeof onPlaying === 'function') onPlaying();
-            if (typeof onBuffering === 'function') onBuffering(false);
-            // play() issued while the source was still loading can be swallowed
-            // on iOS — re-issue it now that the item is actually ready.
-            if (!paused) withActivePlayer((activePlayer) => activePlayer.play());
-
-            if (typeof onTracksChanged === 'function') {
-              onTracksChanged({
-                audioTracks: player.audioTracks ? Array.from(player.audioTracks) : [],
-              });
-            }
-
-            const dur = Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0;
-            const cur = Number.isFinite(player.currentTime) && player.currentTime > 0 ? player.currentTime : 0;
-            if (typeof onProgress === 'function') {
-              onProgress({
-                currentTime: cur * 1000,
-                duration: dur * 1000,
-                target: cur,
-              });
-            }
-          } else if (status === 'loading' || status === 'idle') {
-            if (typeof onBuffering === 'function') onBuffering(true);
-          } else if (status === 'error') {
-            if (typeof onError === 'function') onError({ message: 'Failed to load stream.', error });
-          }
+          notifyPlayerStatus(event, {
+            player,
+            paused,
+            onPlaying,
+            onBuffering,
+            onTracksChanged,
+            onProgress,
+            onError,
+            withActivePlayer,
+          });
         }),
         player.addListener('playToEnd', () => {
           if (activePlayerRef.current === player && typeof onEnded === 'function') onEnded();

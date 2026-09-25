@@ -26,6 +26,57 @@ function AudioArtwork({ posterUrl, isLandscape, palette }) {
   );
 }
 
+function SoundWave({ isPlaying, isLandscape, accentColor }) {
+  const animationBars = [
+    ['short-left', styles.soundWaveBarAnim1],
+    ['medium-left', styles.soundWaveBarAnim2],
+    ['tall-left', styles.soundWaveBarAnim3],
+    ['peak', styles.soundWaveBarAnim4],
+    ['tall-right', styles.soundWaveBarAnim5],
+    ['medium-right', styles.soundWaveBarAnim2],
+    ['short-right', styles.soundWaveBarAnim4],
+  ];
+  return (
+    <View style={[styles.soundWaveRow, isLandscape && styles.soundWaveRowLandscape]}>
+      {animationBars.map(([key, animationStyle]) => (
+        <View
+          key={key}
+          style={[styles.soundWaveBar, { backgroundColor: accentColor }, isPlaying ? animationStyle : styles.soundWaveBarStatic]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function AudioOnlyBackdrop({ posterUrl }) {
+  return (
+    <>
+      {posterUrl ? (
+        <Image
+          source={{ uri: posterUrl }}
+          style={[StyleSheet.absoluteFill, styles.audioOnlyBackdropImage]}
+          resizeMode="cover"
+          blurRadius={isWeb() ? 40 : 25}
+          pointerEvents="none"
+        />
+      ) : null}
+      <View style={styles.audioOnlyBackdropDim} pointerEvents="none" />
+    </>
+  );
+}
+
+function AudioOnlyBadge({ usesAudioProxy, palette, isLandscape }) {
+  const message = usesAudioProxy
+    ? 'Battery Saver Audio Mode • Screen can be locked'
+    : 'Audio Mode • Video hidden • Screen can be locked';
+  return (
+    <View style={[styles.audioOnlyBadge, isLandscape && styles.audioOnlyBadgeLandscape, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}>
+      <PlayerIcon name="lightning-bolt" size={14} color={palette.accentColor} />
+      <Text style={[styles.audioOnlyBadgeText, { color: palette.accentColor }]}>{message}</Text>
+    </View>
+  );
+}
+
 export const AudioOnlyView = ({
   posterUrl,
   title,
@@ -51,29 +102,12 @@ export const AudioOnlyView = ({
 
   return (
     <View style={[styles.audioOnlyContainer, { backgroundColor: palette.backgroundColor }]} pointerEvents="auto">
-      {posterUrl ? (
-        <Image
-          source={{ uri: posterUrl }}
-          style={[StyleSheet.absoluteFill, styles.audioOnlyBackdropImage]}
-          resizeMode="cover"
-          blurRadius={isWeb() ? 40 : 25}
-          pointerEvents="none"
-        />
-      ) : null}
-      <View style={styles.audioOnlyBackdropDim} pointerEvents="none" />
+      <AudioOnlyBackdrop posterUrl={posterUrl} />
 
       <View style={[styles.audioOnlyCard, isLandscape && styles.audioOnlyCardLandscape, { backgroundColor: palette.surfaceColor, borderColor: palette.accentColor }]} pointerEvents="auto">
         <AudioArtwork posterUrl={posterUrl} isLandscape={isLandscape} palette={palette} />
 
-        <View style={[styles.soundWaveRow, isLandscape && styles.soundWaveRowLandscape]}>
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim1 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim2 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim3 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim4 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim5 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim2 : styles.soundWaveBarStatic]} />
-          <View style={[styles.soundWaveBar, { backgroundColor: palette.accentColor }, isPlaying ? styles.soundWaveBarAnim4 : styles.soundWaveBarStatic]} />
-        </View>
+        <SoundWave isPlaying={isPlaying} isLandscape={isLandscape} accentColor={palette.accentColor} />
 
         <Text style={[styles.audioOnlyTitle, isLandscape && styles.audioOnlyTitleLandscape, { color: palette.controlColor }]} numberOfLines={2}>
           {displayTitle}
@@ -85,14 +119,7 @@ export const AudioOnlyView = ({
           </Text>
         ) : null}
 
-        <View style={[styles.audioOnlyBadge, isLandscape && styles.audioOnlyBadgeLandscape, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}>
-          <PlayerIcon name="lightning-bolt" size={14} color={palette.accentColor} />
-          <Text style={[styles.audioOnlyBadgeText, { color: palette.accentColor }]}>
-            {usesAudioProxy
-              ? 'Battery Saver Audio Mode • Screen can be locked'
-              : 'Audio Mode • Video hidden • Screen can be locked'}
-          </Text>
-        </View>
+        <AudioOnlyBadge usesAudioProxy={usesAudioProxy} palette={palette} isLandscape={isLandscape} />
 
         <TouchableOpacity
           style={[styles.audioOnlyReturnBtn, isLandscape && styles.audioOnlyReturnBtnLandscape, { backgroundColor: palette.backgroundColor, borderColor: palette.accentColor }]}

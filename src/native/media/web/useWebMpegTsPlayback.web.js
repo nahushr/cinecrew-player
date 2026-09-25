@@ -22,6 +22,58 @@ const isRawLiveTransportStream = (url) => {
 
 const isHlsUrl = (url) => /\.m3u8(?:$|[?#])/i.test(String(url || ''));
 
+function containsAc3Codec(value) {
+  const normalized = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized.includes('ac3') || normalized.includes('dolby');
+}
+
+function buildRetryFailureMessage(message) {
+  const detail = message ? ` (${message})` : '';
+  return 'The live stream connection failed after 3 reconnect attempts' + detail + '.';
+}
+
+function redactStreamDetails(value) {
+  return String(value || '')
+    .replace(/https?:\/\/\S+/gi, '[stream endpoint]')
+    .replace(/\/live\/[^?#\s]*/gi, '/live/[redacted]');
+}
+
+function isTransientStreamFailure(detailCode, status) {
+  return detailCode === 'Exception'
+    || /NetworkError|Timeout/i.test(detailCode)
+    || [408, 425, 429].includes(status)
+    || status >= 500;
+}
+
+function formatStreamFailure({ detailCode, status, isTransient, recoveryAttempts, message }) {
+  if (detailCode === 'HttpStatusCodeInvalid') {
+    if (Number.isFinite(status) && status > 0) return `Stream request failed (HTTP ${status}).`;
+    return 'Stream request failed with an unreadable HTTP response.';
+  }
+  if (isTransient && recoveryAttempts >= 3) return buildRetryFailureMessage(message);
+  const prefix = detailCode || 'Failed to load live stream.';
+  return message ? `${prefix}: ${message}` : prefix;
+}
+
+function createErrorContext(type, detail, info, player) {
+  const detailCode = String(detail || type || '');
+  const mediaSourceMessage = String(info?.msg || info?.message || '');
+  const codecText = [
+    detailCode,
+    mediaSourceMessage,
+    player?.mediaInfo?.audioCodec,
+    player?.mediaInfo?.mimeType,
+  ].filter(Boolean).join(' ');
+  const status = Number(info?.code);
+  return {
+    detailCode,
+    mediaSourceMessage,
+    isAc3: containsAc3Codec(codecText),
+    status,
+    isTransient: isTransientStreamFailure(detailCode, status),
+  };
+}
+
 export function useWebMpegTsPlayback({
   streamUrl,
   activeUrl,
@@ -100,7 +152,7 @@ export function useWebMpegTsPlayback({
       if (disposed || recoveryPending || pausedRef.current || !player) return;
       if (recoveryAttempts >= 3) {
         onErrorRef.current?.({
-          message: `The live stream connection failed after 3 reconnect attempts${message ? ` (${message})` : ''}.`,
+          message: buildRetryFailureMessage(message),
           httpStatus,
           err: error,
         });
@@ -153,8 +205,16 @@ export function useWebMpegTsPlayback({
       video.style.visibility = 'hidden';
       video.pause();
       onBufferingRef.current?.(false);
-      try { player?.pause(); } catch (error) { void error; }
-      try { player?.unload(); } catch (error) { void error; }
+      try {
+        player?.pause();
+      } catch {
+        // The media engine may already have been disposed.
+      }
+      try {
+        player?.unload();
+      } catch {
+        // The media engine may already have been disposed.
+      }
       onErrorRef.current?.({
         code: WEB_AC3_UNSUPPORTED_CODE,
         blockPlayback: true,
@@ -164,7 +224,7 @@ export function useWebMpegTsPlayback({
 
     const handleMediaInfo = (info) => {
       const codecSummary = [info?.audioCodec, info?.mimeType].filter(Boolean).join(' ');
-      if (/\b(?:e[- ]?ac[- ]?3|ac[- ]?3|dolby(?:\s+digital(?:\s+plus)?)?)\b/i.test(codecSummary)) {
+      if (containsAc3Codec(codecSummary)) {
         blockAc3Playback();
         return;
       }
@@ -213,15 +273,9 @@ export function useWebMpegTsPlayback({
 
       player.on(mpegts.Events.ERROR, (type, detail, info) => {
         if (disposed || recoveryPending || blockedByAudioCodec) return;
-        const detailCode = String(detail || type || '');
-        const mediaSourceMessage = String(info?.msg || info?.message || '');
-        const codecErrorText = [
-          detailCode,
-          mediaSourceMessage,
-          player?.mediaInfo?.audioCodec,
-          player?.mediaInfo?.mimeType,
-        ].filter(Boolean).join(' ');
-        if (/\b(?:e[- ]?ac[- ]?3|ac[- ]?3|dolby(?:\s+digital(?:\s+plus)?)?)\b/i.test(codecErrorText)) {
+        const errorContext = createErrorContext(type, detail, info, player);
+        const { detailCode, mediaSourceMessage, status, isTransient } = errorContext;
+        if (errorContext.isAc3) {
           if (isLive) {
             blockAc3Playback();
             return;
@@ -232,28 +286,21 @@ export function useWebMpegTsPlayback({
           }
           return;
         }
-        const responseStatus = Number(info?.code);
-        const safeMediaSourceMessage = mediaSourceMessage
-          .replace(/https?:\/\/[^\s"'<>]+/gi, '[stream endpoint]')
-          .replace(/\/live\/[^/\s]+\/[^/\s]+\/[^/?#\s]+/gi, '/live/[redacted]');
-        const isTransientFailure = detailCode === 'Exception'
-          || /NetworkError|Timeout/i.test(detailCode)
-          || [408, 425, 429].includes(responseStatus)
-          || responseStatus >= 500;
-        if (isTransientFailure && recoveryAttempts < 3) {
-          scheduleRecovery(safeMediaSourceMessage || detailCode, responseStatus, info || detail || type);
+        const safeMediaSourceMessage = redactStreamDetails(mediaSourceMessage);
+        if (isTransient && recoveryAttempts < 3) {
+          scheduleRecovery(safeMediaSourceMessage || detailCode, status, info || detail || type);
           return;
         }
-        const message = detailCode === 'HttpStatusCodeInvalid'
-          ? (Number.isFinite(responseStatus) && responseStatus > 0
-            ? `Stream request failed (HTTP ${responseStatus}).`
-            : 'Stream request failed with an unreadable HTTP response.')
-          : isTransientFailure && recoveryAttempts >= 3
-            ? `The live stream connection failed after 3 reconnect attempts${safeMediaSourceMessage ? ` (${safeMediaSourceMessage})` : ''}.`
-            : `${detailCode || 'Failed to load live stream.'}${safeMediaSourceMessage ? `: ${safeMediaSourceMessage}` : ''}`;
+        const message = formatStreamFailure({
+          detailCode,
+          status,
+          isTransient,
+          recoveryAttempts,
+          message: safeMediaSourceMessage,
+        });
         onErrorRef.current?.({
           message,
-          httpStatus: Number.isFinite(responseStatus) && responseStatus > 0 ? responseStatus : null,
+          httpStatus: Number.isFinite(status) && status > 0 ? status : null,
           err: info || detail || type,
         });
       });
@@ -282,10 +329,26 @@ export function useWebMpegTsPlayback({
       video.autoplay = !pausedRef.current;
       video.style.visibility = previousVideoVisibility;
       if (!player) return;
-      try { player.pause(); } catch (error) { void error; }
-      try { player.unload(); } catch (error) { void error; }
-      try { player.detachMediaElement(); } catch (error) { void error; }
-      try { player.destroy(); } catch (error) { void error; }
+      try {
+        player.pause();
+      } catch {
+        // The media engine may already be disposed.
+      }
+      try {
+        player.unload();
+      } catch {
+        // The media engine may already be disposed.
+      }
+      try {
+        player.detachMediaElement();
+      } catch {
+        // The media engine may already be disposed.
+      }
+      try {
+        player.destroy();
+      } catch {
+        // The media engine may already be disposed.
+      }
     };
   }, [activeUrl, useMpegTs, useAc3Fallback, useVideoOnly, streamUrl, videoRef, pausedRef, onErrorRef, onBufferingRef]);
 

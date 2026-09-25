@@ -89,6 +89,260 @@ function PlayerButton({ name, label, icons, theme, onClick, active, disabled, ch
   }, h(Icon, { name, icons, color: active ? theme.accentColor : theme.controlColor }), children);
 }
 
+function isControlEnabled(overrides, name, fallback = true) {
+  return overrides[name] ?? fallback;
+}
+
+function renderControlButton({ name, label, callback, options = {}, overrides, icons, theme }) {
+  if (!isControlEnabled(overrides, name, options.defaultVisible ?? true)) return null;
+  return h(PlayerButton, {
+    key: name,
+    name: options.icon || name,
+    label,
+    icons,
+    theme,
+    onClick: callback,
+    active: options.active,
+    disabled: options.disabled,
+  });
+}
+
+function getPanelActionName(panel) {
+  if (panel === 'chat') return 'onLiveChatOpen';
+  if (panel === 'epg') return 'onEpgOpen';
+  return 'onDiagnosticsOpen';
+}
+
+function WebSeekControl({ currentTime, duration, theme, onSeek }) {
+  return h('div', { className: 'cinecrew-player__seek' },
+    h('span', null, formatTime(currentTime)),
+    h('input', {
+      type: 'range',
+      min: 0,
+      max: duration,
+      value: Math.min(currentTime, duration),
+      onChange: (event) => onSeek(Number(event.target.value)),
+      style: { accentColor: theme.accentColor },
+    }),
+    h('span', null, formatTime(duration)));
+}
+
+function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect }) {
+  const ratios = ['FIT', 'FILL', 'STRETCH', '16:9', '4:3', '1:1'];
+  let menu = null;
+  if (open) {
+    menu = h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } },
+      ratios.map((ratio) => h('button', {
+        key: ratio,
+        type: 'button',
+        onClick: () => onSelect(ratio),
+      }, ratio)));
+  }
+  return h('div', { className: 'cinecrew-player__menu-wrap', key: 'aspectRatio' },
+    h(PlayerButton, { name: 'aspectRatio', label: 'Aspect ratio', icons, theme, onClick: onToggle, active: open }),
+    menu);
+}
+
+function WebAudioTrackMenu({ open, tracks, theme, icons, onToggle, onSelect }) {
+  let menu = null;
+  if (open) {
+    menu = h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } },
+      tracks.map((track) => h('button', {
+        key: track.id,
+        type: 'button',
+        onClick: () => onSelect(track.id),
+      }, track.name)));
+  }
+  return h('div', { className: 'cinecrew-player__menu-wrap', key: 'audioTracks' },
+    h(PlayerButton, { name: 'audio', label: 'Audio tracks', icons, theme, onClick: onToggle, active: open }),
+    menu);
+}
+
+function WebPlaybackRateControl({ value, onChange }) {
+  const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  return h('select', {
+    className: 'cinecrew-player__rate',
+    'aria-label': 'Playback speed',
+    value,
+    onChange: (event) => onChange(Number(event.target.value)),
+  }, rates.map((rate) => h('option', { key: rate, value: rate }, `${rate}x`)));
+}
+
+function WebBottomControls(props) {
+  const {
+    isLive, overrides, theme, icons, currentTime, duration, seekTo, muted,
+    toggleMute, showAspectMenu, setShowAspectMenu, selectAspect, videoOnly,
+    setVideoOnlyMode, audioOnly, setAudioOnlyMode, availableTracks,
+    showAudioMenu, setShowAudioMenu, selectAudio, playbackRate,
+    setPlaybackRateAction, fullscreen, toggleFullscreen,
+  } = props;
+  let seek = null;
+  if (duration > 0 && isControlEnabled(overrides, 'seek', true)) {
+    seek = h(WebSeekControl, { currentTime, duration, theme, onSeek: seekTo });
+  }
+  let aspect = null;
+  if (isControlEnabled(overrides, 'aspectRatio', true)) {
+    aspect = h(WebAspectRatioMenu, {
+      open: showAspectMenu,
+      theme,
+      icons,
+      onToggle: () => setShowAspectMenu((value) => !value),
+      onSelect: (ratio) => {
+        selectAspect(ratio);
+        setShowAspectMenu(false);
+      },
+    });
+  }
+  let audioTracks = null;
+  if (availableTracks.length > 1 && isControlEnabled(overrides, 'audioTracks', true)) {
+    audioTracks = h(WebAudioTrackMenu, {
+      open: showAudioMenu,
+      tracks: availableTracks,
+      theme,
+      icons,
+      onToggle: () => setShowAudioMenu((value) => !value),
+      onSelect: (id) => {
+        selectAudio(id);
+        setShowAudioMenu(false);
+      },
+    });
+  }
+  let playbackRateControl = null;
+  if (isControlEnabled(overrides, 'playbackRate', true) && !isLive) {
+    playbackRateControl = h(WebPlaybackRateControl, { value: playbackRate, onChange: setPlaybackRateAction });
+  }
+  const muteLabel = muted ? 'Unmute' : 'Mute';
+  const muteIcon = muted ? 'mute' : 'unmute';
+  const videoOnlyLabel = videoOnly ? 'Enable audio' : 'Video only';
+  const audioOnlyLabel = audioOnly ? 'Switch to audio card' : 'Audio only';
+  const fullscreenLabel = fullscreen ? 'Exit full screen' : 'Full screen';
+
+  return h('div', { className: 'cinecrew-player__bottom-controls' },
+    seek,
+    renderControlButton({ name: 'mute', label: muteLabel, callback: toggleMute, options: { icon: muteIcon }, overrides, icons, theme }),
+    aspect,
+    renderControlButton({ name: 'videoOnly', label: videoOnlyLabel, callback: () => setVideoOnlyMode(!videoOnly), options: { active: videoOnly, defaultVisible: false }, overrides, icons, theme }),
+    renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { icon: 'audio', active: audioOnly }, overrides, icons, theme }),
+    audioTracks,
+    playbackRateControl,
+    renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }));
+}
+
+function WebPlayerControls({ locked, overrides, theme, icons, unlockedControls, toggleLock, paused, togglePlay, bottomProps }) {
+  let topControls = unlockedControls;
+  if (locked) {
+    topControls = renderControlButton({
+      name: 'lock', label: 'Unlock controls', callback: toggleLock,
+      options: { active: true, defaultVisible: true }, overrides, icons, theme,
+    });
+  }
+  let centerControls = null;
+  let bottomControls = null;
+  if (!locked) {
+    const playLabel = paused ? 'Play' : 'Pause';
+    const playIcon = paused ? 'play' : 'pause';
+    centerControls = h('div', { className: 'cinecrew-player__center-controls' },
+      renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }));
+    bottomControls = h(WebBottomControls, bottomProps);
+  }
+  return h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
+    h('div', { className: 'cinecrew-player__top-controls' }, topControls),
+    centerControls,
+    bottomControls);
+}
+
+function WebPlayerSurface({
+  youtubeVideoId,
+  streamUrl,
+  videoRef,
+  youtubeRef,
+  directVideoSource,
+  poster,
+  autoPlay,
+  paused,
+  muted,
+  volume,
+  playbackRate,
+  videoOnly,
+  videoStyle,
+  audioOnly,
+  inlinePreview,
+  onPromotePreview,
+  bufferingRef,
+  onReady,
+  onProgress,
+  onPlaying,
+  onEnded,
+  onStateChange,
+  onError,
+  handleError,
+}) {
+  if (youtubeVideoId) {
+    return h(YouTubeVideoPlayer, {
+      ref: youtubeRef,
+      videoId: youtubeVideoId,
+      paused,
+      muted: muted || videoOnly,
+      volume,
+      playbackRate,
+      onReady,
+      onProgress,
+      onPlaying,
+      onBuffering: bufferingRef.current,
+      onStateChange,
+      onError,
+      onEnded,
+    });
+  }
+  if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
+  return h('video', {
+    ref: videoRef,
+    className: 'cinecrew-player__video',
+    src: directVideoSource,
+    poster,
+    autoPlay,
+    muted: muted || videoOnly,
+    playsInline: true,
+    preload: 'auto',
+    style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
+    onClick: inlinePreview ? onPromotePreview : undefined,
+    onError: (event) => {
+      const mediaError = event.currentTarget?.error;
+      handleError({ message: mediaError?.message || 'The browser could not load this stream. Check URL, codec and CORS support.', code: mediaError?.code, cause: mediaError });
+    },
+  });
+}
+
+function WebAudioOnlyCard({ poster, title, theme, onSwitchToVideo }) {
+  return h('div', {
+    className: 'cinecrew-player__audio-card',
+    style: { background: theme.surfaceColor, color: theme.controlColor, borderColor: theme.accentColor },
+  },
+  poster ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' }) : null,
+  h('span', { className: 'cinecrew-player__audio-wave', style: { color: theme.accentColor }, 'aria-hidden': true }, '•••••••'),
+  h('strong', null, title || 'Audio only'),
+  h('button', {
+    type: 'button',
+    onClick: onSwitchToVideo,
+    style: { color: theme.accentColor, borderColor: theme.accentColor },
+  }, 'Switch to video'));
+}
+
+function WebPlayerError({ error, theme, renderBackButton }) {
+  if (!error) return null;
+  return h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
+    h('strong', { style: { color: theme.errorColor } }, 'Playback error'),
+    h('span', null, error),
+    renderBackButton());
+}
+
+function getStreamMode(youtubeVideoId, mpegTs, useHls) {
+  if (youtubeVideoId) return 'youtube';
+  if (mpegTs) return 'mpegts';
+  if (useHls) return 'hls';
+  return 'native';
+}
+
 function normalizeTracks(video, suppliedTracks) {
   if (Array.isArray(suppliedTracks) && suppliedTracks.length) return suppliedTracks;
   const tracks = video?.audioTracks;
@@ -114,6 +368,30 @@ function formatListingTime(value) {
     : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations) {
+  if (activePanel === 'chat') return renderLiveChat || integrations.liveChat?.render;
+  if (activePanel === 'epg') return renderEpg || integrations.epg?.render;
+  return null;
+}
+
+function createWebPanelNode({ renderer, integration, activePanel, integrations, source, title, theme, onClose }) {
+  if (renderer) return h(renderer, { title, source, onClose });
+  if (!integration) return null;
+  const hasLoader = activePanel === 'chat'
+    ? typeof integration.loadMessages === 'function'
+    : typeof integration.loadListings === 'function';
+  if (!hasLoader) return null;
+  return h(WebIntegrationPanel, {
+    kind: activePanel,
+    integration,
+    integrations,
+    source,
+    title,
+    theme,
+    onClose,
+  });
+}
+
 function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose }) {
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(integrations.user || null);
@@ -123,6 +401,8 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   const [error, setError] = useState('');
   const channelId = String(source.streamId || source.mediaId || source.id || '');
   const isChat = kind === 'chat';
+  const emptyStateMessage = isChat ? 'No messages yet.' : 'No programme information available.';
+  const sendButtonLabel = sending ? 'Sending…' : 'Send';
 
   const load = useCallback(async () => {
     if (!channelId) {
@@ -192,7 +472,7 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
     h('button', { type: 'button', onClick: onClose, 'aria-label': 'Close panel' }, '×')),
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
-  !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, isChat ? 'No messages yet.' : 'No programme information available.') : null,
+  !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
   h('div', { className: 'cinecrew-player__panel-list' }, rows.map((row, index) => {
     const key = row.id ?? row.messageId ?? row.startMs ?? index;
     if (isChat) {
@@ -215,7 +495,7 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
       'aria-label': 'Chat message',
       maxLength: 1000,
     }),
-    h('button', { type: 'submit', disabled: sending || !message.trim() }, sending ? 'Sending…' : 'Send')) : null);
+    h('button', { type: 'submit', disabled: sending || !message.trim() }, sendButtonLabel)) : null);
 }
 
 /**
@@ -279,7 +559,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const publicPlayerRef = useRef(null);
   const pausedRef = useRef(pausedProp ?? !autoPlay);
   const errorRef = useRef(onError);
-  const [paused, setPausedState] = useState(pausedProp ?? !autoPlay);
+  const [isPaused, setIsPaused] = useState(pausedProp ?? !autoPlay);
   const [muted, setMuted] = useState(!!mutedProp);
   const [volume, setVolume] = useState(Math.max(0, Math.min(1, Number(volumeProp) || 0)));
   const [videoOnly, setVideoOnly] = useState(!!videoOnlyProp);
@@ -299,7 +579,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const [playbackRate, setPlaybackRate] = useState(Number(playbackRateProp) || 1);
   const { videoStyle } = useWebVideoAspectRatio(aspectRatio, false);
   const pausedStateRef = pausedRef;
-  pausedRef.current = paused;
+  pausedRef.current = isPaused;
   errorRef.current = onError;
 
   const handleError = useCallback((detail) => {
@@ -335,7 +615,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, [streamUrl, resolution.loading, resolution.error, handleError]);
 
   useEffect(() => {
-    if (pausedProp !== undefined) setPausedState(!!pausedProp);
+    if (pausedProp !== undefined) setIsPaused(!!pausedProp);
   }, [pausedProp]);
 
   useEffect(() => setAudioOnly(!!audioOnlyProp), [audioOnlyProp]);
@@ -383,7 +663,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     active: mpegTs.useAc3Fallback,
     streamUrl,
     enabled: !muted && !videoOnly,
-    paused,
+    paused: isPaused,
     volume: volume * 100,
     videoRef,
   });
@@ -391,11 +671,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (paused) video.pause();
+    if (isPaused) video.pause();
     else video.play().catch((playError) => {
       if (playError?.name !== 'NotAllowedError') handleError(playError);
     });
-  }, [paused, streamUrl, youtubeVideoId, handleError]);
+  }, [isPaused, streamUrl, youtubeVideoId, handleError]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -414,7 +694,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const setPaused = useCallback((next) => {
     const value = typeof next === 'boolean' ? next : !pausedRef.current;
     pausedRef.current = value;
-    setPausedState(value);
+    setIsPaused(value);
   }, []);
 
   const action = useCallback((name, fallback, payload) => {
@@ -478,7 +758,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     return api;
   }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnlyMode, setVideoOnlyMode, setPlaybackRateAction, seekTo, handleBack, handleMinimize, availableTracks, tracksProp, currentTime]);
 
-  const enabled = (name, fallback = true) => controlOverrides[name] ?? fallback;
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
   const hasRecording = !!integrations.recording || typeof actions.onRecordingStart === 'function';
@@ -486,8 +765,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const directVideoSource = mpegTs.useMpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType) ? undefined : activeUrl;
 
   const handleYouTubeStateChange = useCallback((state) => {
-    if (state === 'playing') setPausedState(false);
-    if (state === 'paused' || state === 'ended') setPausedState(true);
+    if (state === 'playing') setIsPaused(false);
+    if (state === 'paused' || state === 'ended') setIsPaused(true);
   }, []);
 
   useEffect(() => {
@@ -545,123 +824,159 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     else playerRef.current?.requestFullscreen?.();
   }, { isFullscreen: !fullscreen });
   const openPanel = (panel) => action(
-    panel === 'chat' ? 'onLiveChatOpen' : panel === 'epg' ? 'onEpgOpen' : 'onDiagnosticsOpen',
-    () => setActivePanel((current) => current === panel ? null : panel),
+    getPanelActionName(panel),
+    () => setActivePanel((current) => {
+      if (current === panel) return null;
+      return panel;
+    }),
     { tab: panel, isOpen: activePanel === panel, close: () => setActivePanel(null) },
   );
-  const control = (name, label, callback, options = {}) => enabled(name, options.defaultVisible ?? true)
-    ? h(PlayerButton, {
-      key: name, name: options.icon || name, label, icons, theme,
-      onClick: callback, active: options.active, disabled: options.disabled,
-    }) : null;
+  const control = (name, label, callback, options = {}) => renderControlButton({
+    name, label, callback, options, overrides: controlOverrides, icons, theme,
+  });
 
-  const panelRenderer = activePanel === 'chat'
-    ? (renderLiveChat || integrations.liveChat?.render)
-    : activePanel === 'epg' ? (renderEpg || integrations.epg?.render) : null;
-  const panelIntegration = activePanel === 'chat' ? integrations.liveChat : integrations.epg;
+  const panelRenderer = getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations);
+  let panelIntegration = integrations.epg;
+  if (activePanel === 'chat') panelIntegration = integrations.liveChat;
   const panelSource = mediaId == null ? media : { ...media, mediaId };
-  const rootStyle = inlinePreview && inlinePreviewRect
-    ? {
+  let rootStyle = {};
+  if (inlinePreview && inlinePreviewRect) {
+    rootStyle = {
       position: 'absolute', left: inlinePreviewRect.x, top: inlinePreviewRect.y,
       width: inlinePreviewRect.width, height: inlinePreviewRect.height,
-    }
-    : {};
+    };
+  }
   const unlockedControls = [
     control('back', 'Back', handleBack, { defaultVisible: typeof actions.onBack === 'function' || typeof onBack === 'function' || typeof props.onClose === 'function' }),
-    !isLive ? control('restart', 'Restart', restart) : null,
+    ...(!isLive ? [control('restart', 'Restart', restart)] : []),
     control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
-    hasRecording ? control('recording', recording ? 'Stop recording' : 'Start recording', async () => {
-      const handler = recording ? integrations.recording?.stop : integrations.recording?.start;
-      await action(recording ? 'onRecordingStop' : 'onRecordingStart', handler ? () => handler({ getVideoElement: () => videoRef.current, streamUrl, title }) : undefined, { source: streamUrl, title });
-      setRecording((value) => !value);
-    }, { active: recording }) : null,
-    control('liveChat', activePanel === 'chat' ? 'Close live chat' : 'Live chat', () => openPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
-    control('epg', activePanel === 'epg' ? 'Close programme guide' : 'Programme guide', () => openPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
-    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: typeof actions.onMinimize === 'function' || typeof onMinimize === 'function' }),
   ];
-  const webPanel = panelRenderer
-    ? h(panelRenderer, { title, source: panelSource, onClose: () => setActivePanel(null) })
-    : panelIntegration && ((activePanel === 'chat' && typeof panelIntegration.loadMessages === 'function')
-      || (activePanel === 'epg' && typeof panelIntegration.loadListings === 'function'))
-      ? h(WebIntegrationPanel, { kind: activePanel, integration: panelIntegration, integrations, source: panelSource, title, theme, onClose: () => setActivePanel(null) })
-      : null;
+  let recordingControl = null;
+  if (hasRecording) {
+    const recordingLabel = recording ? 'Stop recording' : 'Start recording';
+    const recordingAction = recording ? 'onRecordingStop' : 'onRecordingStart';
+    const handleRecordingToggle = async () => {
+      const handler = recording ? integrations.recording?.stop : integrations.recording?.start;
+      const fallback = handler ? () => handler({ getVideoElement: () => videoRef.current, streamUrl, title }) : undefined;
+      await action(recordingAction, fallback, { source: streamUrl, title });
+      setRecording((value) => !value);
+    };
+    recordingControl = control('recording', recordingLabel, handleRecordingToggle, { active: recording });
+  }
+  const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
+  const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
+  unlockedControls.push(
+    recordingControl,
+    control('liveChat', chatLabel, () => openPanel('chat'), { active: activePanel === 'chat', defaultVisible: hasChat }),
+    control('epg', epgLabel, () => openPanel('epg'), { active: activePanel === 'epg', defaultVisible: hasEpg }),
+    control('minimize', 'Minimize player', handleMinimize, { defaultVisible: typeof actions.onMinimize === 'function' || typeof onMinimize === 'function' }),
+  );
+  const webPanel = createWebPanelNode({
+    renderer: panelRenderer,
+    integration: panelIntegration,
+    activePanel,
+    integrations,
+    source: panelSource,
+    title,
+    theme,
+    onClose: () => setActivePanel(null),
+  });
+
+  const handleYouTubeProgress = (event) => {
+    setCurrentTime(Number(event.currentTime) / 1000 || 0);
+    setDuration(Number(event.duration) / 1000 || 0);
+    onProgress?.(event);
+  };
+  const mediaSurface = h(WebPlayerSurface, {
+    youtubeVideoId,
+    streamUrl,
+    videoRef,
+    youtubeRef,
+    directVideoSource,
+    poster,
+    autoPlay,
+    paused: isPaused,
+    muted,
+    volume,
+    playbackRate,
+    videoOnly,
+    videoStyle,
+    audioOnly,
+    inlinePreview,
+    onPromotePreview,
+    bufferingRef: onBufferingRef,
+    onReady,
+    onProgress: handleYouTubeProgress,
+    onPlaying,
+    onEnded,
+    onStateChange: handleYouTubeStateChange,
+    onError: handleError,
+    handleError,
+  });
+  const streamMode = getStreamMode(youtubeVideoId, mpegTs.useMpegTs, useHls);
+
+  const bottomControlProps = {
+    isLive,
+    overrides: controlOverrides,
+    theme,
+    icons,
+    currentTime,
+    duration,
+    seekTo,
+    muted,
+    toggleMute,
+    showAspectMenu,
+    setShowAspectMenu,
+    selectAspect,
+    videoOnly,
+    setVideoOnlyMode,
+    audioOnly,
+    setAudioOnlyMode,
+    availableTracks,
+    showAudioMenu,
+    setShowAudioMenu,
+    selectAudio,
+    playbackRate,
+    setPlaybackRateAction,
+    fullscreen,
+    toggleFullscreen,
+  };
+  const controlLayer = !error && !audioOnly
+    ? h(WebPlayerControls, { locked, overrides: controlOverrides, theme, icons, unlockedControls, toggleLock, paused: isPaused, togglePlay, bottomProps: bottomControlProps })
+    : null;
+  const playerTitle = title && !audioOnly
+    ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor } }, title)
+    : null;
+  const loadingNotice = buffering && !error
+    ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…')
+    : null;
+  const errorNotice = h(WebPlayerError, {
+    error,
+    theme,
+    renderBackButton: () => control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' }),
+  });
+  const audioCard = audioOnly
+    ? h(WebAudioOnlyCard, { poster, title, theme, onSwitchToVideo: () => setAudioOnlyMode(false) })
+    : null;
+  const panelNode = activePanel && webPanel
+    ? h('div', { className: 'cinecrew-player__panel', style: { background: theme.surfaceColor, color: theme.controlColor } }, webPanel)
+    : null;
 
   return h('div', {
     ref: playerRef,
     className: `cinecrew-player${inlinePreview ? ' cinecrew-player--inline-preview' : ''} ${className}`.trim(),
     style: { ...rootStyle, ...style, background: theme.backgroundColor, borderRadius: theme.borderRadius, '--cinecrew-accent': theme.accentColor, '--cinecrew-text': theme.controlColor, '--cinecrew-surface': theme.surfaceColor },
     onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
-    'data-stream-mode': youtubeVideoId ? 'youtube' : mpegTs.useMpegTs ? 'mpegts' : useHls ? 'hls' : 'native',
+    'data-stream-mode': streamMode,
   },
-  youtubeVideoId ? h(YouTubeVideoPlayer, {
-    ref: youtubeRef,
-    videoId: youtubeVideoId,
-    paused,
-    muted: muted || videoOnly,
-    volume,
-    playbackRate,
-    onReady,
-    onProgress: (event) => {
-      setCurrentTime(Number(event.currentTime) / 1000 || 0);
-      setDuration(Number(event.duration) / 1000 || 0);
-      onProgress?.(event);
-    },
-    onPlaying,
-    onBuffering: onBufferingRef.current,
-    onStateChange: handleYouTubeStateChange,
-    onError: handleError,
-    onEnded,
-  }) : streamUrl ? h('video', {
-    ref: videoRef,
-    className: 'cinecrew-player__video',
-    src: directVideoSource,
-    poster,
-    autoPlay,
-    muted: muted || videoOnly,
-    playsInline: true,
-    preload: 'auto',
-    style: { ...videoStyle, opacity: audioOnly ? 0 : 1 },
-    onClick: inlinePreview ? onPromotePreview : undefined,
-    onError: (event) => {
-      const mediaError = event.currentTarget?.error;
-      handleError({ message: mediaError?.message || 'The browser could not load this stream. Check URL, codec and CORS support.', code: mediaError?.code, cause: mediaError });
-    },
-  }) : h('div', { className: 'cinecrew-player__empty' }),
+  mediaSurface,
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
-  title && !audioOnly ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor } }, title) : null,
-  buffering && !error ? h('div', { className: 'cinecrew-player__status', style: { color: theme.controlColor } }, h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: theme.accentColor } }), 'Loading stream…') : null,
-  error ? h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
-    h('strong', { style: { color: theme.errorColor } }, 'Playback error'),
-    h('span', null, error),
-      control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' })) : null,
-  !error && !audioOnly ? h('div', { className: 'cinecrew-player__controls', style: { color: theme.controlColor } },
-    h('div', { className: 'cinecrew-player__top-controls' }, locked
-      ? control('lock', 'Unlock controls', toggleLock, { active: true, defaultVisible: true })
-      : unlockedControls),
-    !locked ? h('div', { className: 'cinecrew-player__center-controls' },
-      control('playPause', paused ? 'Play' : 'Pause', togglePlay, { icon: paused ? 'play' : 'pause' })) : null,
-    !locked ? h('div', { className: 'cinecrew-player__bottom-controls' },
-      duration > 0 && enabled('seek', true) ? h('div', { className: 'cinecrew-player__seek' },
-        h('span', null, formatTime(currentTime)),
-        h('input', { type: 'range', min: 0, max: duration, value: Math.min(currentTime, duration), onChange: (event) => seekTo(Number(event.target.value)), style: { accentColor: theme.accentColor } }),
-        h('span', null, formatTime(duration))) : null,
-      control('mute', muted ? 'Unmute' : 'Mute', toggleMute, { icon: muted ? 'mute' : 'unmute' }),
-      enabled('aspectRatio', true) ? h('div', { className: 'cinecrew-player__menu-wrap', key: 'aspectRatio' },
-        h(PlayerButton, { name: 'aspectRatio', label: 'Aspect ratio', icons, theme, onClick: () => setShowAspectMenu((value) => !value), active: showAspectMenu }),
-        showAspectMenu ? h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } }, ['FIT', 'FILL', 'STRETCH', '16:9', '4:3', '1:1'].map((ratio) => h('button', { key: ratio, type: 'button', onClick: () => { selectAspect(ratio); setShowAspectMenu(false); } }, ratio))) : null) : null,
-      control('videoOnly', videoOnly ? 'Enable audio' : 'Video only', () => setVideoOnlyMode(!videoOnly), { active: videoOnly, defaultVisible: false }),
-      control('audioOnly', audioOnly ? 'Switch to audio card' : 'Audio only', () => setAudioOnlyMode(true), { icon: 'audio', active: audioOnly }),
-      availableTracks.length > 1 && enabled('audioTracks', true) ? h('div', { className: 'cinecrew-player__menu-wrap', key: 'audioTracks' },
-        h(PlayerButton, { name: 'audio', label: 'Audio tracks', icons, theme, onClick: () => setShowAudioMenu((value) => !value), active: showAudioMenu }),
-        showAudioMenu ? h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } }, availableTracks.map((track) => h('button', { key: track.id, type: 'button', onClick: () => { selectAudio(track.id); setShowAudioMenu(false); } }, track.name))) : null) : null,
-      enabled('playbackRate', true) && !isLive ? h('select', { className: 'cinecrew-player__rate', 'aria-label': 'Playback speed', value: playbackRate, onChange: (event) => setPlaybackRateAction(Number(event.target.value)) }, [0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => h('option', { key: rate, value: rate }, `${rate}x`))) : null,
-      control('fullscreen', fullscreen ? 'Exit full screen' : 'Full screen', toggleFullscreen, { icon: 'fullscreen' })) : null) : null,
-  audioOnly ? h('div', { className: 'cinecrew-player__audio-card', style: { background: theme.surfaceColor, color: theme.controlColor, borderColor: theme.accentColor } },
-    poster ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' }) : null,
-    h('span', { className: 'cinecrew-player__audio-wave', style: { color: theme.accentColor }, 'aria-hidden': true }, '•••••••'),
-    h('strong', null, title || 'Audio only'),
-    h('button', { type: 'button', onClick: () => setAudioOnlyMode(false), style: { color: theme.accentColor, borderColor: theme.accentColor } }, 'Switch to video')) : null,
-  activePanel && webPanel ? h('div', { className: 'cinecrew-player__panel', style: { background: theme.surfaceColor, color: theme.controlColor } }, webPanel) : null);
+  playerTitle,
+  loadingNotice,
+  errorNotice,
+  controlLayer,
+  audioCard,
+  panelNode);
 });
 
 export default CineCrewPlayer;

@@ -1,5 +1,103 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+function createVideoClockSynchronizer({ audio, videoRef, isCancelled }) {
+  let anchorTimestamp = null;
+  let previousTimestamp = null;
+  let anchorVideoTime = null;
+
+  return async (timestamp) => {
+    const context = audio.context;
+    const video = videoRef.current;
+    if (!video) return null;
+    if (anchorTimestamp === null) {
+      anchorTimestamp = timestamp;
+      anchorVideoTime = Number(video.currentTime) || 0;
+    }
+    if (previousTimestamp !== null && timestamp < previousTimestamp - 1) {
+      anchorTimestamp = timestamp;
+      anchorVideoTime = Number(video.currentTime) || anchorVideoTime;
+    }
+    previousTimestamp = timestamp;
+
+    const getVideoDelta = () => anchorVideoTime + (timestamp - anchorTimestamp)
+      - (Number(video.currentTime) || 0);
+    let videoDelta = getVideoDelta();
+    if (videoDelta < -0.25) return null;
+
+    while (!isCancelled() && (context.state !== 'running' || videoDelta > 0.75)) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      if (isCancelled()) return null;
+      videoDelta = getVideoDelta();
+    }
+    if (videoDelta < -0.25) return null;
+    return { video, context, videoDelta };
+  };
+}
+
+async function scheduleAc3Samples({ iterator, audio, videoRef, sources, isCancelled, setState }) {
+  const synchronize = createVideoClockSynchronizer({ audio, videoRef, isCancelled });
+  let decodedSampleCount = 0;
+  for await (const sample of iterator) {
+    if (isCancelled()) {
+      sample.close();
+      break;
+    }
+    const buffer = sample.toAudioBuffer();
+    const timestamp = sample.timestamp;
+    sample.close();
+    if (isCancelled() || !buffer.numberOfChannels || !buffer.length) continue;
+
+    const timing = await synchronize(timestamp);
+    if (!timing || isCancelled()) continue;
+    const source = timing.context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audio.gain);
+    source.onended = () => {
+      sources.delete(source);
+      source.disconnect();
+    };
+    sources.add(source);
+    const playbackRate = Math.max(0.25, Number(timing.video.playbackRate) || 1);
+    source.start(timing.context.currentTime + Math.max(0.005, timing.videoDelta / playbackRate));
+    decodedSampleCount += 1;
+    if (decodedSampleCount === 1 || decodedSampleCount % 64 === 0) {
+      setState(`playing:${decodedSampleCount}`);
+    }
+  }
+}
+
+async function decodeAc3Stream({ streamUrl, audio, videoRef, resources, sources, isCancelled, setState }) {
+  try {
+    const [{ AudioSampleSink, Input, MPEG_TS, UrlSource }, { registerAc3Decoder }] = await Promise.all([
+      import('mediabunny'),
+      import('@mediabunny/ac3'),
+    ]);
+    if (isCancelled()) return;
+    registerAc3Decoder();
+
+    resources.input = new Input({ source: new UrlSource(streamUrl), formats: [MPEG_TS] });
+    const audioTrack = await resources.input.getPrimaryAudioTrack();
+    if (isCancelled()) return;
+    if (!audioTrack) {
+      setState('no-audio-track');
+      return;
+    }
+
+    resources.iterator = new AudioSampleSink(audioTrack).samples();
+    setState('decoding');
+    await scheduleAc3Samples({
+      iterator: resources.iterator,
+      audio,
+      videoRef,
+      sources,
+      isCancelled,
+      setState,
+    });
+  } catch (error) {
+    if (!isCancelled()) setState(`error:${error?.name || 'decode'}`);
+  }
+}
+
 export function useWebAc3AudioPlayback({
   active,
   streamUrl,
@@ -79,8 +177,7 @@ export function useWebAc3AudioPlayback({
     }
 
     let cancelled = false;
-    let input = null;
-    let iterator = null;
+    const resources = { input: null, iterator: null };
     const sources = new Set();
     const audio = ensureAudioContext();
 
@@ -91,99 +188,19 @@ export function useWebAc3AudioPlayback({
 
     audio.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, Number(volume) / 100)), audio.context.currentTime, 0.025);
     setState('loading');
-    let anchorVideoTime = null;
-
-    const decodeAndPlay = async () => {
-      try {
-        const [{ AudioSampleSink, Input, MPEG_TS, UrlSource }, { registerAc3Decoder }] = await Promise.all([
-          import('mediabunny'),
-          import('@mediabunny/ac3'),
-        ]);
-        if (cancelled) return;
-        registerAc3Decoder();
-
-        input = new Input({ source: new UrlSource(streamUrl), formats: [MPEG_TS] });
-        const audioTrack = await input.getPrimaryAudioTrack();
-        if (cancelled) return;
-        if (!audioTrack) {
-          setState('no-audio-track');
-          return;
-        }
-
-        const sink = new AudioSampleSink(audioTrack);
-        iterator = sink.samples();
-        let anchorTimestamp = null;
-        let previousTimestamp = null;
-        let decodedSampleCount = 0;
-        setState('decoding');
-
-        for await (const sample of iterator) {
-          if (cancelled) {
-            sample.close();
-            break;
-          }
-
-          const buffer = sample.toAudioBuffer();
-          const timestamp = sample.timestamp;
-          sample.close();
-          if (cancelled || !buffer.numberOfChannels || !buffer.length) continue;
-
-          const context = audio.context;
-          const videoElement = videoRef.current;
-          if (!videoElement) continue;
-          if (anchorTimestamp === null) {
-            anchorTimestamp = timestamp;
-            // The sidecar request can take several seconds to connect. Anchor
-            // its first decoded sample to the video clock at arrival, not at
-            // request start, otherwise all audio can be classified as stale.
-            anchorVideoTime = Number(videoElement.currentTime) || 0;
-          }
-          if (previousTimestamp !== null && timestamp < previousTimestamp - 1) {
-            // Re-anchor if a provider restarts its MPEG-TS timestamp clock.
-            anchorTimestamp = timestamp;
-            anchorVideoTime = Number(videoElement.currentTime) || anchorVideoTime;
-          }
-          previousTimestamp = timestamp;
-
-          let videoDelta = anchorVideoTime + (timestamp - anchorTimestamp)
-            - (Number(videoElement.currentTime) || 0);
-          // Never replay packets whose matching picture has already passed.
-          if (videoDelta < -0.25) continue;
-
-          while (!cancelled && (context.state !== 'running' || videoDelta > 0.75)) {
-            await new Promise((resolve) => setTimeout(resolve, 40));
-            if (cancelled) break;
-            videoDelta = anchorVideoTime + (timestamp - anchorTimestamp)
-              - (Number(videoElement.currentTime) || 0);
-          }
-          if (cancelled) continue;
-          if (videoDelta < -0.25) continue;
-
-          const source = context.createBufferSource();
-          source.buffer = buffer;
-          source.connect(audio.gain);
-          source.onended = () => {
-            sources.delete(source);
-            source.disconnect();
-          };
-          sources.add(source);
-          const playbackRate = Math.max(0.25, Number(videoElement.playbackRate) || 1);
-          source.start(context.currentTime + Math.max(0.005, videoDelta / playbackRate));
-          decodedSampleCount += 1;
-          if (decodedSampleCount === 1 || decodedSampleCount % 64 === 0) {
-            setState(`playing:${decodedSampleCount}`);
-          }
-        }
-      } catch (error) {
-        if (!cancelled) setState(`error:${error?.name || 'decode'}`);
-      }
-    };
-
-    decodeAndPlay();
+    decodeAc3Stream({
+      streamUrl,
+      audio,
+      videoRef,
+      resources,
+      sources,
+      isCancelled: () => cancelled,
+      setState,
+    });
     return () => {
       cancelled = true;
-      try { iterator?.return?.(); } catch {}
-      try { input?.dispose(); } catch {}
+      try { resources.iterator?.return?.(); } catch {}
+      try { resources.input?.dispose(); } catch {}
       for (const source of sources) {
         try { source.stop(); } catch {}
         try { source.disconnect(); } catch {}

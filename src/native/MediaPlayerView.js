@@ -103,6 +103,657 @@ function getPanelActionName(tab) {
   return 'onDiagnosticsOpen';
 }
 
+function normalizeProgressEvent(data, audioOffsetMs) {
+  if (!data) return null;
+  const payload = data.nativeEvent || data;
+  let currentMs = payload.currentTime;
+  let durationMs = payload.duration;
+  const usePositionFallback = currentMs === null || currentMs === undefined || currentMs === 0;
+  if (usePositionFallback && payload.position !== null && payload.position !== undefined && durationMs > 0) {
+    currentMs = payload.position * durationMs;
+  }
+  if (audioOffsetMs > 0) {
+    currentMs = Number(currentMs || 0) + audioOffsetMs;
+    if (Number(durationMs) > 0) durationMs = Number(durationMs) + audioOffsetMs;
+  }
+  return {
+    currentMs,
+    durationMs,
+    hasPosition: Number(currentMs) > 0 || Number(payload.position) > 0,
+    seconds: Math.max(0, Math.floor((currentMs || 0) / 1000)),
+    durationSeconds: Math.max(0, Math.floor((durationMs || 0) / 1000)),
+  };
+}
+
+function applyPendingSeek(pendingSeekRef, lastKnownDurationRef, audioOffsetSeconds, playerRef) {
+  if (pendingSeekRef.current === null || pendingSeekRef.current === undefined || lastKnownDurationRef.current <= 0) return;
+  const playerDuration = Math.max(0, lastKnownDurationRef.current - audioOffsetSeconds);
+  const playerTarget = Math.max(0, Number(pendingSeekRef.current) - audioOffsetSeconds);
+  const ratio = Math.max(0, Math.min(1, playerTarget / Math.max(playerDuration, 1)));
+  pendingSeekRef.current = null;
+  try {
+    if (typeof playerRef.current?.seek === 'function') playerRef.current.seek(ratio);
+  } catch {
+    // Native seek is best-effort while the player is transitioning.
+  }
+}
+
+function applyProgressState(progress, state) {
+  if (!progress) return;
+  if (progress.hasPosition) {
+    state.hasStartedPlaybackRef.current = true;
+    state.clearAudioOnlyFallbackTimer();
+    state.clearBufferingIndicator();
+  } else if (state.hasStartedPlaybackRef.current) {
+    state.clearBufferingIndicator();
+  }
+  if (progress.durationSeconds > 0) {
+    state.setDuration(progress.durationSeconds);
+    state.lastKnownDurationRef.current = progress.durationSeconds;
+  }
+
+  applyPendingSeek(state.pendingSeekRef, state.lastKnownDurationRef, state.audioOffsetSeconds, state.playerRef);
+  const now = Date.now();
+  if (state.isSeeking.current && now - state.seekCompletedAt.current > 2000) state.isSeeking.current = false;
+  if (!state.isSeeking.current && now - state.seekCompletedAt.current > 1000) {
+    state.setCurrentTime(progress.seconds);
+    state.lastKnownTimeRef.current = progress.seconds;
+    state.setSliderPosition(progress.seconds);
+  }
+}
+
+function handlePinchMove(touches, zoomState) {
+  if (touches?.length !== 2) return false;
+  const [firstTouch, secondTouch] = touches;
+  const currentDistance = Math.hypot(firstTouch.pageX - secondTouch.pageX, firstTouch.pageY - secondTouch.pageY);
+  if (zoomState.initialDistance.current === 0) {
+    zoomState.initialDistance.current = currentDistance;
+    zoomState.initialScale.current = zoomState.scale.current;
+    return true;
+  }
+  if (zoomState.initialDistance.current > 0 && currentDistance > 0) {
+    const ratio = currentDistance / zoomState.initialDistance.current;
+    const nextScale = Math.max(0.25, Math.min(3.5, zoomState.initialScale.current * ratio));
+    zoomState.scale.current = nextScale;
+    zoomState.setScale(nextScale);
+    zoomState.setBadge(`${Math.round(nextScale * 100)}% Zoom`);
+    if (zoomState.badgeTimer.current) clearTimeout(zoomState.badgeTimer.current);
+    zoomState.badgeTimer.current = setTimeout(() => zoomState.setBadge(''), 1500);
+  }
+  return true;
+}
+
+function handleVerticalGestureMove(touches, gestureState) {
+  if (!isWeb() || gestureState.isLocked.current) return;
+  const touch = touches?.[0];
+  if (!touch) return;
+  const deltaY = gestureState.startY.current - touch.pageY;
+  const deltaX = Math.abs(touch.pageX - gestureState.startX.current);
+  if (!gestureState.isSwiping.current && Math.abs(deltaY) > 10 && Math.abs(deltaY) > deltaX * 0.8) {
+    gestureState.isSwiping.current = true;
+  }
+  if (!gestureState.isSwiping.current) return;
+  const dragHeight = Math.max(180, (gestureState.windowHeight.current || 400) * 0.55);
+  const deltaPercent = (deltaY / dragHeight) * 100;
+  if (gestureState.side.current === 'brightness') {
+    const value = Math.max(0.1, Math.min(1, Number(((gestureState.startValue.current * 100 + deltaPercent) / 100).toFixed(2))));
+    gestureState.commitBrightness.current(value);
+    return;
+  }
+  const volume = Math.max(0, Math.min(100, Math.round(gestureState.startValue.current + deltaPercent)));
+  gestureState.commitVolume.current(volume);
+}
+
+function handleYouTubePlaybackState(state, playback) {
+  if (state === 'playing') {
+    playback.isPlayingRef.current = true;
+    playback.setIsPlaying(true);
+  } else if (state === 'paused' || state === 'ended') {
+    playback.isPlayingRef.current = false;
+    playback.setIsPlaying(false);
+  }
+}
+
+function PlatformMediaSurface(props) {
+  const {
+    youtubeVideoId, playerStreamUrl, vlcRef, isPlaying, muted, videoOnlyMode,
+    volume, playbackRate, aspectRatio, title, posterUrl, isLive, isAudioOnly,
+    selectedAudioTrack, handleTracksChanged, handleProgress, handleNativePlaying,
+    handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
+    handleSeekByAction, handlePlaybackRoute, exoFallback, useExoForAndroidLocalMedia,
+    nativeSource, computedAspectRatio, handleNativeLoadStart,
+    handleNativeOpen, handleNativeBuffering, isPlayingRef, setIsPlaying,
+  } = props;
+  if (youtubeVideoId) {
+    return (
+      <YouTubeVideoPlayer
+        key={`youtube-${youtubeVideoId}`}
+        ref={vlcRef}
+        videoId={youtubeVideoId}
+        paused={!isPlaying}
+        muted={muted || videoOnlyMode}
+        volume={volume / 100}
+        playbackRate={playbackRate}
+        onReady={(event) => {
+          props.clearBufferingIndicator();
+          props.handleNativeOpen(event);
+        }}
+        onProgress={handleProgress}
+        onPlaying={handleNativePlaying}
+        onStateChange={(state) => handleYouTubePlaybackState(state, { isPlayingRef, setIsPlaying })}
+        onBuffering={handleWebBuffering}
+        onEnded={handleEpisodeEnded}
+        onError={handleWebError}
+      />
+    );
+  }
+  if (isElectron()) {
+    return (
+      <ElectronVideoPlayer
+        key={`electron-vlc-${playerStreamUrl}`}
+        ref={vlcRef}
+        streamUrl={playerStreamUrl}
+        paused={!isPlaying}
+        muted={muted || videoOnlyMode}
+        volume={muted || videoOnlyMode ? 0 : volume}
+        playbackRate={playbackRate}
+        videoAspectRatio={aspectRatio}
+        title={title}
+        posterUrl={posterUrl}
+        isLive={isLive}
+        audioOnly={isAudioOnly}
+        audioTrack={selectedAudioTrack}
+        onTracksChanged={handleTracksChanged}
+        onProgress={handleProgress}
+        onPlaying={handleNativePlaying}
+        onPlaybackStateChange={togglePlayPause}
+        onBuffering={handleWebBuffering}
+        onEnded={handleEpisodeEnded}
+        onError={handleWebError}
+        onClose={props.handleClose}
+        onPlaybackRoute={handlePlaybackRoute}
+      />
+    );
+  }
+  if (isWeb()) {
+    return (
+      <WebVideoPlayer
+        key={`web-${playerStreamUrl}`}
+        ref={vlcRef}
+        streamUrl={playerStreamUrl}
+        paused={!isPlaying}
+        muted={muted || videoOnlyMode}
+        volume={muted || videoOnlyMode ? 0 : volume}
+        playbackRate={playbackRate}
+        videoAspectRatio={aspectRatio}
+        title={title}
+        posterUrl={posterUrl}
+        isLive={isLive}
+        audioOnly={isAudioOnly}
+        videoOnly={videoOnlyMode}
+        audioTrack={selectedAudioTrack}
+        onTracksChanged={handleTracksChanged}
+        onProgress={handleProgress}
+        onPlaying={handleNativePlaying}
+        onBuffering={handleWebBuffering}
+        onEnded={handleEpisodeEnded}
+        onError={handleWebError}
+        onTogglePlayPause={togglePlayPause}
+        onSeekBy={handleSeekByAction}
+        onPlaybackRoute={handlePlaybackRoute}
+      />
+    );
+  }
+  if (VLC_AVAILABLE && !useExoForAndroidLocalMedia) {
+    return (
+      <VLCBoundary key={`vlcb-${playerStreamUrl}`} fallback={exoFallback}>
+        <VLCPlayer
+          rate={playbackRate}
+          key={`vlc-${playerStreamUrl}`}
+          ref={vlcRef}
+          style={styles.video}
+          autoAspectRatio={false}
+          videoAspectRatio={computedAspectRatio}
+          audioTrack={selectedAudioTrack}
+          autoplay={true}
+          paused={!isPlaying}
+          muted={false}
+          volume={muted || videoOnlyMode ? 0 : volume}
+          playInBackground={isAudioOnly}
+          playWhenInactive={isAudioOnly}
+          source={nativeSource}
+          onLoadStart={handleNativeLoadStart}
+          onProgress={handleProgress}
+          onVLCProgress={handleProgress}
+          onPlaying={handleNativePlaying}
+          onVLCPlaying={handleNativePlaying}
+          onOpen={handleNativeOpen}
+          onVLCOpened={handleNativeOpen}
+          onEnd={handleEpisodeEnded}
+          onBuffering={handleNativeBuffering}
+          onVLCBuffering={handleNativeBuffering}
+          onError={handleWebError}
+          onVLCError={handleWebError}
+        />
+      </VLCBoundary>
+    );
+  }
+  return exoFallback;
+}
+
+function InlinePreviewTopActions({ controls, muted, videoOnlyMode, handleMuteAction }) {
+  return (
+    <View style={styles.inlinePreviewTopRow} pointerEvents="box-none">
+      <View style={styles.inlineLiveBadge} pointerEvents="none">
+        <View style={styles.inlineLiveDot} />
+        <Text style={styles.inlineLiveText}>LIVE</Text>
+      </View>
+      <View style={{ flex: 1 }} />
+      {controls.mute !== false ? (
+        <TouchableOpacity
+          style={styles.inlinePreviewIconButton}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={muted ? 'Unmute video' : 'Mute video'}
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            handleMuteAction();
+          }}
+        >
+          <PlayerIcon name={muted || videoOnlyMode ? 'volume-off' : 'volume-high'} size={19} color="#FFF" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+function InlinePreviewCenterAction({ controls, colors, isPlaying, handlePlayPauseAction }) {
+  return (
+    <View style={styles.inlinePreviewCenterControls} pointerEvents="box-none">
+      {controls.playPause !== false ? (
+        <TouchableOpacity
+          style={[styles.inlinePreviewCenterButton, { backgroundColor: colors?.brandAccent || (colors?.mode === 'dark' ? '#FF9A86' : '#D95045') }]}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Pause preview' : 'Play preview'}
+          onPress={(event) => {
+            event?.stopPropagation?.();
+            handlePlayPauseAction();
+          }}
+        >
+          <PlayerIcon name={isPlaying ? 'pause' : 'play'} size={27} color="#FFF" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+function InlinePreviewBottomActions({
+  controls, title, showInlineChatButton, showLiveChat, handlePanelAction,
+  isFullscreen, handleFullscreenAction, invokeAction, onPromotePreview, mediaId,
+}) {
+  return (
+    <View style={styles.inlinePreviewBottomRow} pointerEvents="box-none">
+      <Text style={styles.inlinePreviewTitle} numberOfLines={1} pointerEvents="none">{title || 'Live TV'}</Text>
+      <View style={styles.inlinePreviewActions} pointerEvents="box-none">
+        {controls.liveChat !== false && showInlineChatButton && !showLiveChat ? (
+          <TouchableOpacity
+            style={styles.inlineChatButton}
+            activeOpacity={0.84}
+            accessibilityRole="button"
+            accessibilityLabel="Open live chat"
+            onPress={(event) => {
+              event?.stopPropagation?.();
+              handlePanelAction('chat');
+            }}
+          >
+            <PlayerIcon name="comment-text-outline" size={17} color="#FFF" />
+            <Text style={styles.inlineChatButtonText}>Live Chat</Text>
+          </TouchableOpacity>
+        ) : null}
+        {controls.fullscreen !== false ? (
+          <TouchableOpacity
+            style={styles.inlinePreviewIconButton}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isFullscreen ? 'Exit fullscreen' : 'Open live player'}
+            onPress={(event) => {
+              event?.stopPropagation?.();
+              if (isFullscreen) handleFullscreenAction();
+              else invokeAction('onFullscreen', onPromotePreview, { title, mediaId });
+            }}
+          >
+            <PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={20} color="#FFF" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function InlinePreviewFeedback({ isLoading, errorMessage }) {
+  if (isLoading && !errorMessage) {
+    return (
+      <View pointerEvents="none" style={styles.inlinePreviewLoading}>
+        <View style={styles.inlinePreviewLoadingPill}>
+          <ActivityIndicator size="small" color="#FFF" />
+          <Text style={styles.inlinePreviewLoadingText}>Loading stream…</Text>
+        </View>
+      </View>
+    );
+  }
+  if (!errorMessage) return null;
+  return (
+    <View pointerEvents="none" style={styles.inlinePreviewError}>
+      <PlayerIcon name="alert-circle-outline" size={20} color="#FFF" />
+      <Text style={styles.inlinePreviewErrorText} numberOfLines={2}>{errorMessage}</Text>
+    </View>
+  );
+}
+
+function InlinePreviewFrame({
+  hostRef, isValidPreviewRect, positionStyle, videoPlayer, title, onPromotePreview,
+  controls, colors, muted, videoOnlyMode, handleMuteAction, isPlaying,
+  handlePlayPauseAction, showInlineChatButton, showLiveChat, handlePanelAction,
+  isFullscreen, handleFullscreenAction, invokeAction, mediaId, isLoading,
+  errorMessage, children,
+}) {
+  return (
+    <View
+      ref={hostRef}
+      collapsable={false}
+      pointerEvents={!isValidPreviewRect ? 'box-none' : 'auto'}
+      style={[styles.playerHost, styles.playerHostInline, positionStyle]}
+    >
+      <View collapsable={false} pointerEvents="auto" style={styles.inlineVideoStage}>
+        <View collapsable={false} pointerEvents="none" style={styles.videoContainer}>{videoPlayer}</View>
+        <View style={styles.inlinePreviewChrome} pointerEvents="box-none">
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${title || 'live channel'} in the video player`}
+            onPress={onPromotePreview}
+          />
+          <InlinePreviewTopActions controls={controls} muted={muted} videoOnlyMode={videoOnlyMode} handleMuteAction={handleMuteAction} />
+          <InlinePreviewCenterAction controls={controls} colors={colors} isPlaying={isPlaying} handlePlayPauseAction={handlePlayPauseAction} />
+          <InlinePreviewBottomActions
+            controls={controls}
+            title={title}
+            showInlineChatButton={showInlineChatButton}
+            showLiveChat={showLiveChat}
+            handlePanelAction={handlePanelAction}
+            isFullscreen={isFullscreen}
+            handleFullscreenAction={handleFullscreenAction}
+            invokeAction={invokeAction}
+            onPromotePreview={onPromotePreview}
+            mediaId={mediaId}
+          />
+          <InlinePreviewFeedback isLoading={isLoading} errorMessage={errorMessage} />
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
+  return (
+    <View
+      collapsable={false}
+      pointerEvents="none"
+      style={[
+        styles.videoContainer,
+        styles.videoWrapFullscreen,
+        zoomScale !== 1 && { transform: [{ scale: zoomScale }] },
+        isAudioOnly && { opacity: 0 },
+      ]}
+    >
+      {videoPlayer}
+    </View>
+  );
+}
+
+function FullscreenGestureLayer({ isAudioOnly, panResponder, handlers }) {
+  if (isAudioOnly) return null;
+  if (!isWeb() && panResponder) {
+    return (
+      <View collapsable={false} style={[StyleSheet.absoluteFill, styles.gestureCatcher]} {...panResponder.panHandlers} />
+    );
+  }
+  return (
+    <View
+      collapsable={false}
+      style={[StyleSheet.absoluteFill, styles.gestureCatcher]}
+      onPointerDown={handlers.onPointerDown}
+      onPointerMove={handlers.onPointerMove}
+      onPointerUp={handlers.onPointerUp}
+      onPointerCancel={handlers.onPointerUp}
+      onMouseDown={handlers.onMouseDown}
+      onTouchStart={handlers.onTouchStart}
+      onTouchMove={handlers.onTouchMove}
+      onTouchEnd={handlers.onTouchEnd}
+    />
+  );
+}
+
+function FullscreenControlsLayer({ showControls, isLocked, isAudioOnly, children }) {
+  if (!showControls || isLocked || isAudioOnly) return null;
+  return <View style={styles.controlsShell} pointerEvents="box-none">{children}</View>;
+}
+
+function FullscreenControlsPanel(props) {
+  return (
+    <>
+      <PlayerTopBar
+        insets={props.insets}
+        scale={props.scale}
+        title={props.title}
+        episodeLabel={props.episodeLabel}
+        isLive={props.isLive}
+        isScreenRecorderEnabled={props.isScreenRecorderEnabled}
+        recStatus={props.recStatus}
+        isLoading={props.isLoading}
+        showLiveChat={props.showLiveChat}
+        drawerTab={props.drawerTab}
+        isLiveCommentsEnabled={props.isLiveCommentsEnabled}
+        isEpgEnabled={props.isEpgEnabled}
+        diagnosticsOverlayEnabled={props.diagnosticsOverlayEnabled}
+        muted={props.muted}
+        controls={props.controls}
+        onClose={props.onClose}
+        onStartRecording={(event) => props.handleRecordingAction('onRecordingStart', props.handleStartRecording, event)}
+        onResumeRecording={(event) => props.handleRecordingAction('onRecordingResume', props.handleResumeRecording, event)}
+        onPauseRecording={(event) => props.handleRecordingAction('onRecordingPause', props.handlePauseRecording, event)}
+        onStopRecording={(event) => props.handleRecordingAction('onRecordingStop', props.handleStopRecording, event)}
+        onToggleChatTab={props.handlePanelAction}
+        onRestart={props.handleRestartAction}
+        onToggleMute={props.handleMuteAction}
+        onToggleLock={props.handleLockAction}
+        onMinimize={props.handleMinimizeAction}
+      />
+      <CenterControls
+        visible={!props.isAudioOnly && props.controls.playPause !== false}
+        isLive={props.isLive}
+        isPlaying={props.isPlaying}
+        onSeekBy={props.handleSeekByAction}
+        onTogglePlayPause={props.handlePlayPauseAction}
+      />
+      <PlayerBottomBar
+        isLive={props.isLive}
+        insets={props.insets}
+        scale={props.scale}
+        isSeeking={props.isSeeking}
+        sliderPos={props.sliderPos}
+        currentTime={props.currentTime}
+        duration={props.duration}
+        isAudioOnlyFeatureEnabled={props.isAudioOnlyFeatureEnabled}
+        isAudioOnly={props.isAudioOnly}
+        isVideoOnly={props.videoOnlyMode}
+        controls={props.controls}
+        showAspectPicker={props.showAspectPicker}
+        aspectRatio={props.aspectRatio}
+        showSpeedPicker={props.showSpeedPicker}
+        playbackRate={props.playbackRate}
+        showAudioPicker={props.showAudioPicker}
+        audioTracks={props.audioTracks}
+        selectedAudioTrack={props.selectedAudioTrack}
+        isFullscreen={props.isFullscreen}
+        onSliderValueChange={props.onSliderValueChange}
+        onSliderSlidingStart={props.onSliderSlidingStart}
+        onSliderSlidingComplete={props.onSliderSlidingComplete}
+        onToggleAudioOnly={props.onToggleAudioOnly}
+        onToggleAspectPicker={props.onToggleAspectPicker}
+        onSelectAspectRatio={props.onSelectAspectRatio}
+        onToggleSpeedPicker={props.onToggleSpeedPicker}
+        onSelectSpeed={props.handleSpeedSelect}
+        onToggleAudioPicker={props.onToggleAudioPicker}
+        onSelectAudioTrack={props.handleAudioTrackAction}
+        onToggleFullscreen={props.handleFullscreenAction}
+        onToggleVideoOnly={props.handleVideoOnlyAction}
+      />
+    </>
+  );
+}
+
+function FullscreenVisualFeedback({ isAudioOnly, isWebPlatform, brightness, zoomBadgeText, seekRipple }) {
+  return (
+    <>
+      {isWebPlatform && !isAudioOnly && brightness < 1 ? (
+        <View
+          style={[styles.brightnessDimOverlay, { opacity: Math.max(0, Math.min(0.88, (1 - brightness) * 0.95)) }]}
+          pointerEvents="none"
+        />
+      ) : null}
+      {zoomBadgeText && !isAudioOnly ? (
+        <View style={styles.zoomBadge} pointerEvents="none"><Text style={styles.zoomBadgeText}>{zoomBadgeText}</Text></View>
+      ) : null}
+      {seekRipple && !isAudioOnly ? (
+        <View style={[styles.seekRippleOverlay, seekRipple.side === 'left' ? styles.seekRippleLeft : styles.seekRippleRight]} pointerEvents="none">
+          <View style={styles.seekRippleCircle}>
+            <PlayerIcon name={seekRipple.side === 'left' ? 'rewind-10' : 'fast-forward-10'} size={48} color="#FFFFFF" />
+            <Text style={styles.seekRippleText}>{seekRipple.text}</Text>
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function FullscreenStatusLayer({
+  isAudioOnly, audioOnlyProps, isLoading, errorMessage, scale, handleClose,
+}) {
+  return (
+    <>
+      {isAudioOnly ? <AudioOnlyView {...audioOnlyProps} /> : null}
+      {isLoading && !errorMessage ? (
+        <View pointerEvents="none" style={styles.loadingLayer}>
+          <ActivityIndicator size="large" color="#00E5FF" />
+          <Text style={[styles.loadingText, { fontSize: scale.loadingFont, fontWeight: scale.loadingWeight }]}>Loading stream...</Text>
+        </View>
+      ) : null}
+      {errorMessage ? (
+        <View style={styles.centeredOverlay}>
+          <PlayerIcon name="alert-circle-outline" size={48} color="#FF5252" />
+          <Text style={[styles.errorTitle, { fontSize: scale.errorTitleFont, fontWeight: scale.errorTitleWeight }]}>Playback Error</Text>
+          <Text style={[styles.errorMsg, { fontSize: scale.errorMsgFont }]}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.errorBtn} onPress={handleClose}>
+            <Text style={[styles.errorBtnText, { fontWeight: scale.errorBtnWeight }]}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+function FullscreenChatLayer(props) {
+  if (!props.visible || props.isAudioOnly) return null;
+  return (
+    <LiveChatDrawer
+      videoId={props.mediaId || props.title || 'live'}
+      userId={props.currentUser.id}
+      username={props.currentUser.username}
+      visible={props.visible}
+      onClose={props.onClose}
+      isLandscape={props.isLandscape}
+      initialTab={props.drawerTab}
+      streamUrl={props.playbackUrl || props.streamUrl || ''}
+      serverUrl={props.playbackUrl || props.streamUrl || ''}
+      isLive={props.isLive}
+      isLiveCommentsEnabled={props.isLiveCommentsEnabled}
+      isEpgEnabled={props.isEpgEnabled}
+      diagnosticsEnabled={props.diagnosticsEnabled}
+      title={props.title}
+      streamId={props.mediaId}
+      integrations={props.integrations}
+      colors={props.colors}
+    />
+  );
+}
+
+function FullscreenRecordingLayer(props) {
+  return (
+    <>
+      {!props.isAudioOnly && props.isLive && (props.isScreenRecorderEnabled || props.recStatus !== 'idle') ? (
+        <LiveRecordingOverlay
+          status={props.recStatus}
+          elapsedMs={props.recElapsedMs}
+          colors={props.colors}
+          topInset={Math.max(props.insets?.top || 0, 12) + 8}
+          showTransport
+          onPause={props.handlePauseRecording}
+          onResume={props.handleResumeRecording}
+          onStop={props.handleStopRecording}
+        />
+      ) : null}
+      {!props.isAudioOnly && props.isLive && props.isScreenRecorderEnabled ? (
+        <LiveRecordingNotice notice={props.recNotice} colors={props.colors} onDismiss={props.onDismissNotice} />
+      ) : null}
+    </>
+  );
+}
+
+function FullscreenSessionLayer({ locked, controlsVisible, insets, scale, onToggleLock }) {
+  return locked && controlsVisible ? (
+        <TouchableOpacity
+          style={[styles.floatingLockBtn, {
+            top: Math.max(insets?.top || 0, 24),
+            right: Math.max(insets?.left || 0, insets?.right || 0, 20),
+          }]}
+          onPress={(event) => {
+            event.stopPropagation();
+            onToggleLock();
+          }}
+          activeOpacity={0.8}
+          hitSlop={16}
+        >
+          <PlayerIcon name="lock" size={22} color="#FF5252" />
+          <Text style={[styles.floatingLockText, { fontSize: scale.lockTextFont, fontWeight: scale.lockTextWeight }]}>Locked</Text>
+        </TouchableOpacity>
+  ) : null;
+}
+
+function isUsableInlinePreviewRect(rect) {
+  return Boolean(rect && rect.width > 20 && rect.height > 20 && rect.x > -1000 && rect.y > -1000);
+}
+
+function getInlinePreviewPositionStyle(rect, isValid) {
+  if (!isValid) return { opacity: 0 };
+  const clippingStyle = isWeb() && rect.clipTop > 0
+    ? { clipPath: `inset(${rect.clipTop}px 0 0 0)`, WebkitClipPath: `inset(${rect.clipTop}px 0 0 0)` }
+    : {};
+  return {
+    position: isWeb() ? 'fixed' : 'absolute',
+    top: rect.y,
+    left: rect.x,
+    right: null,
+    bottom: null,
+    width: rect.width,
+    height: rect.height,
+    ...clippingStyle,
+  };
+}
+
 export const MediaPlayerView = ({
   visible,
   streamUrl,
@@ -1100,74 +1751,25 @@ export const MediaPlayerView = ({
   const handleProgress = (data) => {
     onProgress?.(data);
     setErrorMessage(null);
-    if (data) {
-      const payload = data.nativeEvent || data;
-      let rawCur = payload.currentTime;
-      let rawDur = payload.duration;
-
-      if ((rawCur === null || rawCur === undefined || rawCur === 0) && payload.position !== null && payload.position !== undefined && rawDur > 0) {
-        rawCur = payload.position * rawDur;
-      }
-
-      // The audio proxy starts a VOD at the position where audio mode was
-      // enabled. Keep the UI, autosave, and later video resume on the
-      // original absolute timeline instead of the proxy's relative timeline.
-      const audioOffsetMs = audioOnlyUsesProxy && !isLive
-        ? Number(audioModeStartPositionRef.current || 0) * 1000
-        : 0;
-      if (audioOffsetMs > 0) {
-        rawCur = Number(rawCur || 0) + audioOffsetMs;
-        if (Number(rawDur) > 0) rawDur = Number(rawDur) + audioOffsetMs;
-      }
-
-      const hasPosition = Number(rawCur) > 0 || Number(payload.position) > 0;
-      if (hasPosition) {
-        hasStartedPlaybackRef.current = true;
-        clearAudioOnlyFallbackTimer();
-        clearBufferingIndicator();
-      } else if (hasStartedPlaybackRef.current) {
-        clearBufferingIndicator();
-      }
-
-      const sec = Math.max(0, Math.floor((rawCur || 0) / 1000));
-      const durSec = Math.max(0, Math.floor((rawDur || 0) / 1000));
-
-      if (durSec > 0) {
-        setDuration(durSec);
-        lastKnownDurRef.current = durSec;
-      }
-
-      if (pendingSeekRef.current !== null && pendingSeekRef.current !== undefined && lastKnownDurRef.current > 0) {
-        const audioOffset = audioOnlyUsesProxy && !isLive
-          ? Number(audioModeStartPositionRef.current || 0)
-          : 0;
-        const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffset);
-        const playerTarget = Math.max(0, Number(pendingSeekRef.current) - audioOffset);
-        const ratio = Math.max(
-          0,
-          Math.min(1, playerTarget / Math.max(playerDuration, 1))
-        );
-        pendingSeekRef.current = null;
-        try {
-          if (vlcRef.current && typeof vlcRef.current.seek === 'function') {
-            vlcRef.current.seek(ratio);
-          }
-        } catch (e) {
-          // seek is best-effort; ignore player-specific failures
-        }
-      }
-
-      // Auto-recover if isSeeking gets stuck for > 2 seconds without slider events
-      if (isSeeking.current && Date.now() - seekCompletedAt.current > 2000) {
-        isSeeking.current = false;
-      }
-
-      if (!isSeeking.current && Date.now() - seekCompletedAt.current > 1000) {
-        setCurrentTime(sec);
-        lastKnownTimeRef.current = sec;
-        setSliderPos(sec);
-      }
-    }
+    const audioOffsetSeconds = audioOnlyUsesProxy && !isLive
+      ? Number(audioModeStartPositionRef.current || 0)
+      : 0;
+    const progress = normalizeProgressEvent(data, audioOffsetSeconds * 1000);
+    applyProgressState(progress, {
+      hasStartedPlaybackRef,
+      clearAudioOnlyFallbackTimer,
+      clearBufferingIndicator,
+      setDuration,
+      lastKnownDurationRef: lastKnownDurRef,
+      pendingSeekRef,
+      audioOffsetSeconds,
+      playerRef: vlcRef,
+      isSeeking,
+      seekCompletedAt,
+      setCurrentTime,
+      lastKnownTimeRef,
+      setSliderPosition: setSliderPos,
+    });
   };
 
   const handleNativeOpen = (event) => {
@@ -1449,61 +2051,29 @@ export const MediaPlayerView = ({
       },
       onPanResponderMove: (evt, _gestureState) => {
         const touches = evt.nativeEvent.touches;
-        if (touches?.length === 2) {
-          const [t1, t2] = touches;
-          const dx = t1.pageX - t2.pageX;
-          const dy = t1.pageY - t2.pageY;
-          const currentDistance = Math.hypot(dx, dy);
+        const zoomState = {
+          initialDistance: initialDistanceRef,
+          initialScale: initialScaleRef,
+          scale: zoomScaleRef,
+          setScale: setZoomScale,
+          setBadge: setZoomBadgeText,
+          badgeTimer: zoomBadgeTimer,
+        };
+        if (handlePinchMove(touches, zoomState)) return;
 
-          if (initialDistanceRef.current === 0) {
-            initialDistanceRef.current = currentDistance;
-            initialScaleRef.current = zoomScaleRef.current;
-            return;
-          }
-
-          if (initialDistanceRef.current > 0 && currentDistance > 0) {
-            const ratio = currentDistance / initialDistanceRef.current;
-            const newScale = Math.max(0.25, Math.min(3.5, initialScaleRef.current * ratio));
-            zoomScaleRef.current = newScale;
-            setZoomScale(newScale);
-
-            setZoomBadgeText(`${Math.round(newScale * 100)}% Zoom`);
-            if (zoomBadgeTimer.current) clearTimeout(zoomBadgeTimer.current);
-            zoomBadgeTimer.current = setTimeout(() => {
-              setZoomBadgeText('');
-            }, 1500);
-          }
-          return;
-        }
-
-        // The native brightness/volume bars are temporarily disabled while
-        // the mobile gesture implementation is being reworked. Keep the
-        // responder alive for pinch zoom and tap-to-toggle controls, but do
-        // not mutate hidden brightness/volume state on Android or iOS.
-        if (!isWeb()) return;
-        if (isLockedRef.current) return;
-        const touch = touches?.[0];
-        if (!touch) return;
-
-        const dy = gestureStartYRef.current - touch.pageY; // dragging UP is positive
-        const dx = Math.abs(touch.pageX - gestureStartXRef.current);
-
-        if (!isSwipingRef.current && Math.abs(dy) > 10 && Math.abs(dy) > dx * 0.8) {
-          isSwipingRef.current = true;
-        }
-
-        if (isSwipingRef.current) {
-          const dragHeight = Math.max(180, (windowHeightRef.current || 400) * 0.55);
-          const deltaPercent = (dy / dragHeight) * 100;
-
-          if (gestureSideRef.current === 'brightness') {
-            const next = Math.max(0.1, Math.min(1.0, Number(((gestureStartValRef.current * 100 + deltaPercent) / 100).toFixed(2))));
-            commitBrightnessRef.current(next);
-          } else {
-            const next = Math.max(0, Math.min(100, Math.round(gestureStartValRef.current + deltaPercent)));
-            commitVolumeRef.current(next);
-          }
-        }
+        // Brightness/volume swipes remain disabled on native platforms while
+        // pinch zoom and tap-to-toggle controls stay enabled.
+        handleVerticalGestureMove(touches, {
+          isLocked: isLockedRef,
+          startY: gestureStartYRef,
+          startX: gestureStartXRef,
+          isSwiping: isSwipingRef,
+          windowHeight: windowHeightRef,
+          side: gestureSideRef,
+          startValue: gestureStartValRef,
+          commitBrightness: commitBrightnessRef,
+          commitVolume: commitVolumeRef,
+        });
       },
       onPanResponderTerminate: () => {
         initialDistanceRef.current = 0;
@@ -1873,296 +2443,185 @@ export const MediaPlayerView = ({
     />
   );
 
-  let videoPlayer;
-  if (youtubeVideoId) {
-    videoPlayer = (
-      <YouTubeVideoPlayer
-        key={`youtube-${youtubeVideoId}`}
-        ref={vlcRef}
-        videoId={youtubeVideoId}
-        paused={!isPlaying}
-        muted={muted || videoOnlyMode}
-        volume={volume / 100}
-        playbackRate={playbackRate}
-        onReady={(event) => {
-          clearBufferingIndicator();
-          handleNativeOpen(event);
-        }}
-        onProgress={handleProgress}
-        onPlaying={handleNativePlaying}
-        onStateChange={(state) => {
-          if (state === 'playing') {
-            isPlayingRef.current = true;
-            setIsPlaying(true);
-          } else if (state === 'paused' || state === 'ended') {
-            isPlayingRef.current = false;
-            setIsPlaying(false);
-          }
-        }}
-        onBuffering={(buffering) => handleWebBuffering(buffering)}
-        onEnded={handleEpisodeEnded}
-        onError={handleWebError}
-      />
-    );
-  } else if (isElectron()) {
-    videoPlayer = (
-      <ElectronVideoPlayer
-        key={`electron-vlc-${playerStreamUrl}`}
-        ref={vlcRef}
-        streamUrl={playerStreamUrl}
-        paused={!isPlaying}
-        muted={muted || videoOnlyMode}
-        volume={muted || videoOnlyMode ? 0 : volume}
-        playbackRate={playbackRate}
-        videoAspectRatio={aspectRatio}
-        title={title}
-        posterUrl={posterUrl}
-        isLive={isLive}
-        audioOnly={isAudioOnly}
-        audioTrack={selectedAudioTrack}
-        onTracksChanged={handleTracksChanged}
-        onProgress={handleProgress}
-        onPlaying={handleNativePlaying}
-        onPlaybackStateChange={togglePlayPause}
-        onBuffering={handleWebBuffering}
-        onEnded={handleEpisodeEnded}
-        onError={handleWebError}
-        onClose={handleClose}
-        onPlaybackRoute={handlePlaybackRoute}
-      />
-    );
-  } else if (isWeb()) {
-    videoPlayer = (
-      <WebVideoPlayer
-        key={`web-${playerStreamUrl}`}
-        ref={vlcRef}
-        streamUrl={playerStreamUrl}
-        paused={!isPlaying}
-        muted={muted || videoOnlyMode}
-        volume={muted || videoOnlyMode ? 0 : volume}
-        playbackRate={playbackRate}
-        videoAspectRatio={aspectRatio}
-        title={title}
-        posterUrl={posterUrl}
-        isLive={isLive}
-        audioOnly={isAudioOnly}
-        videoOnly={videoOnlyMode}
-        audioTrack={selectedAudioTrack}
-        onTracksChanged={handleTracksChanged}
-        onProgress={handleProgress}
-        onPlaying={handleNativePlaying}
-        onBuffering={handleWebBuffering}
-        onEnded={handleEpisodeEnded}
-        onError={handleWebError}
-        onTogglePlayPause={togglePlayPause}
-        onSeekBy={handleSeekByAction}
-        onPlaybackRoute={handlePlaybackRoute}
-      />
-    );
-  } else if (VLC_AVAILABLE && !useExoForAndroidLocalMedia) {
-    videoPlayer = (
-      <VLCBoundary key={`vlcb-${playerStreamUrl}`} fallback={exoFallback}>
-        {/* VLC's muted prop restores an internal pre-mute volume. Keep it
-            false and represent mute as volume=0 so a gesture cannot restore
-            stale volume or introduce native audio crackle. */}
-        <VLCPlayer
-          rate={playbackRate}
-          key={`vlc-${playerStreamUrl}`}
-          ref={vlcRef}
-          style={styles.video}
-          autoAspectRatio={false}
-          videoAspectRatio={computedAspectRatio}
-          audioTrack={selectedAudioTrack}
-          autoplay={true}
-          paused={!isPlaying}
-          muted={false}
-          volume={muted || videoOnlyMode ? 0 : volume}
-          playInBackground={isAudioOnly}
-          playWhenInactive={isAudioOnly}
-          source={nativeSource}
-          onLoadStart={handleNativeLoadStart}
-          onProgress={handleProgress}
-          onVLCProgress={handleProgress}
-          onPlaying={handleNativePlaying}
-          onVLCPlaying={handleNativePlaying}
-          onOpen={handleNativeOpen}
-          onVLCOpened={handleNativeOpen}
-          onEnd={handleEpisodeEnded}
-          onBuffering={handleNativeBuffering}
-          onVLCBuffering={handleNativeBuffering}
-          onError={handleWebError}
-          onVLCError={handleWebError}
-        />
-</VLCBoundary>
-    );
-  } else {
-    videoPlayer = exoFallback;
-  }
-  const isValidPreviewRect = Boolean(
-    inlinePreviewRect &&
-    inlinePreviewRect.width > 20 &&
-    inlinePreviewRect.height > 20 &&
-    inlinePreviewRect.x > -1000 &&
-    inlinePreviewRect.y > -1000
+  const videoPlayer = (
+    <PlatformMediaSurface
+      youtubeVideoId={youtubeVideoId}
+      playerStreamUrl={playerStreamUrl}
+      vlcRef={vlcRef}
+      isPlaying={isPlaying}
+      muted={muted}
+      videoOnlyMode={videoOnlyMode}
+      volume={volume}
+      playbackRate={playbackRate}
+      aspectRatio={aspectRatio}
+      title={title}
+      posterUrl={posterUrl}
+      isLive={isLive}
+      isAudioOnly={isAudioOnly}
+      selectedAudioTrack={selectedAudioTrack}
+      handleTracksChanged={handleTracksChanged}
+      handleProgress={handleProgress}
+      handleNativePlaying={handleNativePlaying}
+      handleWebBuffering={handleWebBuffering}
+      handleEpisodeEnded={handleEpisodeEnded}
+      handleWebError={handleWebError}
+      togglePlayPause={togglePlayPause}
+      handleSeekByAction={handleSeekByAction}
+      handlePlaybackRoute={handlePlaybackRoute}
+      exoFallback={exoFallback}
+      useExoForAndroidLocalMedia={useExoForAndroidLocalMedia}
+      nativeSource={nativeSource}
+      computedAspectRatio={computedAspectRatio}
+      handleNativeLoadStart={handleNativeLoadStart}
+      handleNativeOpen={handleNativeOpen}
+      clearBufferingIndicator={clearBufferingIndicator}
+      handleClose={handleClose}
+      handleNativeBuffering={handleNativeBuffering}
+      isPlayingRef={isPlayingRef}
+      setIsPlaying={setIsPlaying}
+    />
   );
-
-  const inlinePreviewPositionStyle = isValidPreviewRect
-    ? {
-        position: isWeb() ? 'fixed' : 'absolute',
-        top: inlinePreviewRect.y,
-        left: inlinePreviewRect.x,
-        right: null,
-        bottom: null,
-        width: inlinePreviewRect.width,
-        height: inlinePreviewRect.height,
-        ...(isWeb() && inlinePreviewRect.clipTop > 0
-          ? {
-              clipPath: `inset(${inlinePreviewRect.clipTop}px 0 0 0)`,
-              WebkitClipPath: `inset(${inlinePreviewRect.clipTop}px 0 0 0)`,
-            }
-          : {}),
-      }
-    : { opacity: 0 };
+  const isValidPreviewRect = isUsableInlinePreviewRect(inlinePreviewRect);
+  const inlinePreviewPositionStyle = getInlinePreviewPositionStyle(inlinePreviewRect, isValidPreviewRect);
 
   if (isInlinePreview) {
+    const liveChatDrawer = showLiveChat ? (
+      <LiveChatDrawer
+        videoId={mediaId || title || 'live'}
+        userId={currentUser.id}
+        username={currentUser.username}
+        visible={showLiveChat}
+        onClose={() => setShowLiveChat(false)}
+        isLandscape={windowWidth >= windowHeight}
+        initialTab="chat"
+        streamUrl={playbackUrl || streamUrl || ''}
+        serverUrl={playbackUrl || streamUrl || ''}
+        isLive={isLive}
+        isLiveCommentsEnabled={isLiveCommentsEnabled}
+        isEpgEnabled={isEpgEnabled}
+        diagnosticsEnabled={diagnosticsOverlayEnabled}
+        title={title}
+        streamId={mediaId}
+        popupMode
+        integrations={integrations}
+        colors={colors}
+      />
+    ) : null;
     return (
-      <View
-        ref={handlePlayerHostRef}
-        collapsable={false}
-        pointerEvents={!isValidPreviewRect ? 'box-none' : 'auto'}
-        style={[
-          styles.playerHost,
-          styles.playerHostInline,
-          inlinePreviewPositionStyle,
-        ]}
+      <InlinePreviewFrame
+        hostRef={handlePlayerHostRef}
+        isValidPreviewRect={isValidPreviewRect}
+        positionStyle={inlinePreviewPositionStyle}
+        videoPlayer={videoPlayer}
+        title={title}
+        onPromotePreview={onPromotePreview}
+        controls={controls}
+        colors={colors}
+        muted={muted}
+        videoOnlyMode={videoOnlyMode}
+        handleMuteAction={handleMuteAction}
+        isPlaying={isPlaying}
+        handlePlayPauseAction={handlePlayPauseAction}
+        showInlineChatButton={showInlineChatButton}
+        showLiveChat={showLiveChat}
+        handlePanelAction={handlePanelAction}
+        isFullscreen={isFullscreen}
+        handleFullscreenAction={handleFullscreenAction}
+        invokeAction={invokeAction}
+        mediaId={mediaId}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
       >
-        <View
-          collapsable={false}
-          pointerEvents="auto"
-          style={styles.inlineVideoStage}
-        >
-          <View collapsable={false} pointerEvents="none" style={styles.videoContainer}>
-            {videoPlayer}
-          </View>
-
-          <View style={styles.inlinePreviewChrome} pointerEvents="box-none">
-            <TouchableOpacity
-              style={StyleSheet.absoluteFill}
-              activeOpacity={1}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${title || 'live channel'} in the video player`}
-              onPress={onPromotePreview}
-            />
-            <View style={styles.inlinePreviewTopRow} pointerEvents="box-none">
-              <View style={styles.inlineLiveBadge} pointerEvents="none">
-                <View style={styles.inlineLiveDot} />
-                <Text style={styles.inlineLiveText}>LIVE</Text>
-              </View>
-              <View style={{ flex: 1 }} />
-              {controls.mute !== false ? <TouchableOpacity
-                style={styles.inlinePreviewIconButton}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={muted ? 'Unmute video' : 'Mute video'}
-                onPress={(event) => {
-                  event?.stopPropagation?.();
-                  handleMuteAction();
-                }}
-              >
-                <PlayerIcon name={muted || videoOnlyMode ? 'volume-off' : 'volume-high'} size={19} color="#FFF" />
-              </TouchableOpacity> : null}
-            </View>
-            <View style={styles.inlinePreviewCenterControls} pointerEvents="box-none">
-              {controls.playPause !== false ? <TouchableOpacity
-                style={[styles.inlinePreviewCenterButton, { backgroundColor: colors?.brandAccent || (colors?.mode === 'dark' ? '#FF9A86' : '#D95045') }]}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={isPlaying ? 'Pause preview' : 'Play preview'}
-                onPress={(event) => {
-                  event?.stopPropagation?.();
-                  handlePlayPauseAction();
-                }}
-              >
-                <PlayerIcon name={isPlaying ? 'pause' : 'play'} size={27} color="#FFF" />
-              </TouchableOpacity> : null}
-            </View>
-            <View style={styles.inlinePreviewBottomRow} pointerEvents="box-none">
-              <Text style={styles.inlinePreviewTitle} numberOfLines={1} pointerEvents="none">{title || 'Live TV'}</Text>
-              <View style={styles.inlinePreviewActions} pointerEvents="box-none">
-                {controls.liveChat !== false && showInlineChatButton && !showLiveChat ? (
-                  <TouchableOpacity
-                    style={styles.inlineChatButton}
-                    activeOpacity={0.84}
-                    accessibilityRole="button"
-                    accessibilityLabel="Open live chat"
-                    onPress={(event) => {
-                      event?.stopPropagation?.();
-                      handlePanelAction('chat');
-                    }}
-                  >
-                    <PlayerIcon name="comment-text-outline" size={17} color="#FFF" />
-                    <Text style={styles.inlineChatButtonText}>Live Chat</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {controls.fullscreen !== false ? <TouchableOpacity
-                  style={styles.inlinePreviewIconButton}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={isFullscreen ? 'Exit fullscreen' : 'Open live player'}
-                  onPress={(event) => {
-                    event?.stopPropagation?.();
-                    if (isFullscreen) handleFullscreenAction();
-                    else invokeAction('onFullscreen', onPromotePreview, { title, mediaId });
-                  }}
-                >
-                  <PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={20} color="#FFF" />
-                </TouchableOpacity> : null}
-              </View>
-            </View>
-            {isLoading && !errorMessage ? (
-              <View pointerEvents="none" style={styles.inlinePreviewLoading}>
-                <View style={styles.inlinePreviewLoadingPill}>
-                  <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.inlinePreviewLoadingText}>Loading stream…</Text>
-                </View>
-              </View>
-            ) : null}
-            {errorMessage ? (
-              <View pointerEvents="none" style={styles.inlinePreviewError}>
-                <PlayerIcon name="alert-circle-outline" size={20} color="#FFF" />
-                <Text style={styles.inlinePreviewErrorText} numberOfLines={2}>
-                  {errorMessage}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {showLiveChat ? (
-          <LiveChatDrawer
-            videoId={mediaId || title || 'live'}
-            userId={currentUser.id}
-            username={currentUser.username}
-            visible={showLiveChat}
-            onClose={() => setShowLiveChat(false)}
-            isLandscape={windowWidth >= windowHeight}
-            initialTab="chat"
-            streamUrl={playbackUrl || streamUrl || ''}
-            serverUrl={playbackUrl || streamUrl || ''}
-            isLive={isLive}
-            isLiveCommentsEnabled={isLiveCommentsEnabled}
-            isEpgEnabled={isEpgEnabled}
-            diagnosticsEnabled={diagnosticsOverlayEnabled}
-            title={title}
-            streamId={mediaId}
-            popupMode
-            integrations={integrations}
-            colors={colors}
-          />
-        ) : null}
-      </View>
+        {liveChatDrawer}
+      </InlinePreviewFrame>
     );
   }
+
+  const fullscreenControlsProps = {
+    insets,
+    scale,
+    title,
+    episodeLabel,
+    isLive,
+    isScreenRecorderEnabled,
+    recStatus,
+    isLoading,
+    showLiveChat,
+    drawerTab,
+    isLiveCommentsEnabled,
+    isEpgEnabled,
+    diagnosticsOverlayEnabled,
+    muted,
+    controls,
+    onClose: handleBackAction,
+    handleRecordingAction,
+    handleStartRecording,
+    handleResumeRecording,
+    handlePauseRecording,
+    handleStopRecording,
+    handlePanelAction,
+    handleRestartAction,
+    handleMuteAction,
+    handleLockAction,
+    handleMinimizeAction,
+    isAudioOnly,
+    isPlaying,
+    handleSeekByAction,
+    handlePlayPauseAction,
+    isSeeking,
+    sliderPos,
+    currentTime,
+    duration,
+    isAudioOnlyFeatureEnabled,
+    videoOnlyMode,
+    showAspectPicker,
+    aspectRatio,
+    showSpeedPicker,
+    playbackRate,
+    showAudioPicker,
+    audioTracks,
+    selectedAudioTrack,
+    isFullscreen,
+    onSliderValueChange: (value) => {
+      isSeeking.current = true;
+      setSliderPos(value);
+    },
+    onSliderSlidingStart: () => { isSeeking.current = true; },
+    onSliderSlidingComplete: (value) => {
+      isSeeking.current = false;
+      handleSeekAction(value);
+    },
+    onToggleAudioOnly: () => {
+      setShowAspectPicker(false);
+      setShowSpeedPicker(false);
+      setShowAudioPicker(false);
+      handleAudioOnlyAction();
+    },
+    onToggleAspectPicker: () => {
+      setShowSpeedPicker(false);
+      setShowAudioPicker(false);
+      setShowAspectPicker((previous) => !previous);
+    },
+    onSelectAspectRatio: (value) => {
+      handleAspectRatioAction(value);
+      setShowAspectPicker(false);
+      scheduleHide();
+    },
+    onToggleSpeedPicker: () => {
+      setShowAspectPicker(false);
+      setShowAudioPicker(false);
+      setShowSpeedPicker((previous) => !previous);
+    },
+    handleSpeedSelect,
+    onToggleAudioPicker: () => {
+      setShowAspectPicker(false);
+      setShowSpeedPicker(false);
+      setShowAudioPicker((previous) => !previous);
+    },
+    handleAudioTrackAction,
+    handleFullscreenAction,
+    handleVideoOnlyAction,
+  };
 
   const fullscreenContent = (
     <View
@@ -2172,295 +2631,82 @@ export const MediaPlayerView = ({
     >
       <StatusBar hidden={!showControls} translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Video Container */}
-      <View
-        collapsable={false}
-        pointerEvents="none"
-        style={[
-          styles.videoContainer,
-          styles.videoWrapFullscreen,
-          zoomScale !== 1 && { transform: [{ scale: zoomScale }] },
-          isAudioOnly && { opacity: 0 },
-        ]}
-      >
-        {videoPlayer}
-      </View>
-
-      {/* Software Screen Brightness Dimming Overlay */}
-      {isWeb() && !isAudioOnly && brightness < 1 && (
-        <View
-          style={[
-            styles.brightnessDimOverlay,
-            {
-              opacity: Math.max(0, Math.min(0.88, (1 - brightness) * 0.95)),
-            },
-          ]}
-          pointerEvents="none"
-        />
-      )}
-
-      {/* Pinch Zoom Level Badge Overlay */}
-      {!!zoomBadgeText && !isAudioOnly && (
-        <View style={styles.zoomBadge} pointerEvents="none">
-          <Text style={styles.zoomBadgeText}>{zoomBadgeText}</Text>
-        </View>
-      )}
-
-      {/* YouTube-Style Double Tap Seek Feedback Ripple Overlay */}
-      {seekRipple && !isAudioOnly && (
-        <View
-          style={[
-            styles.seekRippleOverlay,
-            seekRipple.side === 'left' ? styles.seekRippleLeft : styles.seekRippleRight,
-          ]}
-          pointerEvents="none"
-        >
-          <View style={styles.seekRippleCircle}>
-            <PlayerIcon
-              name={seekRipple.side === 'left' ? 'rewind-10' : 'fast-forward-10'}
-              size={48}
-              color="#FFFFFF"
-            />
-            <Text style={styles.seekRippleText}>{seekRipple.text}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Gesture Background Layer */}
-      {!isAudioOnly && (
-        !isWeb() && panResponder ? (
-          <View
-            collapsable={false}
-            style={[StyleSheet.absoluteFill, styles.gestureCatcher]}
-            {...panResponder.panHandlers}
-          />
-        ) : (
-          <View
-            collapsable={false}
-            style={[StyleSheet.absoluteFill, styles.gestureCatcher]}
-            onPointerDown={handleWebPointerDown}
-            onPointerMove={handleWebPointerMove}
-            onPointerUp={handleWebPointerUp}
-            onPointerCancel={handleWebPointerUp}
-            onMouseDown={handleWebMouseDown}
-            onTouchStart={handleWebTouchStart}
-            onTouchMove={handleWebTouchMove}
-            onTouchEnd={handleWebTouchEnd}
-          />
-        )
-      )}
+      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} />
+      <FullscreenVisualFeedback
+        isAudioOnly={isAudioOnly}
+        isWebPlatform={isWeb()}
+        brightness={brightness}
+        zoomBadgeText={zoomBadgeText}
+        seekRipple={seekRipple}
+      />
+      <FullscreenGestureLayer
+        isAudioOnly={isAudioOnly}
+        panResponder={panResponder}
+        handlers={{
+          onPointerDown: handleWebPointerDown,
+          onPointerMove: handleWebPointerMove,
+          onPointerUp: handleWebPointerUp,
+          onMouseDown: handleWebMouseDown,
+          onTouchStart: handleWebTouchStart,
+          onTouchMove: handleWebTouchMove,
+          onTouchEnd: handleWebTouchEnd,
+        }}
+      />
 
       {/* Controls Layer */}
       <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
-        {showControls && !isLocked && !isAudioOnly && (
-          <View style={styles.controlsShell} pointerEvents="box-none">
-            <PlayerTopBar
-              insets={insets}
-              scale={scale}
-              title={title}
-              episodeLabel={episodeLabel}
-              isLive={isLive}
-              isScreenRecorderEnabled={isScreenRecorderEnabled}
-              recStatus={recStatus}
-              isLoading={isLoading}
-              showLiveChat={showLiveChat}
-              drawerTab={drawerTab}
-              isLiveCommentsEnabled={isLiveCommentsEnabled}
-              isEpgEnabled={isEpgEnabled}
-              diagnosticsOverlayEnabled={diagnosticsOverlayEnabled}
-              muted={muted}
-              controls={controls}
-              onClose={handleBackAction}
-              onStartRecording={(event) => handleRecordingAction('onRecordingStart', handleStartRecording, event)}
-              onResumeRecording={(event) => handleRecordingAction('onRecordingResume', handleResumeRecording, event)}
-              onPauseRecording={(event) => handleRecordingAction('onRecordingPause', handlePauseRecording, event)}
-              onStopRecording={(event) => handleRecordingAction('onRecordingStop', handleStopRecording, event)}
-              onToggleChatTab={handlePanelAction}
-              onRestart={handleRestartAction}
-              onToggleMute={handleMuteAction}
-              onToggleLock={handleLockAction}
-              onMinimize={handleMinimizeAction}
-            />
-
-            <CenterControls
-              visible={!isAudioOnly && controls.playPause !== false}
-              isLive={isLive}
-              isPlaying={isPlaying}
-              onSeekBy={handleSeekByAction}
-              onTogglePlayPause={handlePlayPauseAction}
-            />
-
-            <PlayerBottomBar
-              isLive={isLive}
-              insets={insets}
-              scale={scale}
-              isSeeking={isSeeking}
-              sliderPos={sliderPos}
-              currentTime={currentTime}
-              duration={duration}
-              isAudioOnlyFeatureEnabled={isAudioOnlyFeatureEnabled}
-              isAudioOnly={isAudioOnly}
-              isVideoOnly={videoOnlyMode}
-              controls={controls}
-              showAspectPicker={showAspectPicker}
-              aspectRatio={aspectRatio}
-              showSpeedPicker={showSpeedPicker}
-              playbackRate={playbackRate}
-              showAudioPicker={showAudioPicker}
-              audioTracks={audioTracks}
-              selectedAudioTrack={selectedAudioTrack}
-              isFullscreen={isFullscreen}
-              onSliderValueChange={(v) => {
-                isSeeking.current = true;
-                setSliderPos(v);
-              }}
-              onSliderSlidingStart={() => {
-                isSeeking.current = true;
-              }}
-              onSliderSlidingComplete={(v) => {
-                isSeeking.current = false;
-                handleSeekAction(v);
-              }}
-              onToggleAudioOnly={() => {
-                setShowAspectPicker(false);
-                setShowSpeedPicker(false);
-                setShowAudioPicker(false);
-                handleAudioOnlyAction();
-              }}
-              onToggleAspectPicker={() => {
-                setShowSpeedPicker(false);
-                setShowAudioPicker(false);
-                setShowAspectPicker((prev) => !prev);
-              }}
-              onSelectAspectRatio={(val) => {
-                handleAspectRatioAction(val);
-                setShowAspectPicker(false);
-                scheduleHide();
-              }}
-              onToggleSpeedPicker={() => {
-                setShowAspectPicker(false);
-                setShowAudioPicker(false);
-                setShowSpeedPicker((prev) => !prev);
-              }}
-              onSelectSpeed={(speed) => {
-                handleSpeedSelect(speed);
-              }}
-              onToggleAudioPicker={() => {
-                setShowAspectPicker(false);
-                setShowSpeedPicker(false);
-                setShowAudioPicker((prev) => !prev);
-              }}
-              onSelectAudioTrack={(trackId) => {
-                handleAudioTrackAction(trackId);
-              }}
-              onToggleFullscreen={handleFullscreenAction}
-              onToggleVideoOnly={handleVideoOnlyAction}
-            />
-          </View>
-        )}
+        <FullscreenControlsLayer showControls={showControls} isLocked={isLocked} isAudioOnly={isAudioOnly}>
+          <FullscreenControlsPanel {...fullscreenControlsProps} />
+        </FullscreenControlsLayer>
       </View>
 
-      {isAudioOnly ? (
-        <AudioOnlyView
-          posterUrl={posterUrl}
-          title={title}
-          episodeLabel={episodeLabel}
-          isPlaying={isPlaying}
-          windowWidth={windowWidth}
-          windowHeight={windowHeight}
-          usesAudioProxy={audioOnlyUsesProxy}
-          onToggleAudioOnly={toggleAudioOnly}
-        />
-      ) : null}
-
-      {/* LOADING INDICATOR OVERLAY */}
-      {isLoading && !errorMessage && (
-        <View pointerEvents="none" style={styles.loadingLayer}>
-          <ActivityIndicator size="large" color="#00E5FF" />
-          <Text style={[styles.loadingText, { fontSize: scale.loadingFont, fontWeight: scale.loadingWeight }]}>
-            Loading stream...
-          </Text>
-        </View>
-      )}
-
-      {/* ERROR OVERLAY */}
-      {errorMessage && (
-        <View style={styles.centeredOverlay}>
-          <PlayerIcon name="alert-circle-outline" size={48} color="#FF5252" />
-          <Text style={[styles.errorTitle, { fontSize: scale.errorTitleFont, fontWeight: scale.errorTitleWeight }]}>Playback Error</Text>
-          <Text style={[styles.errorMsg, { fontSize: scale.errorMsgFont }]}>{errorMessage}</Text>
-          <TouchableOpacity style={styles.errorBtn} onPress={handleClose}>
-            <Text style={[styles.errorBtnText, { fontWeight: scale.errorBtnWeight }]}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Live Chat & Stream Diagnostics Drawer */}
-      {showLiveChat && !isAudioOnly && (
-        <LiveChatDrawer
-          videoId={mediaId || title || 'live'}
-          userId={currentUser.id}
-          username={currentUser.username}
-          visible={showLiveChat}
-          onClose={() => setShowLiveChat(false)}
-          isLandscape={windowWidth >= windowHeight}
-          initialTab={drawerTab}
-          streamUrl={playbackUrl || streamUrl || ''}
-          serverUrl={playbackUrl || streamUrl || ''}
-          isLive={isLive}
-          isLiveCommentsEnabled={isLiveCommentsEnabled}
-          isEpgEnabled={isEpgEnabled}
-          diagnosticsEnabled={diagnosticsOverlayEnabled}
-          title={title}
-            streamId={mediaId}
-            integrations={integrations}
-            colors={colors}
-        />
-      )}
-
-      {!isAudioOnly && isLive && (isScreenRecorderEnabled || recStatus !== 'idle') && (
-        <LiveRecordingOverlay
-          status={recStatus}
-          elapsedMs={recElapsedMs}
-          colors={colors}
-          topInset={Math.max(insets?.top || 0, 12) + 8}
-          showTransport
-          onPause={handlePauseRecording}
-          onResume={handleResumeRecording}
-          onStop={handleStopRecording}
-        />
-      )}
-
-      {!isAudioOnly && isLive && isScreenRecorderEnabled && (
-        <LiveRecordingNotice
-          notice={recNotice}
-          colors={colors}
-          onDismiss={() => setRecNotice(null)}
-        />
-      )}
-
-      {(isLocked && showControls && !isAudioOnly) && (
-        <TouchableOpacity
-          style={[
-            styles.floatingLockBtn,
-            {
-              top: Math.max(insets?.top || 0, 24),
-              right: Math.max(insets?.left || 0, insets?.right || 0, 20),
-            },
-          ]}
-          onPress={(e) => {
-            e.stopPropagation();
-            toggleLock();
-          }}
-          activeOpacity={0.8}
-          hitSlop={16}
-        >
-          <PlayerIcon name="lock" size={22} color="#FF5252" />
-          <Text style={[styles.floatingLockText, { fontSize: scale.lockTextFont, fontWeight: scale.lockTextWeight }]}>
-            Locked
-          </Text>
-        </TouchableOpacity>
-      )}
+      <FullscreenStatusLayer
+        isAudioOnly={isAudioOnly}
+        audioOnlyProps={{ posterUrl, title, episodeLabel, isPlaying, windowWidth, windowHeight, usesAudioProxy: audioOnlyUsesProxy, onToggleAudioOnly: toggleAudioOnly }}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        scale={scale}
+        handleClose={handleClose}
+      />
+      <FullscreenChatLayer
+        visible={showLiveChat}
+        isAudioOnly={isAudioOnly}
+        mediaId={mediaId}
+        title={title}
+        currentUser={currentUser}
+        onClose={() => setShowLiveChat(false)}
+        isLandscape={windowWidth >= windowHeight}
+        drawerTab={drawerTab}
+        playbackUrl={playbackUrl}
+        streamUrl={streamUrl}
+        isLive={isLive}
+        isLiveCommentsEnabled={isLiveCommentsEnabled}
+        isEpgEnabled={isEpgEnabled}
+        diagnosticsEnabled={diagnosticsOverlayEnabled}
+        integrations={integrations}
+        colors={colors}
+      />
+      <FullscreenRecordingLayer
+        isAudioOnly={isAudioOnly}
+        isLive={isLive}
+        isScreenRecorderEnabled={isScreenRecorderEnabled}
+        recStatus={recStatus}
+        recElapsedMs={recElapsedMs}
+        colors={colors}
+        insets={insets}
+        handlePauseRecording={handlePauseRecording}
+        handleResumeRecording={handleResumeRecording}
+        handleStopRecording={handleStopRecording}
+        recNotice={recNotice}
+        onDismissNotice={() => setRecNotice(null)}
+      />
+      <FullscreenSessionLayer
+        locked={isLocked}
+        controlsVisible={showControls}
+        insets={insets}
+        scale={scale}
+        onToggleLock={toggleLock}
+      />
     </View>
   );
 
