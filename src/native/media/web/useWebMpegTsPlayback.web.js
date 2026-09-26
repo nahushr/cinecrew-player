@@ -242,7 +242,7 @@ export function useWebMpegTsPlayback({
 
     try {
       const mpegts = getMpegts();
-      if (!mpegts || !mpegts.isSupported()) {
+      if (!mpegts?.isSupported()) {
         setUnavailableForUrl(streamUrl);
         return undefined;
       }
