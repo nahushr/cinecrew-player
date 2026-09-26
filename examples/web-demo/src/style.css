@@ -44,6 +44,9 @@ button { cursor: pointer; }
   box-shadow: 0 14px 42px rgba(0, 0, 0, .48);
   animation: demo-toast-in .2s ease-out;
 }
+.demo-toast--error { border-color: rgba(255, 100, 124, .58); }
+.demo-toast--error .demo-toast__icon { color: #fff; background: #ff647c; }
+.demo-toast--error .demo-toast__copy strong { color: #ff8295; }
 .demo-toast__icon {
   display: grid;
   flex: 0 0 30px;

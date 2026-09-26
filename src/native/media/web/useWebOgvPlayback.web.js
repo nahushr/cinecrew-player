@@ -5,7 +5,11 @@ const ogvRuntimePromises = new Map();
 
 function normalizeResourceBase(value) {
   const base = String(value || DEFAULT_OGV_RESOURCE_BASE).trim();
-  return base.replace(/\/+$/, '');
+  let lastNonSlash = base.length;
+  while (lastNonSlash > 0 && base[lastNonSlash - 1] === '/') {
+    lastNonSlash -= 1;
+  }
+  return base.slice(0, lastNonSlash);
 }
 
 function loadOgvRuntime(resourceBase) {

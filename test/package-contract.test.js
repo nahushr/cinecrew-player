@@ -60,7 +60,10 @@ test('native VLC implementation is bundled inside the single player package', ()
 });
 
 test('Vite demo lockfile includes Linux optional native build bindings', () => {
-  const lock = JSON.parse(readFileSync(path.join(root, 'examples/web-demo/package-lock.json'), 'utf8'));
+  const demoRoot = path.join(root, 'examples/web-demo');
+  const demoManifest = JSON.parse(readFileSync(path.join(demoRoot, 'package.json'), 'utf8'));
+  const lock = JSON.parse(readFileSync(path.join(demoRoot, 'package-lock.json'), 'utf8'));
+  const lockedDemoManifest = lock.packages[''];
   const rolldown = lock.packages['node_modules/rolldown'];
   const rolldownBinding = lock.packages['node_modules/@rolldown/binding-linux-x64-gnu'];
   const lightningcss = lock.packages['node_modules/lightningcss'];
@@ -76,6 +79,9 @@ test('Vite demo lockfile includes Linux optional native build bindings', () => {
   assert.deepEqual(lightningcssBinding.os, ['linux']);
   assert.deepEqual(lightningcssBinding.cpu, ['x64']);
   assert.equal(lightningcssBinding.optional, true);
+  assert.equal(demoManifest.dependencies['@cinecrew/cinecrew-player'], 'latest');
+  assert.equal(demoManifest.scripts['update:player'], 'npm install --no-save @cinecrew/cinecrew-player@latest');
+  assert.equal(lockedDemoManifest.dependencies['@cinecrew/cinecrew-player'], 'latest');
 });
 
 test('README documents every public control and action key', () => {

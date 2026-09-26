@@ -15,6 +15,7 @@ import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
 import { isAndroid, isElectron, isIOS, isWeb } from '../utils/runtimePlatform';
 import { USER_AGENT } from './media/player/playerConstants';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
+import { getPlayerErrorMessage } from '../utils/playerError.js';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -256,7 +257,16 @@ function InlineLivePlayerView({
     const message = typeof detail === 'string' ? detail : detail?.message || 'Could not play this channel.';
     setError(message);
     setLoading(false);
-    onError?.(detail instanceof Error ? detail : { ...detail, message });
+    if (detail instanceof Error) {
+      onError?.(detail);
+      return;
+    }
+    const actualMessage = getPlayerErrorMessage(detail);
+    onError?.({
+      ...detail,
+      message,
+      ...(actualMessage ? { actualMessage } : {}),
+    });
   }, [onError]);
 
   const handlePlaying = useCallback((event) => {

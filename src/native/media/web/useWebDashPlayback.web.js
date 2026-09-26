@@ -5,6 +5,12 @@ const isDashUrl = (url, type) => {
   return /\.mpd(?:$|[?#])/i.test(String(url || ''));
 };
 
+function handleAutoplayFailure(video, error) {
+  if (error?.name !== 'NotAllowedError') return;
+  video.muted = true;
+  video.play().catch(() => {});
+}
+
 export function useWebDashPlayback({
   activeUrl,
   type,
@@ -26,7 +32,7 @@ export function useWebDashPlayback({
       .then((mod) => {
         if (disposed) return;
         const dashjs = mod.default || mod;
-        if (!dashjs || !dashjs.MediaPlayer) {
+        if (!dashjs?.MediaPlayer) {
           onErrorRef.current?.({ message: 'Dash.js is not supported in this browser.' });
           return;
         }
@@ -48,14 +54,7 @@ export function useWebDashPlayback({
         const attemptAutoplay = () => {
           if (disposed || pausedRef.current) return;
           const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-              if (err?.name === 'NotAllowedError') {
-                video.muted = true;
-                video.play().catch(() => {});
-              }
-            });
-          }
+          playPromise?.catch((err) => handleAutoplayFailure(video, err));
         };
 
         player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, attemptAutoplay);

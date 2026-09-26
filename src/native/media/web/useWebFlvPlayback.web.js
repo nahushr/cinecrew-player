@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import flvjs from 'flv.js';
+import { getPlayerErrorMessage } from '../../../utils/playerError.js';
 
 const isFlvSource = (url, type) => /flv/i.test(String(type || ''))
   || /\.flv(?:$|[?#])/i.test(String(url || ''))
@@ -97,15 +98,30 @@ export function useWebFlvPlayback({
         specificCodecErrorReported = unsupportedAudio || unsupportedVideo;
         const status = Number(errorInfo?.code || errorInfo?.status);
         const httpStatus = Number.isFinite(status) && status >= 100 ? status : null;
-        const message = httpStatus
-          ? `FLV stream request failed (HTTP ${httpStatus}).`
-          : unsupportedAudio
-            ? 'This FLV audio codec is not supported by the browser player. Use AAC or MP3 audio in the FLV stream.'
-            : unsupportedVideo
-              ? 'This FLV video codec is not supported by the browser player. Use H.264/AVC video in the FLV stream.'
-              : `FLV playback failed (${String(errorDetail || errorType || 'unknown error')}).`;
+        let message;
+        if (httpStatus) {
+          message = `FLV stream request failed (HTTP ${httpStatus}).`;
+        } else if (unsupportedAudio) {
+          message = 'This FLV audio codec is not supported by the browser player. Use AAC or MP3 audio in the FLV stream.';
+        } else if (unsupportedVideo) {
+          message = 'This FLV video codec is not supported by the browser player. Use H.264/AVC video in the FLV stream.';
+        } else {
+          message = `FLV playback failed (${String(errorDetail || errorType || 'unknown error')}).`;
+        }
+        const actualMessage = getPlayerErrorMessage(errorInfo)
+          || [errorType, errorDetail].filter(Boolean).map(String).join(': ')
+          || message;
         onBufferingRef?.current?.(false);
-        onErrorRef.current?.({ message, httpStatus, err: errorInfo || { errorType, errorDetail } });
+        onErrorRef.current?.({
+          message,
+          actualMessage,
+          errorType: String(errorType || ''),
+          errorDetail: String(errorDetail || ''),
+          httpStatus,
+          cause: errorInfo || { errorType, errorDetail },
+          // Keep the existing alias for consumers that already inspect it.
+          err: errorInfo || { errorType, errorDetail },
+        });
       });
 
       video.crossOrigin = 'anonymous';

@@ -364,13 +364,28 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `onClose`, `onBack` | callbacks | — | App-owned navigation callbacks; Back does not close the player unless your callback does so. |
 | `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
 | `onProgressBarChange` | `(time: string) => void` | — | When the progress bar is shown, reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. It is not called when `showProgressBar` is false, `controls.seek` is false, or the live-player UI hides seeking. |
-| `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. Progress payloads are platform-specific native/browser events. |
+| `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. `onError` receives a player-facing `message` plus `actualMessage` and the original engine error under `cause`/`err` when available; progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
 | `initialShowLiveChat`, `liveChatNonce` | `boolean`, `number` | `false`, `0` | Open or re-open the live-chat panel (when available). |
 | `inlinePreview`, `inlinePreviewRect`, `onInlinePreviewWheel`, `onPromotePreview`, `onPlayerHostRef` | preview options and callbacks | — | Embed/manage the player as a movable inline preview. Mainly useful for app-level player shells. |
 
 `features={{ diagnostics: true }}` enables the diagnostics button and built-in stream status panel on web; `controls.diagnostics` can hide it. `onFullscreen` receives `{ isFullscreen }` after the player requests the fullscreen change. All lifecycle callbacks in the table are optional; native event objects differ from browser events.
+
+Use `onError` to receive the same playback failure shown in the player and inspect the original platform/decoder diagnostic. `message` is the player-facing summary; `actualMessage` prefers the underlying error text when the engine provides one, while `cause` and `err` retain the original engine error/event for logging or app-specific reporting:
+
+```tsx
+<CineCrewPlayer
+  source={source}
+  onError={(error) => {
+    const diagnostic = error instanceof Error
+      ? error.message
+      : error.actualMessage || error.message;
+    showSnackbar(diagnostic);
+    console.error('Playback error details:', error.cause || error.err || error);
+  }}
+/>
+```
 
 ### Player source
 
@@ -408,7 +423,7 @@ type PlayerSource = string | {
 | `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
 | `theme`, `icons`, `style` | `PlayerTheme`, `PlayerIcons`, platform style | defaults | Customize preview colors, controls, and layout. |
-| `onError`, `onPlaying` | callbacks | — | Playback lifecycle callbacks. |
+| `onError`, `onPlaying` | callbacks | — | Playback lifecycle callbacks. `onError` includes the underlying `actualMessage` and raw `cause`/`err` when available. |
 
 ## Control visibility
 

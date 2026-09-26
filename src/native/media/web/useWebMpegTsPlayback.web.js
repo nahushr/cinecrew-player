@@ -5,9 +5,17 @@ import {
   WEB_AC3_UNSUPPORTED_MESSAGE,
 } from './webPlaybackErrors';
 
-const getMpegts = () => (typeof globalThis !== 'undefined' && globalThis.mpegts
-  ? globalThis.mpegts
-  : (typeof window !== 'undefined' && window.mpegts ? window.mpegts : undefined));
+const getMpegts = () => {
+  if (typeof globalThis !== 'undefined' && globalThis.mpegts) return globalThis.mpegts;
+  if (typeof window !== 'undefined' && window.mpegts) return window.mpegts;
+  return undefined;
+};
+
+const getStashInitialSize = (useVideoOnly, isLive) => {
+  if (useVideoOnly) return 2048;
+  if (isLive) return 512 * 1024;
+  return 1024 * 1024;
+};
 
 const initialMpegts = getMpegts();
 if (initialMpegts?.LoggingControl) {
@@ -270,7 +278,7 @@ export function useWebMpegTsPlayback({
         enableWorker: !useVideoOnly,
         lazyLoad: false,
         enableStashBuffer: true,
-        stashInitialSize: useVideoOnly ? 2048 : (isLive ? 512 * 1024 : 1024 * 1024),
+        stashInitialSize: getStashInitialSize(useVideoOnly, isLive),
         liveBufferLatencyChasing: Boolean(isLive && !useVideoOnly),
         liveBufferLatencyMaxLatency: 8,
         liveBufferLatencyMinRemain: 3,

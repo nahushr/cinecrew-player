@@ -11,6 +11,7 @@ import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
 import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
+import { getPlayerErrorMessage } from '../utils/playerError.js';
 import './styles.css';
 
 const h = React.createElement;
@@ -314,11 +315,10 @@ function WebBottomControls(props) {
 
 function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPause, onResume, onStop, onDownload, onDismiss }) {
   if (status === 'complete') {
-    const children = [];
-    if (error) children.push(h('span', null, error));
-    children.push(h('strong', { className: 'cinecrew-player__recording-ready' }, 'Recording ready'));
-    children.push(h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording controls' }, 'Done'));
-    return h(React.Fragment, null, ...children);
+    return h(React.Fragment, null,
+      error ? h('span', null, error) : null,
+      h('strong', { className: 'cinecrew-player__recording-ready' }, 'Recording ready'),
+      h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording controls' }, 'Done'));
   }
   if (status === 'finalizing') {
     return h('strong', { className: 'cinecrew-player__recording-ready' }, 'Preparing recording…');
@@ -389,6 +389,51 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
     bottomControls);
 }
 
+function getDrawerResizedVideoStyle(drawerResize, videoStyle) {
+  if (!drawerResize) return {};
+  if (videoStyle.width === 'auto') {
+    return {
+      left: 'calc(var(--cinecrew-media-width, 64%) / 2)',
+      top: '50%',
+      right: 'auto',
+      bottom: 'auto',
+      maxWidth: 'var(--cinecrew-media-width, 64%)',
+      transform: 'translate(-50%, -50%)',
+    };
+  }
+  return {
+    width: 'var(--cinecrew-media-width, 64%)',
+    height: '100%',
+    left: 0,
+    top: 0,
+    right: 'auto',
+    bottom: 0,
+    transform: 'none',
+  };
+}
+
+function getVideoSurfaceStyle(videoStyle, resizedVideoStyle, audioOnly) {
+  return {
+    ...videoStyle,
+    ...resizedVideoStyle,
+    opacity: audioOnly ? 0 : 1,
+  };
+}
+
+function getOgvStageStyle(drawerResize, audioOnly) {
+  return {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: drawerResize ? 'auto' : 0,
+    bottom: 0,
+    width: drawerResize ? 'var(--cinecrew-media-width, 64%)' : '100%',
+    height: '100%',
+    backgroundColor: '#000',
+    opacity: audioOnly ? 0 : 1,
+  };
+}
+
 function WebPlayerSurface({
   title,
   streamUrl,
@@ -433,48 +478,13 @@ function WebPlayerSurface({
     resourceBase: ogvResourceBase,
   });
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
-  let resizedVideoStyle = {};
-  if (drawerResize && videoStyle.width === 'auto') {
-    resizedVideoStyle = {
-      left: 'calc(var(--cinecrew-media-width, 64%) / 2)',
-      top: '50%',
-      right: 'auto',
-      bottom: 'auto',
-      maxWidth: 'var(--cinecrew-media-width, 64%)',
-      transform: 'translate(-50%, -50%)',
-    };
-  } else if (drawerResize) {
-    resizedVideoStyle = {
-      width: 'var(--cinecrew-media-width, 64%)',
-      height: '100%',
-      left: 0,
-      top: 0,
-      right: 'auto',
-      bottom: 0,
-      transform: 'none',
-    };
-  }
-  const surfaceStyle = {
-    ...videoStyle,
-    ...resizedVideoStyle,
-    opacity: audioOnly ? 0 : 1,
-  };
+  const resizedVideoStyle = getDrawerResizedVideoStyle(drawerResize, videoStyle);
+  const surfaceStyle = getVideoSurfaceStyle(videoStyle, resizedVideoStyle, audioOnly);
   if (useOgv) {
-    const ogvStageStyle = {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: drawerResize ? 'auto' : 0,
-      bottom: 0,
-      width: drawerResize ? 'var(--cinecrew-media-width, 64%)' : '100%',
-      height: '100%',
-      backgroundColor: '#000',
-      opacity: audioOnly ? 0 : 1,
-    };
     return h('div', {
       ref: ogvContainerRef,
       className: 'cinecrew-player__video',
-      style: ogvStageStyle,
+      style: getOgvStageStyle(drawerResize, audioOnly),
       onClick: inlinePreview ? onPromotePreview : undefined,
       'data-stream-mode': 'ogv',
     });
@@ -1301,7 +1311,16 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     }
     setError(message);
     setBuffering(false);
-    errorRef.current?.(detail instanceof Error ? detail : { ...detail, message });
+    if (detail instanceof Error) {
+      errorRef.current?.(detail);
+      return;
+    }
+    const actualMessage = getPlayerErrorMessage(detail);
+    errorRef.current?.({
+      ...detail,
+      message,
+      ...(actualMessage ? { actualMessage } : {}),
+    });
   }, []);
   const onErrorRef = useRef(handleError);
   onErrorRef.current = handleError;

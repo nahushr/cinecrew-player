@@ -80,6 +80,20 @@ export interface PlayerActionContext {
   video?: unknown | null;
 }
 
+/** Structured playback failure. `message` is suitable for the player UI; `actualMessage` and `cause`/`err` preserve the underlying engine diagnostic when available. */
+export interface PlayerErrorDetails {
+  message: string;
+  actualMessage?: string;
+  cause?: unknown;
+  err?: unknown;
+  errorType?: string;
+  errorDetail?: string;
+  httpStatus?: number | null;
+  [key: string]: unknown;
+}
+
+export type PlayerError = Error | PlayerErrorDetails;
+
 /** App callback for a player action. Back is app-owned and has no built-in behavior. */
 export type PlayerAction = (payload?: Record<string, unknown>, context?: PlayerActionContext) => unknown;
 
@@ -267,7 +281,8 @@ export interface CineCrewPlayerProps {
   onProgressBarChange?: (time: string) => void;
   onPlaying?: (event: unknown) => void;
   onBuffering?: (buffering: boolean) => void;
-  onError?: (error: Error | Record<string, unknown>) => void;
+  /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
+  onError?: (error: PlayerError) => void;
   onEnded?: () => void;
   onPlaybackRoute?: (url: string) => void;
   onNextEpisode?: (episode: Record<string, unknown>) => void;
@@ -294,7 +309,8 @@ export interface InlineLivePlayerProps {
   icons?: PlayerIcons;
   style?: unknown;
   initialMuted?: boolean;
-  onError?: (error: Error | Record<string, unknown>) => void;
+  /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
+  onError?: (error: PlayerError) => void;
   onPlaying?: (event: unknown) => void;
 }
 

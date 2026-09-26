@@ -6,6 +6,7 @@ import { SourceControls } from './components/SourceControls.jsx';
 import { ToastViewport } from './components/ToastViewport.jsx';
 import { useDemoIntegrations } from './hooks/useDemoIntegrations.js';
 import { useDemoPlayerActions } from './hooks/useDemoPlayerActions.js';
+import { getPlayerErrorMessage } from './utils/playerErrorMessage.js';
 
 export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
@@ -19,8 +20,8 @@ export default function App() {
   const toastTimerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const notify = useCallback((title, message) => {
-    setToast({ title, message: String(message || '') });
+  const notify = useCallback((title, message, variant = 'success') => {
+    setToast({ title, message: String(message || ''), variant });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 3600);
   }, []);
@@ -39,6 +40,9 @@ export default function App() {
 
   const integrations = useDemoIntegrations(notify);
   const actions = useDemoPlayerActions({ notify, setSelectedAudioTrack });
+  const reportPlaybackError = useCallback((error) => {
+    notify('Playback error', getPlayerErrorMessage(error) || 'The media engine did not provide an error message.', 'error');
+  }, [notify]);
 
   const selectSample = (sample) => {
     setActive(sample);
@@ -105,6 +109,7 @@ export default function App() {
           actions={actions}
           onProgressBarChange={setProgressTime}
           onStatus={setStatus}
+          onPlaybackError={reportPlaybackError}
         />
       </section>
 

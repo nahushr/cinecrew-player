@@ -17,7 +17,13 @@ export function PlayerViewport({
   actions,
   onProgressBarChange,
   onStatus,
+  onPlaybackError,
 }) {
+  const reportPlaybackError = (error) => {
+    onStatus(error?.message || 'Playback error');
+    onPlaybackError?.(error);
+  };
+
   if (inline) {
     return (
       <InlineLivePlayer
@@ -28,7 +34,7 @@ export function PlayerViewport({
         isActive
         paused={false}
         controls={{ playPause: true, mute: true, fullscreen: true }}
-        onError={(error) => onStatus(error?.message || 'Playback error')}
+        onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
     );
@@ -69,7 +75,7 @@ export function PlayerViewport({
       features={{ diagnostics: true }}
       onBuffering={(buffering) => onStatus(buffering ? 'Buffering…' : 'Ready')}
       onPlaying={() => onStatus('Playing')}
-      onError={(error) => onStatus(error?.message || 'Playback error')}
+      onError={reportPlaybackError}
     />
   );
 }

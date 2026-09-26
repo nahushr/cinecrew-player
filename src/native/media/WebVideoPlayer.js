@@ -288,7 +288,7 @@ export const WebVideoPlayer = forwardRef(({
 
   return (
     <View style={styles.container} collapsable={false}>
-      {activeUrl ? (
+      {activeUrl && (
         useOgvSource ? (
           <div
             key={activeUrl}
@@ -384,7 +384,7 @@ export const WebVideoPlayer = forwardRef(({
           ))}
         </video>
         )
-      ) : null}
+      )}
     </View>
   );
 });
