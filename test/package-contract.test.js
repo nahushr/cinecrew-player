@@ -27,7 +27,7 @@ test('published package metadata and export targets are complete', () => {
   for (const file of ['README.md', 'LICENSE', 'NOTICE', 'types/index.d.ts']) {
     assert.ok(manifest.files.some((entry) => file.startsWith(entry)), `${file} is not included in npm files`);
   }
-  assert.ok(manifest.dependencies['react-native-webview'], 'native YouTube playback requires the installed WebView dependency');
+  assert.equal(manifest.dependencies['react-native-webview'], undefined, 'the package no longer bundles an embedded-video WebView');
   assert.equal(manifest.dependencies['@cinecrew/react-native-vlc-media-player'], undefined);
   assert.equal(manifest.workspaces, undefined);
   assert.equal(manifest.exports['./react'].default, './src/web/index.js');
@@ -36,8 +36,9 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   assert.doesNotMatch(webEntry, /from ['"](?:react-native|react-native-webview|@expo\/vector-icons)['"]/);
-  assert.ok(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js')));
-  assert.ok(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.native.js')));
+  assert.equal(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js')), false);
+  assert.equal(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.native.js')), false);
+  assert.doesNotMatch(declarations, /youtubeVideoId|isYouTube/i);
   assert.doesNotMatch(declarations, /WEB_(?:AC3|NO_PROXY)_/);
   assert.doesNotMatch(readme, /proxyUrlAvailable|webPlaybackError|WEB_NO_PROXY/);
 });
@@ -108,7 +109,7 @@ test('progress-bar callback is public, documented, and connected on web and nati
 
   assert.match(declarations, /onProgressBarChange\?: \(time: string\) => void/);
   assert.match(readme, /`onProgressBarChange`[\s\S]*`HH:MM:SS`/);
-  assert.match(webEntry, /emitProgressBarTime\(seconds, onProgressBarChange/);
+  assert.match(webEntry, /emitProgressBarTime\(Number\(video\.currentTime\) \|\| 0, onProgressBarChange/);
   assert.match(nativeEntry, /emitProgressBarTime\(progress\.seconds, onProgressBarChange/);
   assert.match(formatter, /padStart\(2, '0'\)/);
 });
@@ -117,7 +118,6 @@ test('web player keeps chat paging automatic and exposes customizable aspect mod
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
   const recording = readFileSync(path.join(root, 'src/utils/webRecording.js'), 'utf8');
-  const youtube = readFileSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js'), 'utf8');
   const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
 
   assert.match(declarations, /aspectRatios\?: Array<AspectRatio \| AspectRatioOption>/);
@@ -130,9 +130,18 @@ test('web player keeps chat paging automatic and exposes customizable aspect mod
   assert.match(webStyles, /cinecrew-player__controls\.is-recording/);
   assert.match(recording, /new MediaRecorder|MediaRecorder/);
   assert.match(recording, /canvas\.captureStream/);
-  assert.match(youtube, /controls: 1/);
-  assert.match(youtube, /pointerEvents: 'auto'/);
-  assert.match(webEntry, /!isYouTube && !buffering/);
-  assert.match(webEntry, /createYouTubeScreenRecordingStream/);
-  assert.match(nativeEntry, /visible=\{!props\.isYouTube/);
+  assert.doesNotMatch(webEntry, /youtube|youtubeVideoId/i);
+  assert.doesNotMatch(nativeEntry, /youtube|youtubeVideoId/i);
+  assert.doesNotMatch(webStyles, /cinecrew-player--youtube/i);
+});
+
+test('back action is app-owned and the Vite demo shows its callback in a snackbar', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const demoActions = readFileSync(path.join(root, 'examples/web-demo/src/hooks/useDemoPlayerActions.js'), 'utf8');
+
+  assert.match(webEntry, /action\('onBack', undefined/);
+  assert.match(nativeEntry, /'onBack',[\s\S]*?undefined/);
+  assert.match(demoActions, /onBack:[\s\S]*?notify\('Back'/);
+  assert.match(declarations, /User-owned navigation event\. The player does not close or navigate on its own\./);
 });

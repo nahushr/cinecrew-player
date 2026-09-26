@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { PlayerCustomizationProvider } from './customization';
 import { MediaPlayerView } from './MediaPlayerView';
 import { isElectron, isWeb } from '../utils/runtimePlatform';
-import { getYouTubeVideoId, useResolvedPlayerSource } from '../utils/sourceUtils';
+import { useResolvedPlayerSource } from '../utils/sourceUtils';
 
 function getRuntimePlatform() {
   if (isWeb()) return 'web';
@@ -50,8 +50,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const streamUrl = String(media.uri || media.url || '');
   const resolvedIsLive = isLive ?? media.isLive ?? (media.mediaType === 'live');
   const resolvedMediaType = mediaType || media.mediaType || (resolvedIsLive ? 'live' : 'movie');
-  const youtubeVideoId = getYouTubeVideoId(media);
-  const isVisible = visible ?? Boolean(streamUrl || youtubeVideoId);
+  const isVisible = visible ?? Boolean(streamUrl);
 
   React.useEffect(() => {
     if (resolution.error) props.onError?.(resolution.error);
@@ -75,11 +74,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       ...metadata,
       visible: isVisible,
       streamUrl,
-      youtubeVideoId,
+      onBack,
       title: title || media.title || '',
       posterUrl: poster || posterUrl || media.poster || media.posterUrl || '',
       mediaType: resolvedMediaType,
-      onClose: onClose || onBack || (() => {}),
+      onClose: onClose || (() => {}),
       initialPaused: paused ?? initialPaused ?? !autoPlay,
       initialMuted: muted ?? initialMuted ?? false,
       initialAudioOnly: audioOnly,

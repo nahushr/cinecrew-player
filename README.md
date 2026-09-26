@@ -52,7 +52,7 @@ flowchart LR
 
 | Area | Included capabilities | Designed for |
 |---|---|---|
-| 🎞️ **Playback** | On-demand and live media; URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path; embedded YouTube playback | Movies, episodes, trailers, and channels |
+| 🎞️ **Playback** | On-demand and live direct media URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path | Movies, episodes, and channels |
 | 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, audio-only mode, audio tracks, playback speed, fullscreen, back | A complete control surface without hard-wiring your app navigation |
 | 🎨 **Branding** | Theme colors, radius, platform styles, replaceable icons, custom panel render slots | Match your app without forking the player |
 | 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; recording adapter hooks | Channel browsing and live-viewing workflows |
@@ -101,7 +101,7 @@ flowchart LR
 
 | Host | Public entry | Rendering / engine path | Key considerations |
 |---|---|---|---|
-| 🌐 React in browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js; YouTube embed | Browser codec support and origin CORS still apply |
+| 🌐 React in browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js | Browser codec support and origin CORS still apply |
 | 🖥️ Electron | `@cinecrew/cinecrew-player/electron` | Same web renderer inside Electron Chromium | Chromium’s codec and network rules still apply |
 | 🤖 React Native Android | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
 | 📱 React Native iOS | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
@@ -112,7 +112,7 @@ flowchart LR
 | MP4 / browser-native media | ✅ Browser media element | ✅ Native engine | A directly playable URL or local URI |
 | HLS (`.m3u8`) | ✅ hls.js / native HLS where available | ✅ Native engine | Origin access, valid playlist/segments, compatible codecs |
 | MPEG-TS (`.ts`) | ✅ Bundled patched MPEG-TS client, when browser conditions permit | ✅ VLC path | Browser codecs and CORS; native module availability |
-| YouTube watch / Shorts / `youtu.be` | ✅ Embedded YouTube player | ✅ Embedded native WebView | Video must allow embedding; network access to YouTube |
+| Hosted-video or share pages | ⚙️ Resolve to a direct media URL with `resolveSource` | ⚙️ Resolve to a direct media URL with `resolveSource` | A watch/share page is not a media stream |
 | Local files | ✅ Platform-supported local/blob URI | ✅ Platform-supported file URI | App obtains and passes the platform-readable URI |
 | Share pages / cloud-drive pages | ⚙️ Optional `resolveSource` | ⚙️ Optional `resolveSource` | Your app resolves authentication and obtains a playable media URL |
 
@@ -123,7 +123,7 @@ flowchart LR
 | Layer | Technologies in this package |
 |---|---|
 | UI & API | React · React Native · TypeScript declarations |
-| Web playback | HTML video · hls.js · patched mpegts.js · YouTube IFrame API |
+| Web playback | HTML video · hls.js · patched mpegts.js |
 | Native playback | VLC adapter bundled in `@cinecrew/cinecrew-player` · `expo-video` fallback |
 | Native UI / utilities | React Native · Expo config plugins · safe-area context · SVG · community slider |
 | Optional media utilities | Mediabunny / AC3 parsing support in relevant web playback paths |
@@ -160,9 +160,9 @@ The items below are planned for more consistent, user-facing support across plat
 
 ## Demos
 
-- **[React + Vite web demo](examples/web-demo)** — try YouTube, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
+- **[React + Vite web demo](examples/web-demo)** — try HLS, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
 - **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
-- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — both platform links load the same five-test native playground (YouTube, `.ts`, `.mp4`, `.mkv`, and local-file upload), with full-player and inline-player modes. Snack runs in Expo Go, which cannot load this package's custom VLC module; MPEG-TS and MKV playback should be tested in a native development build. [Expo documents this Expo Go limitation](https://docs.expo.dev/faq/#what-can-i-do-or-cannot-do-with-expo-go).
+- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — both platform links load a native playground (`.ts`, `.mp4`, `.mkv`, and local-file upload), with full-player and inline-player modes. Snack runs in Expo Go, which cannot load this package's custom VLC module; MPEG-TS and MKV playback should be tested in a native development build. [Expo documents this Expo Go limitation](https://docs.expo.dev/faq/#what-can-i-do-or-cannot-do-with-expo-go).
 
 The React/Vite demo is self-contained and installs the released `@cinecrew/cinecrew-player` package, so its StackBlitz link works from the `examples/web-demo` subdirectory. Its MPEG-TS button uses a small same-origin H.264/AAC fixture to exercise the TS parser without relying on an external server's CORS configuration. The Expo Web demo uses this repository's package source (`file:../..`) so contributors can test unreleased changes locally. Snack loads the native example from this repository's `main` branch and installs `@cinecrew/cinecrew-player` from npm. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. The Expo native entry bundles VLC into the same installed package. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
 
@@ -198,9 +198,9 @@ The package has one public player API with a renderer selected for the host. The
 
 | Host app | Import | Renderer / playback |
 | --- | --- | --- |
-| React DOM in a browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | HTML video, hls.js, patched mpegts.js, and the browser YouTube embed. |
+| React DOM in a browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | HTML video, hls.js, and patched mpegts.js. |
 | React DOM inside Electron (macOS `.dmg`, Windows `.exe`) | `@cinecrew/cinecrew-player/electron` | Same renderer as React web, using Electron's Chromium media stack. No WebView or custom Electron IPC bridge is needed. |
-| React Native Android / iOS | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native` | React Native UI with the bundled VLC adapter and Expo video fallback; YouTube uses `react-native-webview`. |
+| React Native Android / iOS | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native` | React Native UI with the bundled VLC adapter and Expo video fallback. |
 | React Native Web / Expo Web | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native-web` | React DOM adapter hosted inside the React Native Web app; uses browser playback engines and does not load native VLC or WebView code. |
 
 Metro selects the React Native entry for native builds; regular React bundlers select the React DOM entry. The explicit subpaths let you pin the renderer when preferred.
@@ -221,7 +221,7 @@ export function WatchScreen() {
 }
 ```
 
-For an Expo prebuild project, add the CineCrew Player config plugin and rebuild the native app (a JavaScript reload cannot add a native module). The VLC native implementation ships inside this same package; there is no second VLC package to install. `react-native-webview` is used only as the native YouTube embed surface; regular native streams use VLC / `expo-video`. Browser and Electron YouTube playback use the YouTube IFrame API instead.
+For an Expo prebuild project, add the CineCrew Player config plugin and rebuild the native app (a JavaScript reload cannot add a native module). The VLC native implementation ships inside this same package; there is no second VLC package to install. Native streams use VLC / `expo-video`.
 
 ```json
 {
@@ -283,17 +283,9 @@ export function WatchScreen() {
 
 Web playback is direct from the supplied URL. HLS and MPEG-TS clients fetch playlists and segments from the stream origin, so the origin must permit those browser requests.
 
-### YouTube and share links
+### Direct media URLs and share pages
 
-Pass a YouTube watch, Shorts, or `youtu.be` URL as the source to play it inside the player rather than opening another app:
-
-```tsx
-<CineCrewPlayer source="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Trailer" />
-```
-
-The video must allow embedding. Other URLs are passed unchanged to the platform engine. A Google Drive/share page or other webpage is not itself a media stream; resolve it in your app and provide the playable URL, or use the optional `resolveSource` callback. This keeps provider authentication, CORS policy, and URL extraction under the consuming app’s control.
-
-YouTube sources use YouTube's own playback controls; CineCrew hides its duplicate center play/pause control and title for those sources. The embed remains subject to YouTube's playback, branding, and background-playback behavior.
+Pass a direct media URL or a platform-readable local file URI. Hosted-video watch pages and share pages are not supported as playable sources because they are HTML pages, not media streams. Resolve those pages in your app and provide a direct playable URL, or use the optional `resolveSource` callback. This keeps provider authentication, CORS policy, and URL extraction under the consuming app’s control.
 
 ```tsx
 <CineCrewPlayer
@@ -313,7 +305,7 @@ YouTube sources use YouTube's own playback controls; CineCrew hides its duplicat
 | React Native Android / iOS | VLC native module; `expo-video` fallback when VLC is unavailable | VLC supports a broader range of containers/codecs, including common AC3 streams. Native module availability depends on the app binary. |
 | Electron renderer | Chromium `<video>`, hls.js, and patched mpegts.js | Same browser codec/CORS constraints as React web; packages with the app's `.dmg` / `.exe`. |
 
-Browser codec support varies. The web player reports an AC3 compatibility message only when its MPEG-TS probe identifies unsupported AC3 audio; native playback does not apply this browser-only restriction. YouTube sources use the embedded YouTube player and remain subject to the video’s embed settings.
+Browser codec support varies. The web player reports an AC3 compatibility message only when its MPEG-TS probe identifies unsupported AC3 audio; native playback does not apply this browser-only restriction.
 
 ## How CineCrew Player differs from established players
 
@@ -368,7 +360,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `mediaId`, `episodeLabel`, `season`, `episode`, `genre`, `categoryName` | metadata | — | Optional item metadata for the player and integrations. |
 | `playlist` | `object[]` | — | Episode list used for automatic next-episode behavior. |
 | `shuffle` | `boolean` | `false` | Select a random next episode when the current episode ends. |
-| `onClose`, `onBack` | callbacks | — | Player lifecycle/navigation callbacks. |
+| `onClose`, `onBack` | callbacks | — | App-owned navigation callbacks; Back does not close the player unless your callback does so. |
 | `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
 | `onProgressBarChange` | `(time: string) => void` | — | Reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. Progress payloads are platform-specific native/browser events. |
@@ -391,7 +383,7 @@ type PlayerSource = string | {
   id?: string | number;
   streamId?: string | number;
   mediaId?: string | number;
-  type?: string;       // e.g. 'mpegts', 'hls', or 'youtube' when paired with a YouTube video ID
+  type?: string;       // e.g. 'mpegts' or 'hls'
   mimeType?: string;
   mediaType?: string;
   isLive?: boolean;
@@ -458,7 +450,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `audioTracks` | Audio-track picker when tracks are exposed. |
 | `playbackRate` | On-demand playback speed. |
 | `fullscreen` | Fullscreen button on web and inline previews. Native player opens full-screen. |
-| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. YouTube on web/Electron uses the browser's explicit tab/screen capture picker; native adapters receive `isYouTube` and `youtubeVideoId` and must use a user-consented OS capture API. |
+| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. |
 | `liveChat` | Chat drawer/panel; requires a chat adapter or render slot. |
 | `epg` | EPG drawer/panel; requires an EPG adapter or render slot. |
 | `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}`. |
@@ -466,7 +458,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 
 ## Actions and callbacks
 
-Callbacks passed to `actions` are notifications, not replacements: the player executes the built-in control behavior first, then calls the matching callback. This keeps core playback working while allowing your app to show a snackbar, update analytics, or synchronize app state. Each callback receives an action payload and a context with the imperative `player` API (and the web video element where available). For app navigation, use `onBack` / `onClose` as appropriate. If a notification callback throws, the player logs that callback error without undoing or blocking the already-completed player action. The callback should not repeat the player command—the control has already performed it.
+For playback controls, the player executes its core behavior first and then invokes the matching `actions` callback. This lets your app show a snackbar, update analytics, or synchronize app state. Back is intentionally different: it has no built-in close/navigation behavior. The player invokes `actions.onBack`, `onBack`, or `onClose` (in that precedence), and your app decides whether to navigate, dismiss the player, or just show a snackbar. Each callback receives an action payload and a context with the imperative `player` API (and the web video element where available). If a callback throws, the player logs the error without blocking the UI.
 
 `onProgressBarChange` is separate from the platform-specific `onProgress` event: it emits a compact time string such as `00:00:05` once per playback second. A seek emits its final target time after the player applies the seek; skipped positions are not reported as watched time.
 
@@ -532,13 +524,13 @@ The EPG drawer uses `integrations.epg.loadListings`, which returns entries with 
 
 ### Web recording
 
-On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. For YouTube, the browser opens its native screen/tab chooser; select the player tab and enable tab audio when offered. This records the captured tab/screen, not a private YouTube media stream, so browser controls/overlays may be included and capture depends on browser support and the user's permission. Native React Native apps need an `integrations.recording` implementation backed by Android MediaProjection or iOS ReplayKit (with the platform's permission flow); the player does not capture the YouTube iframe's protected media itself. The `start` adapter receives `isYouTube` and `youtubeVideoId`, and `getVideoElement()` is `null` for YouTube.
+On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. Native React Native apps need an `integrations.recording` implementation backed by Android MediaProjection or iOS ReplayKit (with the platform's permission flow).
 
 For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation.
 
 ### Audio-only and locked-screen playback
 
-Audio-only mode fully covers the video with an opaque dark surface; its poster remains visible in the audio card. Native VLC playback is configured to continue in audio-only mode when the app is backgrounded. YouTube remains an embedded YouTube player: CineCrew exposes Media Session metadata and lock-screen play/pause/seek actions where supported, but the host browser/OS and YouTube decide whether an embed may continue after the device is locked. A generic player component cannot grant YouTube's account-dependent background-playback entitlement or override mobile OS background execution rules. Native apps must also configure their platform background-audio capability where applicable.
+Audio-only mode fully covers the video with an opaque dark surface; its poster remains visible in the audio card. Native VLC playback is configured to continue in audio-only mode when the app is backgrounded. Native apps must also configure their platform background-audio capability where applicable.
 
 ## Themes and icons
 
@@ -567,7 +559,7 @@ Icon keys: `play`, `pause`, `restart`, `lock`, `unlock`, `mute`, `unmute`, `aspe
 
 ## Sources and link resolution
 
-Local file URIs and direct stream URLs are passed to the selected platform player without changing `http`, `https`, `file`, or other schemes. YouTube watch/share URLs are recognized and played with the embedded YouTube player. Other sharing pages (for example, a private Google Drive page) need a consumer-provided resolver because the package cannot access the consumer’s credentials or infer every host’s download rules:
+Local file URIs and direct stream URLs are passed to the selected platform player without changing `http`, `https`, `file`, or other schemes. Hosted-video watch/share pages (for example, a private cloud-drive page) need a consumer-provided resolver because the package cannot access the consumer’s credentials or infer every host’s download rules:
 
 ```tsx
 <CineCrewPlayer

@@ -126,41 +126,6 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
 }
 
 /**
- * YouTube owns a cross-origin iframe, so its media element is intentionally
- * inaccessible to the embedding page. Recording therefore requires the
- * browser's explicit tab/screen picker; the user must select the player tab
- * and enable tab audio when the browser offers that option.
- */
-export async function createYouTubeScreenRecordingStream() {
-  const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
-  if (typeof mediaDevices?.getDisplayMedia !== 'function') {
-    throw new Error('YouTube recording requires browser tab/screen capture, which is not available in this browser.');
-  }
-
-  let stream;
-  try {
-    stream = await mediaDevices.getDisplayMedia({ video: true, audio: true });
-  } catch (error) {
-    if (error?.name === 'NotAllowedError' || error?.name === 'AbortError') {
-      throw new Error('YouTube recording was cancelled. Allow tab/screen capture and choose the player tab to record.');
-    }
-    throw error;
-  }
-
-  const videoTracks = stream.getVideoTracks?.() || [];
-  const audioTracks = stream.getAudioTracks?.() || [];
-  if (!videoTracks.length || !audioTracks.length) {
-    stream.getTracks?.().forEach((track) => track.stop());
-    throw new Error('The selected capture has no video or tab audio. Choose a browser tab and enable Share tab audio.');
-  }
-
-  return {
-    stream,
-    cleanup: () => stream.getTracks?.().forEach((track) => track.stop()),
-  };
-}
-
-/**
  * Generalised screen / tab capture that works for any source type.
  * Uses `preferCurrentTab` (Chrome 109+) to automatically select the
  * current tab, making the user experience smoother.

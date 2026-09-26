@@ -28,8 +28,7 @@
   background: #000;
 }
 
-.cinecrew-player__video,
-.cinecrew-player__youtube {
+.cinecrew-player__video {
   transition: width 180ms ease, height 180ms ease, top 180ms ease, left 180ms ease, transform 180ms ease;
 }
 
@@ -63,14 +62,6 @@
   opacity: 0;
   transition: opacity 160ms ease;
 }
-
-/* Let the embedded YouTube surface receive taps for its own playback UI while
-   preserving hit targets for the player controls rendered above it. */
-.cinecrew-player--youtube .cinecrew-player__controls { pointer-events: none; }
-.cinecrew-player--youtube .cinecrew-player__controls button,
-.cinecrew-player--youtube .cinecrew-player__controls input,
-.cinecrew-player--youtube .cinecrew-player__controls select { pointer-events: auto; }
-.cinecrew-player--youtube .cinecrew-player__panel { pointer-events: auto; }
 
 .cinecrew-player:hover .cinecrew-player__controls,
 .cinecrew-player:focus-within .cinecrew-player__controls {

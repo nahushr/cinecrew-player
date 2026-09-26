@@ -41,6 +41,18 @@ test('app callback runs after an asynchronous built-in action resolves', async (
   assert.deepEqual(calls, ['core-start', 'core-finish', 'callback']);
 });
 
+test('app-owned back callback runs without a built-in navigation action', () => {
+  const calls = [];
+  const result = invokePlayerAction(
+    undefined,
+    (payload) => calls.push(['back', payload]),
+    { title: 'Episode 1' },
+  );
+
+  assert.equal(result, undefined);
+  assert.deepEqual(calls, [['back', { title: 'Episode 1' }]]);
+});
+
 test('a throwing app callback does not undo or reject the built-in action', async () => {
   const originalError = console.error;
   console.error = () => {};

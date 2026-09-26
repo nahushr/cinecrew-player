@@ -15,7 +15,6 @@ import {
 import VLCPlayer from '../../packages/react-native-vlc-media-player/VLCPlayer.js';
 import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
-import { YouTubeVideoPlayer } from './media/YouTubeVideoPlayer';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { LiveRecordingNotice, LiveRecordingOverlay } from './media/LiveRecordingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -217,51 +216,16 @@ function handleVerticalGestureMove(touches, gestureState) {
   gestureState.commitVolume.current(volume);
 }
 
-function handleYouTubePlaybackState(state, playback) {
-  if (state === 'playing') {
-    playback.isPlayingRef.current = true;
-    playback.setIsPlaying(true);
-  } else if (state === 'paused' || state === 'ended') {
-    playback.isPlayingRef.current = false;
-    playback.setIsPlaying(false);
-  }
-}
-
 function PlatformMediaSurface(props) {
   const {
-    youtubeVideoId, playerStreamUrl, vlcRef, isPlaying, muted, videoOnlyMode,
+    playerStreamUrl, vlcRef, isPlaying, muted, videoOnlyMode,
     volume, playbackRate, aspectRatio, title, posterUrl, isLive, isAudioOnly,
     selectedAudioTrack, handleTracksChanged, handleProgress, handleNativePlaying,
     handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
     handleSeekByAction, handlePlaybackRoute, exoFallback, useExoForAndroidLocalMedia,
     nativeSource, computedAspectRatio, handleNativeLoadStart,
-    handleNativeOpen, handleNativeBuffering, isPlayingRef, setIsPlaying,
+    handleNativeOpen, handleNativeBuffering,
   } = props;
-  if (youtubeVideoId) {
-    return (
-      <YouTubeVideoPlayer
-        key={`youtube-${youtubeVideoId}`}
-        ref={vlcRef}
-        videoId={youtubeVideoId}
-        title={title}
-        poster={posterUrl}
-        paused={!isPlaying}
-        muted={muted || videoOnlyMode}
-        volume={volume / 100}
-        playbackRate={playbackRate}
-        onReady={(event) => {
-          props.clearBufferingIndicator();
-          props.handleNativeOpen(event);
-        }}
-        onProgress={handleProgress}
-        onPlaying={handleNativePlaying}
-        onStateChange={(state) => handleYouTubePlaybackState(state, { isPlayingRef, setIsPlaying })}
-        onBuffering={handleWebBuffering}
-        onEnded={handleEpisodeEnded}
-        onError={handleWebError}
-      />
-    );
-  }
   if (isElectron()) {
     return (
       <ElectronVideoPlayer
@@ -514,11 +478,11 @@ function InlinePreviewFrame({
   );
 }
 
-function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, isYouTube }) {
+function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
   return (
     <View
       collapsable={false}
-      pointerEvents={isYouTube ? 'auto' : 'none'}
+      pointerEvents="none"
       style={[
         styles.videoContainer,
         styles.videoWrapFullscreen,
@@ -531,8 +495,8 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, isYouTube }
   );
 }
 
-function FullscreenGestureLayer({ isAudioOnly, isYouTube, panResponder, handlers }) {
-  if (isAudioOnly || isYouTube) return null;
+function FullscreenGestureLayer({ isAudioOnly, panResponder, handlers }) {
+  if (isAudioOnly) return null;
   if (!isWeb() && panResponder) {
     return (
       <View collapsable={false} style={[StyleSheet.absoluteFill, styles.gestureCatcher]} {...panResponder.panHandlers} />
@@ -566,7 +530,6 @@ function FullscreenControlsPanel(props) {
         insets={props.insets}
         scale={props.scale}
         title={props.title}
-        isYouTube={props.isYouTube}
         episodeLabel={props.episodeLabel}
         isLive={props.isLive}
         isScreenRecorderEnabled={props.isScreenRecorderEnabled}
@@ -590,7 +553,7 @@ function FullscreenControlsPanel(props) {
         onToggleLock={props.handleLockAction}
       />
       <CenterControls
-        visible={!props.isYouTube && !props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
+        visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
@@ -710,7 +673,7 @@ function FullscreenChatLayer(props) {
 }
 
 function FullscreenRecordingLayer(props) {
-  const recordingEligible = props.isLive || props.isYouTube;
+  const recordingEligible = props.isLive;
   return (
     <>
       {!props.isAudioOnly && recordingEligible && (props.isScreenRecorderEnabled || props.recStatus !== 'idle') ? (
@@ -777,7 +740,7 @@ function getInlinePreviewPositionStyle(rect, isValid) {
 export const MediaPlayerView = ({
   visible,
   streamUrl,
-  youtubeVideoId,
+  onBack,
   title,
   mediaType = 'live',
   onClose,
@@ -852,6 +815,8 @@ export const MediaPlayerView = ({
   const invokeAction = useCallback((name, fallback, payload) => {
     const callback = name === 'onAspectRatioChange'
       ? actions?.[name] || onAspectRatioChange
+      : name === 'onBack'
+        ? actions?.[name] || onBack || onClose
       : actions?.[name];
     return invokePlayerAction(
       fallback,
@@ -859,7 +824,7 @@ export const MediaPlayerView = ({
       payload,
       { player: playerApiRef?.current || null },
     );
-  }, [actions, onAspectRatioChange, playerApiRef]);
+  }, [actions, onAspectRatioChange, onBack, onClose, playerApiRef]);
   const handlePlayerHostRef = useCallback((node) => {
     playerRef.current = node;
     onPlayerHostRef?.(node);
@@ -1482,9 +1447,9 @@ export const MediaPlayerView = ({
 
   const handleBackAction = useCallback(() => invokeAction(
     'onBack',
-    handleClose,
+    undefined,
     { title, streamUrl, mediaId },
-  ), [invokeAction, handleClose, title, streamUrl, mediaId]);
+  ), [invokeAction, title, streamUrl, mediaId]);
 
   useEffect(() => {
     if (!visible || isWeb()) return undefined;
@@ -1522,7 +1487,7 @@ export const MediaPlayerView = ({
 
   const handleStartRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
-    if (!isScreenRecorderEnabled || (!isLive && !youtubeVideoId) || recStatusRef.current !== 'idle') return;
+    if (!isScreenRecorderEnabled || !isLive || recStatusRef.current !== 'idle') return;
     try {
       await recording?.start?.({
         getVideoElement: () => {
@@ -1532,8 +1497,6 @@ export const MediaPlayerView = ({
         },
         streamUrl: playbackUrl || streamUrl,
         title,
-        isYouTube: Boolean(youtubeVideoId),
-        youtubeVideoId: youtubeVideoId || undefined,
       });
       if (muted) {
         showRecNotice({
@@ -1544,7 +1507,7 @@ export const MediaPlayerView = ({
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not start recording.' });
     }
-  }, [isLive, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, youtubeVideoId]);
+  }, [isLive, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording]);
 
   const handlePauseRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
@@ -1975,7 +1938,7 @@ export const MediaPlayerView = ({
       seekTo: handleSeekTo,
       seekBy: handleSeekBy,
       setPlaybackRate: (rate) => setPlaybackRate(clampNumber(rate, 0.25, 4, 1)),
-      back: handleClose,
+      back: handleBackAction,
       getVideoElement: () => vlcRef.current?.getVideoElement?.() || null,
       getAudioTracks: () => audioTracks,
     };
@@ -1983,7 +1946,7 @@ export const MediaPlayerView = ({
     return () => {
       for (const key of Object.keys(api)) delete playerApiRef.current[key];
     };
-  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleClose, audioTracks]);
+  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleBackAction, audioTracks]);
 
   const handleSpeedSelect = useCallback((speed) => invokeAction(
     'onPlaybackRateChange', () => {
@@ -2497,7 +2460,6 @@ export const MediaPlayerView = ({
 
   const videoPlayer = (
     <PlatformMediaSurface
-      youtubeVideoId={youtubeVideoId}
       playerStreamUrl={playerStreamUrl}
       vlcRef={vlcRef}
       isPlaying={isPlaying}
@@ -2526,11 +2488,8 @@ export const MediaPlayerView = ({
       computedAspectRatio={computedAspectRatio}
       handleNativeLoadStart={handleNativeLoadStart}
       handleNativeOpen={handleNativeOpen}
-      clearBufferingIndicator={clearBufferingIndicator}
       handleClose={handleClose}
       handleNativeBuffering={handleNativeBuffering}
-      isPlayingRef={isPlayingRef}
-      setIsPlaying={setIsPlaying}
     />
   );
   const isValidPreviewRect = isUsableInlinePreviewRect(inlinePreviewRect);
@@ -2594,7 +2553,6 @@ export const MediaPlayerView = ({
   const fullscreenControlsProps = {
     insets,
     scale,
-    isYouTube: Boolean(youtubeVideoId),
     title,
     episodeLabel,
     isLive,
@@ -2686,7 +2644,7 @@ export const MediaPlayerView = ({
     >
       <StatusBar hidden={!showControls} translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} isYouTube={Boolean(youtubeVideoId)} />
+      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} />
       <FullscreenVisualFeedback
         isAudioOnly={isAudioOnly}
         isWebPlatform={isWeb()}
@@ -2696,7 +2654,6 @@ export const MediaPlayerView = ({
       />
       <FullscreenGestureLayer
         isAudioOnly={isAudioOnly}
-        isYouTube={Boolean(youtubeVideoId)}
         panResponder={panResponder}
         handlers={{
           onPointerDown: handleWebPointerDown,
@@ -2747,7 +2704,6 @@ export const MediaPlayerView = ({
       <FullscreenRecordingLayer
         isAudioOnly={isAudioOnly}
         isLive={isLive}
-        isYouTube={Boolean(youtubeVideoId)}
         isScreenRecorderEnabled={isScreenRecorderEnabled}
         recStatus={recStatus}
         recElapsedMs={recElapsedMs}

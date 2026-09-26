@@ -1,11 +1,5 @@
 export const sampleSources = [
   {
-    id: 'youtube',
-    label: 'YouTube',
-    title: 'Big Buck Bunny · YouTube',
-    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
-  },
-  {
     id: 'hls',
     label: 'M3U8',
     title: 'Mux HLS test stream',

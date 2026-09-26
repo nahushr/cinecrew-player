@@ -505,10 +505,6 @@ function getPanelIntegration(activePanel, integrations) {
   return null;
 }
 
-function getActiveMediaUrl(youtubeVideoId, streamUrl) {
-  return youtubeVideoId ? '' : streamUrl;
-}
-
 function getInlinePlayerStyle(inlinePreview, rect) {
   if (!inlinePreview || !rect) return {};
   return { position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height };
@@ -1367,7 +1363,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       payload,
       { video: videoRef.current, player: publicPlayerRef.current },
     );
-  }, [actions, props.onAspectRatioChange, onFullscreen]);
+  }, [actions, props.onAspectRatioChange, onFullscreen, onBack, props.onClose]);
 
   const startBuiltinRecording = useCallback(async () => {
     const video = videoRef.current;

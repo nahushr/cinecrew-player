@@ -1,42 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRecordingDownloadLink, createVideoRecordingStream, createYouTubeScreenRecordingStream, downloadRecording } from '../src/utils/webRecording.js';
+import { createRecordingDownloadLink, createVideoRecordingStream, downloadRecording } from '../src/utils/webRecording.js';
 
-function withNavigator(value, run) {
-  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-  Object.defineProperty(globalThis, 'navigator', { configurable: true, value });
-  return Promise.resolve().then(run).finally(() => {
-    if (original) Object.defineProperty(globalThis, 'navigator', original);
-    else delete globalThis.navigator;
-  });
-}
-
-test('YouTube recording uses explicit tab capture and requires audio plus video', async () => {
-  const stopped = [];
-  const tracks = [
-    { kind: 'video', stop() { stopped.push('video'); } },
-    { kind: 'audio', stop() { stopped.push('audio'); } },
-  ];
-  let options;
-  await withNavigator({ mediaDevices: { async getDisplayMedia(value) { options = value; return { getTracks: () => tracks, getVideoTracks: () => [tracks[0]], getAudioTracks: () => [tracks[1]] }; } } }, async () => {
-    const capture = await createYouTubeScreenRecordingStream();
-    assert.deepEqual(options, { video: true, audio: true });
-    assert.deepEqual(capture.stream.getTracks(), tracks);
-    capture.cleanup();
-    assert.deepEqual(stopped, ['video', 'audio']);
-  });
-});
-
-test('YouTube recording rejects captures without tab audio and stops acquired tracks', async () => {
-  let stopped = 0;
-  const track = { stop() { stopped += 1; } };
-  await withNavigator({ mediaDevices: { async getDisplayMedia() { return { getTracks: () => [track], getVideoTracks: () => [track], getAudioTracks: () => [] }; } } }, async () => {
-    await assert.rejects(createYouTubeScreenRecordingStream(), /enable Share tab audio/);
-    assert.equal(stopped, 1);
-  });
-});
-
-test('cross-origin capture failures explain the browser recording limitation', () => {
+test('cross-origin capture failures allow the screen-capture fallback', () => {
   const originalMediaStream = globalThis.MediaStream;
   globalThis.MediaStream = class FakeMediaStream {};
   try {
@@ -48,10 +14,7 @@ test('cross-origin capture failures explain the browser recording limitation', (
       },
     };
 
-    assert.throws(
-      () => createVideoRecordingStream(video, null, () => 'FIT'),
-      /local or CORS-enabled source/,
-    );
+    assert.equal(createVideoRecordingStream(video, null, () => 'FIT'), null);
   } finally {
     if (originalMediaStream === undefined) delete globalThis.MediaStream;
     else globalThis.MediaStream = originalMediaStream;

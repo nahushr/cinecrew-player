@@ -1,4 +1,4 @@
-/** Run the player's built-in action before notifying the consuming app. */
+/** Run the core action when present, then notify the consuming app. */
 export function invokePlayerAction(coreAction, callback, payload, context) {
   const result = typeof coreAction === 'function' ? coreAction(payload) : undefined;
   if (typeof callback !== 'function') return result;

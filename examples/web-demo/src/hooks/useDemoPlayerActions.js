@@ -2,6 +2,9 @@ import { useMemo } from 'react';
 
 export function useDemoPlayerActions({ notify, setSelectedAudioTrack }) {
   return useMemo(() => ({
+    onBack: ({ title }) => {
+      notify('Back', title ? `Back pressed for ${title}` : 'Back pressed');
+    },
     onPlayPause: ({ isPlaying }) => {
       notify(isPlaying ? 'Play' : 'Pause', isPlaying ? 'Playback started' : 'Playback paused');
     },

@@ -74,8 +74,6 @@ export default function App() {
   };
 
   const source = { ...asPlayerSource(active), isLive: live, mediaType: live ? 'live' : 'movie' };
-  const isYouTubeSource = /(?:youtube\.com|youtu\.be)/i.test(active.url || '');
-
   return (
     <main className="demo-shell">
       <header className="page-header">
@@ -108,7 +106,6 @@ export default function App() {
           source={source}
           drawerMode={drawerMode}
           inline={inline}
-          muted={isYouTubeSource}
           selectedAudioTrack={selectedAudioTrack}
           integrations={integrations}
           actions={actions}

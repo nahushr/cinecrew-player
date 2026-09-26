@@ -14,12 +14,6 @@ import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/nati
 
 const SAMPLES = [
   {
-    id: 'youtube',
-    label: 'YouTube',
-    title: 'Big Buck Bunny · YouTube',
-    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
-  },
-  {
     id: 'ts',
     label: '.ts stream',
     title: 'Sample MPEG-TS video',
@@ -191,14 +185,14 @@ export default function App() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.eyebrow}>NATIVE PLAYGROUND · EXPO SNACK</Text>
       <Text style={styles.title}>CineCrew Player</Text>
-      <Text style={styles.bodyText}>The same five source tests as the React demo.</Text>
+      <Text style={styles.bodyText}>The same direct-media playback tests as the React demo.</Text>
 
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>Snack runtime note</Text>
         <Text style={styles.mutedText}>
           Snack runs in Expo Go, which does not include this package’s custom VLC native module.
-          YouTube and compatible MP4 sources can use the Expo fallback; MPEG-TS and MKV need the
-          package in a native development build to test the bundled VLC engine.
+          Compatible MP4 sources can use the Expo fallback; MPEG-TS and MKV need the package in a
+          native development build to test the bundled VLC engine.
         </Text>
       </View>
 
@@ -221,7 +215,7 @@ export default function App() {
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
-        placeholder="Enter a YouTube or media URL"
+        placeholder="Enter a direct media URL"
         placeholderTextColor="#8396ad"
         style={styles.input}
       />

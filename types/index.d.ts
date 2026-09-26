@@ -80,10 +80,11 @@ export interface PlayerActionContext {
   video?: unknown | null;
 }
 
-/** Notification invoked after the player's built-in action has executed. */
+/** App callback for a player action. Back is app-owned and has no built-in behavior. */
 export type PlayerAction = (payload?: Record<string, unknown>, context?: PlayerActionContext) => unknown;
 
 export interface PlayerActions {
+  /** User-owned navigation event. The player does not close or navigate on its own. */
   onBack?: PlayerAction;
   onPlayPause?: PlayerAction;
   onSeek?: PlayerAction;
@@ -177,12 +178,8 @@ export interface PlayerIntegrations {
     render?: (context: { title: string; source: PlayerSource; onClose: () => void }) => React.ReactNode;
   };
   recording?: {
-    /**
-     * Starts host-managed recording. For YouTube, the cross-origin iframe does
-     * not expose a media element; native apps must use an OS screen-capture
-     * implementation (with user consent) and web apps may use getDisplayMedia.
-     */
-    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string; isYouTube?: boolean; youtubeVideoId?: string }) => Promise<unknown>;
+    /** Starts host-managed recording for the active direct media source. */
+    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string }) => Promise<unknown>;
     pause?: () => Promise<unknown>;
     resume?: () => Promise<unknown>;
     stop?: () => Promise<{ filename?: string } | unknown>;
@@ -248,7 +245,8 @@ export interface CineCrewPlayerProps {
   playlist?: Array<Record<string, unknown>>;
   shuffle?: boolean;
   onClose?: () => void;
-  onBack?: () => void;
+  /** User-owned back event. The player does not close or navigate on its own. */
+  onBack?: PlayerAction;
   onFullscreen?: (state: { isFullscreen: boolean }) => void;
   /** Invoked after the player applies an aspect ratio selection; actions.onAspectRatioChange takes precedence when both are supplied. */
   onAspectRatioChange?: PlayerAction;

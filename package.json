@@ -113,7 +113,6 @@
     "mediabunny": "^1.59.0",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-svg": "^15.15.4",
-    "react-native-webview": "^13.16.1",
     "prop-types": "^15.8.1"
   },
   "peerDependencies": {
