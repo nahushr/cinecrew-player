@@ -180,9 +180,10 @@ jobs:
           set -euo pipefail
           package='@cinecrew/cinecrew-player@latest'
           for attempt in $(seq 1 12); do
-            if npm install --package-lock-only --ignore-scripts --save=false --prefer-online \
-              --cache="$RUNNER_TEMP/npm-release-cache" "$package" \
-              --prefix examples/web-demo --registry=https://registry.npmjs.org; then
+            if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
+              --cache="$RUNNER_TEMP/npm-release-cache" --prefix examples/web-demo \
+              @cinecrew/cinecrew-player \
+              --registry=https://registry.npmjs.org; then
               exit 0
             fi
             echo "Retrying React demo lockfile update for $package ($attempt/12)."
