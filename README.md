@@ -180,7 +180,7 @@ npm install
 npm run web
 ```
 
-> Direct media sources are passed through to the platform engine. A page/share URL is not necessarily a playable media source; use `resolveSource` to resolve it. The player does not rewrite protocols, proxy media, or impose host-specific CORS rules.
+> The player has no built-in YouTube playback or embed mode. Pass a direct playable media URL or local URI; page/share URLs (including YouTube watch pages) must be resolved by your app to a direct media source before playback. The player does not rewrite protocols, proxy media, or impose host-specific CORS rules.
 
 ## Install
 

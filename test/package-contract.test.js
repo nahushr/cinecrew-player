@@ -36,6 +36,8 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   assert.doesNotMatch(webEntry, /from ['"](?:react-native|react-native-webview|@expo\/vector-icons)['"]/);
+  const demoSamples = readFileSync(path.join(root, 'examples/web-demo/src/samples.js'), 'utf8');
+  assert.doesNotMatch(demoSamples, /youtube/i, 'the Vite demo no longer advertises YouTube as a playable sample');
   assert.equal(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js')), false);
   assert.equal(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.native.js')), false);
   assert.doesNotMatch(declarations, /youtubeVideoId|isYouTube/i);
