@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import flvjs from 'flv.js';
 
 const isFlvSource = (url, type) => /flv/i.test(String(type || ''))
   || /\.flv(?:$|[?#])/i.test(String(url || ''))
   || /^(?:ws|wss):/i.test(String(url || ''));
 
-function attemptPlayback(video, pausedRef) {
+function attemptPlayback(video, pausedRef, onAutoplayBlockedRef) {
   if (pausedRef.current) return;
   const playResult = video.play();
   playResult?.catch?.((error) => {
-    if (error?.name === 'NotAllowedError') {
-      video.muted = true;
-      video.play()?.catch?.(() => {});
-    }
+    if (error?.name !== 'NotAllowedError') return;
+    // Autoplay may be blocked until a user gesture. Keep the requested audio
+    // state intact and expose the player's normal Play control for that gesture.
+    video.pause();
+    pausedRef.current = true;
+    onAutoplayBlockedRef.current?.();
   });
 }
 
@@ -24,14 +26,11 @@ export function useWebFlvPlayback({
   pausedRef,
   onErrorRef,
   onBufferingRef,
+  onAutoplayBlocked,
 }) {
   const useFlv = Boolean(isFlvSource(activeUrl, type));
-  const [audioDisabledForUrl, setAudioDisabledForUrl] = useState('');
-  const disableAudio = useFlv && audioDisabledForUrl === activeUrl;
-
-  useEffect(() => {
-    setAudioDisabledForUrl('');
-  }, [activeUrl]);
+  const onAutoplayBlockedRef = useRef(onAutoplayBlocked);
+  onAutoplayBlockedRef.current = onAutoplayBlocked;
 
   useEffect(() => {
     if (!useFlv || !activeUrl || typeof window === 'undefined') return undefined;
@@ -45,22 +44,16 @@ export function useWebFlvPlayback({
     }
 
     let disposed = false;
+    let playbackErrorReported = false;
+    let specificCodecErrorReported = false;
     let player;
-    const handleMediaInfo = (info) => {
-      // Some browser MSE implementations reject multichannel AAC in FLV
-      // remuxing. Keep video playback available by retrying without that audio
-      // track instead of leaving the player stuck before its first frame.
-      if (!disableAudio && Number(info?.audioChannelCount) > 2) {
-        setAudioDisabledForUrl(activeUrl);
-      }
-    };
     const handleCanPlay = () => {
       onBufferingRef?.current?.(false);
-      attemptPlayback(video, pausedRef);
+      attemptPlayback(video, pausedRef, onAutoplayBlockedRef);
     };
     const handleWaiting = () => onBufferingRef?.current?.(true);
     const handleVideoError = () => {
-      if (disposed || video.readyState >= 2) return;
+      if (disposed || specificCodecErrorReported || video.readyState >= 2) return;
       const mediaError = video.error;
       onBufferingRef?.current?.(false);
       onErrorRef.current?.({
@@ -74,7 +67,6 @@ export function useWebFlvPlayback({
         type: 'flv',
         url: activeUrl,
         isLive: Boolean(isLive),
-        hasAudio: !disableAudio,
         hasVideo: true,
       }, {
         // flv.js's worker bundle is webpack-specific and can fail to initialize
@@ -89,23 +81,32 @@ export function useWebFlvPlayback({
       });
 
       player.on(flv.Events.ERROR, (errorType, errorDetail, errorInfo) => {
-        if (disposed) return;
+        if (disposed || specificCodecErrorReported) return;
         const details = [errorType, errorDetail, errorInfo?.msg, errorInfo?.message]
           .filter(Boolean)
           .join(' ');
-        if (!disableAudio && /codecunsupported|unsupported codec|audio.*(?:unsupported|not supported)|(?:unsupported|not supported).*audio/i.test(details)) {
-          setAudioDisabledForUrl(activeUrl);
-          return;
-        }
+        const unsupportedAudio = /unsupported codec in audio frame|unsupported audio codec|audio.*(?:unsupported|not supported)|(?:unsupported|not supported).*audio/i.test(details);
+        const unsupportedVideo = /unsupported codec in video frame|unsupported.*video|video.*(?:unsupported|not supported).*codec/i.test(details);
+        // flv.js rejects individual audio packets with codecs other than AAC
+        // and MP3, but can continue transmuxing the remaining supported audio
+        // and video packets. Don't turn a skippable packet into a fatal player
+        // error or disable the stream's supported audio track.
+        if (unsupportedAudio && !unsupportedVideo) return;
+        if (playbackErrorReported && !unsupportedAudio && !unsupportedVideo) return;
+        playbackErrorReported = true;
+        specificCodecErrorReported = unsupportedAudio || unsupportedVideo;
         const status = Number(errorInfo?.code || errorInfo?.status);
         const httpStatus = Number.isFinite(status) && status >= 100 ? status : null;
         const message = httpStatus
           ? `FLV stream request failed (HTTP ${httpStatus}).`
-          : `FLV playback failed (${String(errorDetail || errorType || 'unknown error')}).`;
+          : unsupportedAudio
+            ? 'This FLV audio codec is not supported by the browser player. Use AAC or MP3 audio in the FLV stream.'
+            : unsupportedVideo
+              ? 'This FLV video codec is not supported by the browser player. Use H.264/AVC video in the FLV stream.'
+              : `FLV playback failed (${String(errorDetail || errorType || 'unknown error')}).`;
         onBufferingRef?.current?.(false);
         onErrorRef.current?.({ message, httpStatus, err: errorInfo || { errorType, errorDetail } });
       });
-      player.on(flv.Events.MEDIA_INFO, handleMediaInfo);
 
       video.crossOrigin = 'anonymous';
       video.addEventListener('canplay', handleCanPlay);
@@ -113,7 +114,7 @@ export function useWebFlvPlayback({
       video.addEventListener('error', handleVideoError);
       player.attachMediaElement(video);
       player.load();
-      attemptPlayback(video, pausedRef);
+      attemptPlayback(video, pausedRef, onAutoplayBlockedRef);
     } catch (error) {
       onBufferingRef?.current?.(false);
       onErrorRef.current?.({
@@ -133,7 +134,7 @@ export function useWebFlvPlayback({
       try { player.detachMediaElement(); } catch {}
       try { player.destroy(); } catch {}
     };
-  }, [activeUrl, disableAudio, isLive, useFlv, videoRef, pausedRef, onErrorRef, onBufferingRef]);
+  }, [activeUrl, isLive, useFlv, videoRef, pausedRef, onErrorRef, onBufferingRef]);
 
   return useFlv;
 }

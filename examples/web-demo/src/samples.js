@@ -45,8 +45,8 @@ export const sampleSources = [
   {
     id: 'flv',
     label: 'FLV',
-    title: 'Big Buck Bunny (HTTP-FLV Stream)',
-    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.flv',
+    title: 'Ocean (FLV with MP3 Audio)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/sample_960x400_ocean_with_audio.flv',
     type: 'video/x-flv',
     isLive: false,
   },
@@ -110,7 +110,7 @@ export function asPlayerSource(item) {
 
   let uri = item.url;
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    if (item.id !== 'flv' && uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
+    if (uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
       uri = uri.replace('https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/', '/');
     }
   }

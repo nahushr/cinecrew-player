@@ -1381,6 +1381,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
     onBufferingRef,
+    onAutoplayBlocked: () => {
+      pausedStateRef.current = true;
+      setIsPaused(true);
+    },
   });
   const useHls = useWebHlsPlayback({
     activeUrl,
@@ -1430,16 +1434,22 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       if (playPromise !== undefined) {
         playPromise.catch((playError) => {
           if (playError?.name === 'NotAllowedError') {
-            video.muted = true;
-            setMuted(true);
-            video.play().catch(() => {});
+            if (useFlv) {
+              video.pause();
+              pausedStateRef.current = true;
+              setIsPaused(true);
+            } else {
+              video.muted = true;
+              setMuted(true);
+              video.play().catch(() => {});
+            }
           } else if (playError?.name !== 'AbortError') {
             handleError({ message: playError?.message || 'Unable to start playback.', err: playError });
           }
         });
       }
     }
-  }, [isPaused, streamUrl, corsMode, handleError, isManagedPlayback]);
+  }, [isPaused, streamUrl, corsMode, handleError, isManagedPlayback, useFlv]);
 
   useEffect(() => {
     const video = videoRef.current;
