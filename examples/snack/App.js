@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player';
 
@@ -158,12 +158,11 @@ function useRecordingAdapter(setStatus) {
       subscribe(listener) { listeners.add(listener); listener(current); return () => listeners.delete(listener); },
       async start({ player }) {
         playerApi = player;
-        const root = FileSystem.cacheDirectory;
-        if (!root) throw new Error('The native cache directory is unavailable.');
-        const dir = `${root}cinecrew-recordings/`;
-        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-        recordingPath = `${dir}cinecrew-${Date.now()}.ts`;
-        const commandPath = isAndroid() ? nativePath(dir) : nativePath(recordingPath);
+        const dir = new Directory(Paths.cache, 'cinecrew-recordings');
+        dir.create({ intermediates: true, idempotent: true });
+        const outputFile = new File(dir, `cinecrew-${Date.now()}.ts`);
+        recordingPath = outputFile.uri;
+        const commandPath = isAndroid() ? nativePath(dir.uri) : nativePath(recordingPath);
         active = !!playerApi?.startNativeRecording?.(commandPath);
         if (!active) throw new Error('VLC recording is not available in Expo Go. Use the Android/iOS development build to record media.');
         publish('recording', 0);
@@ -182,7 +181,7 @@ function useRecordingAdapter(setStatus) {
         active = false;
         clearTimeout(timer);
         const uri = complete.startsWith('file://') ? complete : `file://${complete}`;
-        const file = await FileSystem.getInfoAsync(uri);
+        const file = new File(uri);
         if (!file.exists || !(file.size > 0)) throw new Error('VLC returned an empty or missing recording file.');
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, { dialogTitle: 'Save CineCrew recording', mimeType: 'video/mp2t', UTI: 'public.mpeg-2-transport-stream' });
