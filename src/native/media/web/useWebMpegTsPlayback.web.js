@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import mpegts from '../../../../vendor/mpegts.js/mpegts.js';
+import '../../../../vendor/mpegts.js/mpegts.js';
 import {
   WEB_AC3_UNSUPPORTED_CODE,
   WEB_AC3_UNSUPPORTED_MESSAGE,
 } from './webPlaybackErrors';
 
-if (mpegts.LoggingControl) {
-  mpegts.LoggingControl.enableAll = false;
+const getMpegts = () => (typeof globalThis !== 'undefined' && globalThis.mpegts
+  ? globalThis.mpegts
+  : (typeof window !== 'undefined' && window.mpegts ? window.mpegts : undefined));
+
+const initialMpegts = getMpegts();
+if (initialMpegts?.LoggingControl) {
+  initialMpegts.LoggingControl.enableAll = false;
 }
 
 const isRawLiveTransportStream = (url) => {
@@ -236,7 +241,8 @@ export function useWebMpegTsPlayback({
     };
 
     try {
-      if (!mpegts.isSupported()) {
+      const mpegts = getMpegts();
+      if (!mpegts || !mpegts.isSupported()) {
         setUnavailableForUrl(streamUrl);
         return undefined;
       }
