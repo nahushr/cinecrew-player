@@ -42,7 +42,7 @@ export function PlayerViewport({
       poster={active.poster}
       mediaId={active.id}
       autoPlay
-      muted={muted}
+      muted={muted ?? true}
       audioTracks={demoAudioTracks}
       selectedAudioTrack={selectedAudioTrack}
       controls={{

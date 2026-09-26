@@ -43,13 +43,33 @@ export function useWebHlsPlayback({ activeUrl, isLive, videoRef, pausedRef, onEr
       hls.loadSource(activeUrl);
       video.crossOrigin = 'anonymous';
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (!pausedRef.current) video.play().catch(() => {});
-      });
+      const attemptPlay = () => {
+        if (pausedRef.current) return;
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err?.name === 'NotAllowedError') {
+              video.muted = true;
+              video.play().catch(() => {});
+            }
+          });
+        }
+      };
+      hls.on(Hls.Events.MANIFEST_PARSED, attemptPlay);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = activeUrl;
       video.load();
-      if (!pausedRef.current) video.play().catch(() => {});
+      if (!pausedRef.current) {
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err?.name === 'NotAllowedError') {
+              video.muted = true;
+              video.play().catch(() => {});
+            }
+          });
+        }
+      }
     } else {
       onErrorRef.current?.({ message: 'This browser does not support HLS playback.' });
     }

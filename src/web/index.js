@@ -1333,12 +1333,22 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isPaused) video.pause();
-    else video.play().catch((playError) => {
-      if (playError?.name !== 'NotAllowedError' && playError?.name !== 'AbortError') {
-        handleError(playError);
+    if (isPaused) {
+      video.pause();
+    } else {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((playError) => {
+          if (playError?.name === 'NotAllowedError') {
+            video.muted = true;
+            setMuted(true);
+            video.play().catch(() => {});
+          } else if (playError?.name !== 'AbortError') {
+            handleError(playError);
+          }
+        });
       }
-    });
+    }
   }, [isPaused, streamUrl, corsMode, handleError]);
 
   useEffect(() => {
