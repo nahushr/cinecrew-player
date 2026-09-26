@@ -4,6 +4,7 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  Modal,
   Text,
   View,
 } from 'react-native';
@@ -130,7 +131,7 @@ function InlinePlayerOverlay({
     showControls ? React.createElement(React.Fragment, null,
       React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
       React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')),
-      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
+      React.createElement(View, { style: { flex: 1 } }),
       button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
@@ -145,7 +146,6 @@ function InlineLivePlayerView({
   url,
   title = 'Live TV',
   height = 220,
-  onFullscreen,
   paused: externalPaused,
   isActive = true,
   onActivate,
@@ -235,10 +235,11 @@ function InlineLivePlayerView({
 
   const openFullscreen = (event) => {
     event?.stopPropagation?.();
-    performAction('onFullscreen', () => {
-      if (typeof onFullscreen === 'function') onFullscreen();
-      else setFullscreen((value) => !value);
-    }, { isFullscreen: !fullscreen, source: sourceObject, title });
+    performAction('onFullscreen', () => setFullscreen((value) => !value), {
+      isFullscreen: !fullscreen,
+      source: sourceObject,
+      title,
+    });
   };
 
   const nativeMediaOptions = useMemo(() => [
@@ -273,30 +274,43 @@ function InlineLivePlayerView({
     onPlaying: handlePlaying,
     onError: handleError,
   });
+  const renderOverlay = () => React.createElement(InlinePlayerOverlay, {
+    showControls,
+    controls: { ...controls, actions },
+    palette,
+    title,
+    muted,
+    paused: pausedNow,
+    source: streamUrl,
+    fullscreen,
+    onToggleControls: () => setShowControls((value) => !value),
+    onMute: toggleMute,
+    onPlay: togglePlay,
+    onFullscreen: openFullscreen,
+  });
 
   return React.createElement(
     PlayerCustomizationProvider,
     { icons, theme },
     React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style] },
-      player ? React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player) : null,
+      !fullscreen && player ? React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player) : null,
       !shouldRenderVideo && artwork ? React.createElement(Image, { source: { uri: artwork }, resizeMode: 'contain', style: styles.poster }) : null,
       !shouldRenderVideo && !artwork ? React.createElement(View, { style: styles.emptyPoster }, React.createElement(PlayerIcon, { name: 'television-play', size: 48, color: palette.accentColor })) : null,
       shouldRenderVideo && loading && !error ? React.createElement(View, { pointerEvents: 'none', style: styles.loading }, React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor })) : null,
       error ? React.createElement(View, { pointerEvents: 'none', style: styles.error }, React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error)) : null,
-      React.createElement(InlinePlayerOverlay, {
-        showControls,
-        controls: { ...controls, actions },
-        palette,
-        title,
-        muted,
-        paused: pausedNow,
-        source: streamUrl,
-        fullscreen,
-        onToggleControls: () => setShowControls((value) => !value),
-        onMute: toggleMute,
-        onPlay: togglePlay,
-        onFullscreen: openFullscreen,
-      }),
+      !fullscreen ? renderOverlay() : null,
+      React.createElement(Modal, {
+        visible: fullscreen,
+        animationType: 'none',
+        statusBarTranslucent: true,
+        onRequestClose: () => setFullscreen(false),
+      }, React.createElement(View, { style: styles.fullscreenFrame },
+        player ? React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player) : null,
+        loading && !error ? React.createElement(View, { pointerEvents: 'none', style: styles.loading }, React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor })) : null,
+        error ? React.createElement(View, { pointerEvents: 'none', style: styles.error }, React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error)) : null,
+        renderOverlay(),
+      ),
+      ),
     ),
   );
 }
@@ -305,6 +319,7 @@ export const InlineLivePlayer = React.memo(InlineLivePlayerView);
 
 const styles = StyleSheet.create({
   frame: { width: '100%', minHeight: 80, overflow: 'hidden', borderRadius: 14, position: 'relative', justifyContent: 'center' },
+  fullscreenFrame: { flex: 1, overflow: 'hidden', position: 'relative', justifyContent: 'center', backgroundColor: '#000' },
   video: { width: '100%', height: '100%' },
   poster: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   emptyPoster: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },

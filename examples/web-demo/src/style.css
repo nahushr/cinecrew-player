@@ -13,6 +13,7 @@ button { cursor: pointer; }
 .sample.active, .url-form button { background: #087f91; border-color: #16c7d9; }
 .url-form { display: flex; flex-wrap: wrap; gap: 8px; }
 .url-form input { min-width: 240px; flex: 1; border: 1px solid #29415d; border-radius: 10px; padding: 10px 12px; background: #07111e; color: inherit; }
+.file-source-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 12px; }
 .file-button { display: inline-flex; align-items: center; position: relative; overflow: hidden; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .inline-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; }

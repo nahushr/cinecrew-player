@@ -110,10 +110,33 @@ test('progress-bar callback is public, documented, and connected on web and nati
   const formatter = readFileSync(path.join(root, 'src/utils/progressBarTime.js'), 'utf8');
 
   assert.match(declarations, /onProgressBarChange\?: \(time: string\) => void/);
+  assert.match(declarations, /showProgressBar\?: boolean/);
   assert.match(readme, /`onProgressBarChange`[\s\S]*`HH:MM:SS`/);
-  assert.match(webEntry, /emitProgressBarTime\(Number\(video\.currentTime\) \|\| 0, onProgressBarChange/);
-  assert.match(nativeEntry, /emitProgressBarTime\(progress\.seconds, onProgressBarChange/);
+  assert.match(webEntry, /const progressBarCallback = progressBarVisible \? onProgressBarChange : undefined/);
+  assert.match(webEntry, /showProgressBar !== false[\s\S]*isControlEnabled\(controlOverrides, 'seek', true\)[\s\S]*!isLive/);
+  assert.match(webEntry, /duration > 0 && progressBarVisible/);
+  assert.match(webEntry, /emitProgressBarTime\(Number\(video\.currentTime\) \|\| 0, progressBarCallback/);
+  assert.match(nativeEntry, /const progressBarCallback = progressBarVisible \? onProgressBarChange : undefined/);
+  assert.match(nativeEntry, /showProgressBar !== false[\s\S]*controls\.seek !== false[\s\S]*!isLive[\s\S]*!isInlinePreview/);
+  assert.match(nativeEntry, /controls: \{ \.\.\.controls, seek: progressBarVisible \}/);
+  assert.match(nativeEntry, /emitProgressBarTime\(progress\.seconds, progressBarCallback/);
   assert.match(formatter, /padStart\(2, '0'\)/);
+});
+
+test('compact inline titles are bottom-anchored and the Vite source controls stay streamlined', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
+  const nativeInline = readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8');
+  const sourceControls = readFileSync(path.join(root, 'examples/web-demo/src/components/SourceControls.jsx'), 'utf8');
+  const demoStyles = readFileSync(path.join(root, 'examples/web-demo/src/style.css'), 'utf8');
+  const topOverlay = nativeInline.match(/style: styles\.topRow \},([\s\S]*?)style: styles\.center \}/)?.[1] || '';
+
+  assert.match(webEntry, /inlinePreview && title \? h\('span', \{ className: 'cinecrew-player__inline-title'/);
+  assert.match(webStyles, /\.cinecrew-player__inline-title\s*\{/);
+  assert.doesNotMatch(topOverlay, /styles\.title/);
+  assert.match(nativeInline, /style: styles\.bottomRow \},[\s\S]*?styles\.title/);
+  assert.doesNotMatch(sourceControls, /Treat source as live/);
+  assert.match(demoStyles, /\.file-source-row\s*\{[^}]*padding-top:\s*12px/);
 });
 
 test('web player keeps chat paging automatic and exposes customizable aspect modes', () => {

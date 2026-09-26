@@ -211,6 +211,8 @@ export interface CineCrewPlayerProps {
   volume?: number;
   playbackRate?: number;
   controls?: PlayerControls;
+  /** Show the playback progress/seek bar. When false, onProgressBarChange is not called. Defaults to true. */
+  showProgressBar?: boolean;
   /** Web/Electron chat and EPG drawer behavior. Overlay keeps the video full-size; resize shrinks it to make room. */
   drawerMode?: PlayerDrawerMode;
   /** Web CSS or React Native view-style overrides for the chat, EPG, and diagnostics drawer. */
@@ -282,6 +284,7 @@ export interface InlineLivePlayerProps {
   paused?: boolean;
   isActive?: boolean;
   onActivate?: () => void;
+  /** @deprecated Inline fullscreen is self-contained. Use actions.onFullscreen to observe its state. */
   onFullscreen?: () => void;
   controls?: Pick<PlayerControls, 'playPause' | 'mute' | 'fullscreen'>;
   actions?: Pick<PlayerActions, 'onPlayPause' | 'onMute' | 'onFullscreen'>;

@@ -249,13 +249,14 @@ function WebPlaybackRateControl({ value, onChange }) {
 function WebBottomControls(props) {
   const {
     isLive, overrides, theme, icons, currentTime, duration, seekTo,
+    progressBarVisible, inlinePreview, title,
     showAspectMenu, setShowAspectMenu, selectAspect, aspectRatios, selectedAspectRatio,
     audioOnly, setAudioOnlyMode, availableTracks, selectedAudioTrack,
     showAudioMenu, setShowAudioMenu, selectAudio, playbackRate,
     setPlaybackRateAction, fullscreen, toggleFullscreen,
   } = props;
   let seek = null;
-  if (duration > 0 && isControlEnabled(overrides, 'seek', true)) {
+  if (duration > 0 && progressBarVisible && isControlEnabled(overrides, 'seek', true)) {
     seek = h(WebSeekControl, { currentTime, duration, theme, onSeek: seekTo });
   }
   let aspect = null;
@@ -299,6 +300,7 @@ function WebBottomControls(props) {
     seek,
     h('div', { className: 'cinecrew-player__bottom-actions' },
       h('div', { className: 'cinecrew-player__bottom-left-actions' },
+        inlinePreview && title ? h('span', { className: 'cinecrew-player__inline-title', title }, title) : null,
         renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { active: audioOnly }, overrides, icons, theme }),
         aspect),
       h('div', { className: 'cinecrew-player__bottom-right-actions' },
@@ -350,7 +352,7 @@ function WebRecordingOverlay(props) {
   }, getRecordingOverlayContent(props), dismissButton);
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, togglePlay, bottomProps }) {
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps }) {
   let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -374,7 +376,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
   return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}`, style: { color: theme.controlColor } },
     h('div', { className: 'cinecrew-player__top-controls' },
       h('div', { className: 'cinecrew-player__top-left-actions' }, leftControls),
-      !locked && paused && title ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor }, title }, title) : null,
+      !locked && !inlinePreview && paused && title ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor }, title }, title) : null,
       h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     h(WebRecordingOverlay, {
@@ -623,6 +625,7 @@ function WebPlayerLayout(props) {
       toggleLock: props.toggleLock,
       paused: props.isPaused,
       title: props.title,
+      inlinePreview: props.inlinePreview,
       togglePlay: props.togglePlay,
       bottomProps: props.bottomControlProps,
     });
@@ -1133,6 +1136,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     volume: volumeProp = 1,
     playbackRate: playbackRateProp = 1,
     paused: pausedProp,
+    showProgressBar = true,
     controls: controlOverrides = {},
     features = {},
     drawerMode = 'overlay',
@@ -1174,6 +1178,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
   const isLive = liveProp ?? media.isLive ?? false;
+  const progressBarVisible = showProgressBar !== false
+    && isControlEnabled(controlOverrides, 'seek', true)
+    && !isLive;
+  const progressBarCallback = progressBarVisible ? onProgressBarChange : undefined;
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const videoRef = useRef(null);
   const playerRef = useRef(null);
@@ -1549,8 +1557,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const video = videoRef.current;
     if (video) video.currentTime = 0;
     setPaused(false);
-    emitProgressBarTime(0, onProgressBarChange, lastProgressBarSecondRef, { force: true });
-  }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, onProgressBarChange, setPaused]);
+    emitProgressBarTime(0, progressBarCallback, lastProgressBarSecondRef, { force: true });
+  }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, progressBarCallback, setPaused]);
   const toggleMute = useCallback(() => action('onMute', () => setMuted((value) => !value), { muted: !muted }), [action, muted]);
   const toggleLock = useCallback(() => action('onLock', () => setLocked((value) => !value), { locked: !locked }), [action, locked]);
   const selectAspect = useCallback((next) => action('onAspectRatioChange', () => setAspectRatio(next), { aspectRatio: next }), [action]);
@@ -1566,8 +1574,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const seekTo = useCallback((seconds) => action('onSeek', () => {
     const targetSeconds = Math.max(0, Number(seconds) || 0);
     if (videoRef.current) videoRef.current.currentTime = targetSeconds;
-    emitProgressBarTime(targetSeconds, onProgressBarChange, lastProgressBarSecondRef, { force: true });
-  }, { seconds: Number(seconds) || 0 }), [action, onProgressBarChange]);
+    emitProgressBarTime(targetSeconds, progressBarCallback, lastProgressBarSecondRef, { force: true });
+  }, { seconds: Number(seconds) || 0 }), [action, progressBarCallback]);
   const handleBack = useCallback(() => action('onBack', undefined, { title, source: media }), [action, title, media]);
   useImperativeHandle(ref, () => {
     const api = {
@@ -1621,7 +1629,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const updateTime = () => {
       setCurrentTime(Number(video.currentTime) || 0);
       if (Number.isFinite(video.duration)) setDuration(video.duration);
-      emitProgressBarTime(Number(video.currentTime) || 0, onProgressBarChange, lastProgressBarSecondRef);
+      emitProgressBarTime(Number(video.currentTime) || 0, progressBarCallback, lastProgressBarSecondRef);
       onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: (Number(video.duration) || 0) * 1000, target: video.currentTime });
     };
     const onReadyEvent = () => {
@@ -1649,7 +1657,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('ended', endedHandler);
     };
-  }, [onReady, onPlaying, onProgress, onProgressBarChange, onEnded, tracksProp]);
+  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp]);
 
   useEffect(() => {
     if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;
@@ -1665,8 +1673,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, []);
 
   const toggleFullscreen = () => action('onFullscreen', () => {
-    if (inlinePreview && typeof onPromotePreview === 'function') return onPromotePreview({ title, source: media });
-    if (document.fullscreenElement) document.exitFullscreen?.();
+    if (document.fullscreenElement === playerRef.current) document.exitFullscreen?.();
     else playerRef.current?.requestFullscreen?.();
   }, { isFullscreen: !fullscreen });
   const openPanel = (panel) => {
@@ -1754,6 +1761,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   });
   const bottomControlProps = {
     isLive,
+    progressBarVisible,
+    inlinePreview,
+    title,
     overrides: controlOverrides,
     theme,
     icons,
@@ -1831,7 +1841,6 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   paused = false,
   isActive = true,
   onActivate,
-  onFullscreen,
   controls = {},
   actions = {},
   theme,
@@ -1874,7 +1883,6 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     onError,
     onPlaying,
     inlinePreview: true,
-    onPromotePreview: onFullscreen,
     style: { width: '100%', height, aspectRatio: '16 / 9', ...style },
   });
 });

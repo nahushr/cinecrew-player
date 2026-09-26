@@ -74,3 +74,22 @@ test('web, native, and inline player paths share core-first callback ordering', 
     assert.match(source, /invokePlayerAction\(/, `${file} must invoke the shared core-first action helper`);
   }
 });
+
+test('inline fullscreen expands its own player instead of promoting to the standard player', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const nativeEntry = readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8');
+  const webFullscreenStart = webEntry.indexOf('const toggleFullscreen =');
+  const webFullscreenEnd = webEntry.indexOf('const openPanel', webFullscreenStart);
+  const webFullscreenAction = webEntry.slice(webFullscreenStart, webFullscreenEnd);
+  const nativeFullscreenStart = nativeEntry.indexOf('const openFullscreen =');
+  const nativeFullscreenEnd = nativeEntry.indexOf('const nativeMediaOptions', nativeFullscreenStart);
+  const nativeFullscreenAction = nativeEntry.slice(nativeFullscreenStart, nativeFullscreenEnd);
+  const webInlinePlayer = webEntry.slice(webEntry.indexOf('export const InlineLivePlayer ='));
+
+  assert.match(webFullscreenAction, /playerRef\.current\?\.requestFullscreen\?\./);
+  assert.doesNotMatch(webFullscreenAction, /onPromotePreview/);
+  assert.doesNotMatch(webInlinePlayer, /onPromotePreview: onFullscreen/);
+  assert.match(nativeFullscreenAction, /setFullscreen\(/);
+  assert.doesNotMatch(nativeFullscreenAction, /onFullscreen\(/);
+  assert.match(nativeEntry, /React\.createElement\(Modal, \{\s*visible: fullscreen/);
+});

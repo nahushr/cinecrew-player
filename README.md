@@ -244,7 +244,6 @@ import { InlineLivePlayer } from '@cinecrew/cinecrew-player/native';
   height={220}
   isActive={selected}
   paused={!selected}
-  onFullscreen={() => openFullPlayer(channelUrl)}
 />
 ```
 
@@ -259,7 +258,6 @@ import '@cinecrew/cinecrew-player/styles.css';
   title="Example channel"
   isActive={selected}
   paused={!selected}
-  onFullscreen={() => openFullPlayer(channelUrl)}
 />
 ```
 
@@ -337,6 +335,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `muted` | `boolean` | `false` | Initial mute state. |
 | `volume` | `number` | `1` | Initial volume from `0` to `1`. |
 | `playbackRate` | `number` | `1` | Initial playback speed; the on-demand speed control can change it afterward. |
+| `showProgressBar` | `boolean` | `true` | Show or hide the playback seek bar. When hidden, `onProgressBarChange` is not called. |
 | `aspectRatios` | `(string \| { value, label? })[]` | built-in choices | Customize the aspect-ratio menu. Values include `FIT`, `FILL`, `STRETCH`, or a ratio such as `1:1`; labels are optional. |
 | `defaultAspectRatio` | `string` | `'FIT'` | Initial and source-reset aspect mode. Must match an item in `aspectRatios` to appear selected. |
 | `controls` | `PlayerControls` | defaults below | Show/hide individual control buttons. |
@@ -362,7 +361,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `shuffle` | `boolean` | `false` | Select a random next episode when the current episode ends. |
 | `onClose`, `onBack` | callbacks | — | App-owned navigation callbacks; Back does not close the player unless your callback does so. |
 | `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
-| `onProgressBarChange` | `(time: string) => void` | — | Reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. |
+| `onProgressBarChange` | `(time: string) => void` | — | When the progress bar is shown, reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. It is not called when `showProgressBar` is false, `controls.seek` is false, or the live-player UI hides seeking. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. Progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
@@ -392,7 +391,7 @@ type PlayerSource = string | {
 
 ### Inline live preview props
 
-`InlineLivePlayer` is exported from `@cinecrew/cinecrew-player/native` and `@cinecrew/cinecrew-player/web`. It renders a compact channel preview/poster and can promote playback to the host app's full player.
+`InlineLivePlayer` is exported from `@cinecrew/cinecrew-player/native` and `@cinecrew/cinecrew-player/web`. It renders a compact channel preview/poster with its title at the bottom-left. Its fullscreen control expands the same inline playback surface; it does not promote or switch to the standard player.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -402,7 +401,7 @@ type PlayerSource = string | {
 | `poster`, `posterChannel` | string / object | — | Still image or channel object used when preview is paused/inactive. |
 | `paused`, `isActive` | `boolean` | `false`, `true` | Control whether this preview should render/play its stream. |
 | `onActivate` | `() => void` | — | Called when an inactive preview poster is selected. |
-| `onFullscreen` | `() => void` | — | Called to promote/open the full player. |
+| `onFullscreen` | `() => void` | — | Deprecated; no longer promotes to another player. Use `actions.onFullscreen` to observe the inline player's fullscreen state after it changes. |
 | `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen'>` | all shown | Toggle its compact controls. |
 | `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
@@ -460,7 +459,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 
 For playback controls, the player executes its core behavior first and then invokes the matching `actions` callback. This lets your app show a snackbar, update analytics, or synchronize app state. Back is intentionally different: it has no built-in close/navigation behavior. The player invokes `actions.onBack`, `onBack`, or `onClose` (in that precedence), and your app decides whether to navigate, dismiss the player, or just show a snackbar. Each callback receives an action payload and a context with the imperative `player` API (and the web video element where available). If a callback throws, the player logs the error without blocking the UI.
 
-`onProgressBarChange` is separate from the platform-specific `onProgress` event: it emits a compact time string such as `00:00:05` once per playback second. A seek emits its final target time after the player applies the seek; skipped positions are not reported as watched time.
+`onProgressBarChange` is separate from the platform-specific `onProgress` event: while the progress bar is enabled, it emits a compact time string such as `00:00:05` once per playback second. A seek emits its final target time after the player applies the seek; skipped positions are not reported as watched time. Set `showProgressBar={false}` (or `controls={{ seek: false }}`) to hide seeking and suppress these progress-bar callbacks.
 
 ```tsx
 const playerRef = React.useRef(null);

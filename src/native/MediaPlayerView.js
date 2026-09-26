@@ -787,6 +787,7 @@ export const MediaPlayerView = ({
   style,
   onReady,
   onProgress,
+  showProgressBar = true,
   onProgressBarChange,
   onPlaying,
   onBuffering,
@@ -1181,6 +1182,11 @@ export const MediaPlayerView = ({
 
   const isLive = mediaType === 'live' || mediaType === 'channel';
   const isInlinePreview = !!inlinePreview;
+  const progressBarVisible = showProgressBar !== false
+    && controls.seek !== false
+    && !isLive
+    && !isInlinePreview;
+  const progressBarCallback = progressBarVisible ? onProgressBarChange : undefined;
 
   useEffect(() => {
     if (!visible || !initialShowLiveChat || !isLive || !isLiveCommentsEnabled) return;
@@ -1567,9 +1573,9 @@ export const MediaPlayerView = ({
     setSliderPos(0);
     lastKnownTimeRef.current = 0;
     seekCompletedAt.current = Date.now();
-    emitProgressBarTime(0, onProgressBarChange, lastProgressBarSecondRef, { force: true });
+    emitProgressBarTime(0, progressBarCallback, lastProgressBarSecondRef, { force: true });
     if (!showControls) setShowControls(true);
-  }, [onProgressBarChange, showControls]);
+  }, [progressBarCallback, showControls]);
 
   // Episode finished: auto-advance to the next episode (sequential) or to a
   // random episode (shuffle mode). Last episode in the playlist stops playback.
@@ -1768,7 +1774,7 @@ export const MediaPlayerView = ({
       lastKnownTimeRef,
       setSliderPosition: setSliderPos,
     });
-    if (progress) emitProgressBarTime(progress.seconds, onProgressBarChange, lastProgressBarSecondRef);
+    if (progress) emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
   };
 
   const handleNativeOpen = (event) => {
@@ -1876,13 +1882,13 @@ export const MediaPlayerView = ({
       setSliderPos(target);
       seekCompletedAt.current = Date.now();
       debouncedSaveProgress();
-      emitProgressBarTime(target, onProgressBarChange, lastProgressBarSecondRef, { force: true });
+      emitProgressBarTime(target, progressBarCallback, lastProgressBarSecondRef, { force: true });
     }, { seconds: Number(seconds) || 0, currentTime: lastKnownTimeRef.current },
-  ), [invokeAction, handleSeekTo, debouncedSaveProgress, onProgressBarChange]);
+  ), [invokeAction, handleSeekTo, debouncedSaveProgress, progressBarCallback]);
   const handleSeekByAction = (deltaSeconds) => invokeAction(
     'onSeek', () => {
       handleSeekBy(deltaSeconds);
-      emitProgressBarTime(lastKnownTimeRef.current, onProgressBarChange, lastProgressBarSecondRef, { force: true });
+      emitProgressBarTime(lastKnownTimeRef.current, progressBarCallback, lastProgressBarSecondRef, { force: true });
     }, { deltaSeconds: Number(deltaSeconds) || 0, currentTime: lastKnownTimeRef.current },
   );
   const handleMuteAction = useCallback(() => invokeAction(
@@ -2565,7 +2571,7 @@ export const MediaPlayerView = ({
     isEpgEnabled,
     diagnosticsOverlayEnabled,
     muted,
-    controls,
+    controls: { ...controls, seek: progressBarVisible },
     onClose: handleBackAction,
     handleRecordingAction,
     handleStartRecording,

@@ -6,7 +6,6 @@ export function SourceControls({
   draftUrl,
   fileInputRef,
   inline,
-  live,
   drawerMode,
   onSelectSample,
   onDraftUrlChange,
@@ -14,7 +13,6 @@ export function SourceControls({
   onChooseFile,
   onClearFile,
   onInlineChange,
-  onLiveChange,
   onDrawerModeChange,
   progressTime,
   status,
@@ -55,12 +53,6 @@ export function SourceControls({
           <label className="inline-toggle">
             <input type="checkbox" checked={inline} onChange={(event) => onInlineChange(event.target.checked)} />
             Use compact inline player
-          </label>
-        </div>
-        <div className="player-options-row">
-          <label className="inline-toggle">
-            <input type="checkbox" checked={live} onChange={(event) => onLiveChange(event.target.checked)} />
-            Treat source as live
           </label>
         </div>
         <div className="player-options-row">

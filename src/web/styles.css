@@ -50,6 +50,18 @@
   text-shadow: 0 1px 4px #000;
 }
 
+.cinecrew-player__inline-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(52vw, 420px);
+  overflow: hidden;
+  color: var(--cinecrew-text, #fff);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px #000;
+}
+
 .cinecrew-player__controls {
   position: absolute;
   inset: 0;

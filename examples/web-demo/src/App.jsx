@@ -11,7 +11,6 @@ export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
-  const [live, setLive] = useState(false);
   const [status, setStatus] = useState('Ready');
   const [progressTime, setProgressTime] = useState('00:00:00');
   const [drawerMode, setDrawerMode] = useState('overlay');
@@ -44,7 +43,6 @@ export default function App() {
   const selectSample = (sample) => {
     setActive(sample);
     setDraftUrl(sample.url);
-    setLive(Boolean(sample.isLive));
     setStatus('Loading selected sample…');
   };
 
@@ -53,7 +51,6 @@ export default function App() {
     const url = draftUrl.trim();
     if (!url) return;
     setActive({ id: 'custom', title: url, url });
-    setLive(false);
     setStatus('Loading URL…');
   };
 
@@ -62,7 +59,6 @@ export default function App() {
     if (!file) return;
     const objectUrl = URL.createObjectURL(file);
     setActive({ id: 'file', title: file.name, url: objectUrl, objectUrl });
-    setLive(false);
     setStatus(`Loaded local file: ${file.name}`);
   };
 
@@ -73,7 +69,7 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const source = { ...asPlayerSource(active), isLive: live, mediaType: live ? 'live' : 'movie' };
+  const source = asPlayerSource(active);
   return (
     <main className="demo-shell">
       <header className="page-header">
@@ -86,7 +82,6 @@ export default function App() {
         draftUrl={draftUrl}
         fileInputRef={fileInputRef}
         inline={inline}
-        live={live}
         drawerMode={drawerMode}
         onSelectSample={selectSample}
         onDraftUrlChange={setDraftUrl}
@@ -94,7 +89,6 @@ export default function App() {
         onChooseFile={loadFile}
         onClearFile={clearFile}
         onInlineChange={setInline}
-        onLiveChange={setLive}
         onDrawerModeChange={setDrawerMode}
         progressTime={progressTime}
         status={status}
