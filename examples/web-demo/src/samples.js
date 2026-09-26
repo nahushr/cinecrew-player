@@ -7,6 +7,13 @@ export const sampleSources = [
     type: 'hls',
   },
   {
+    id: 'dash',
+    label: 'MPEG-DASH',
+    title: 'Big Buck Bunny (MPEG-DASH Stream)',
+    url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
+    type: 'application/dash+xml',
+  },
+  {
     id: 'mp4',
     label: 'MP4',
     title: 'Big Buck Bunny (MP4 Stream)',
@@ -36,6 +43,21 @@ export const sampleSources = [
     isLive: true,
   },
   {
+    id: 'flv',
+    label: 'FLV',
+    title: 'Big Buck Bunny (HTTP-FLV Stream)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.flv',
+    type: 'video/x-flv',
+    isLive: true,
+  },
+  {
+    id: 'ogv',
+    label: 'OGV',
+    title: 'Big Buck Bunny (Ogg Theora Stream)',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/7/79/Big_Buck_Bunny_small.ogv',
+    type: 'video/ogg',
+  },
+  {
     id: 'mov',
     label: 'MOV',
     title: 'Big Buck Bunny (QuickTime Stream)',
@@ -43,11 +65,18 @@ export const sampleSources = [
     type: 'video/quicktime',
   },
   {
-    id: 'mp3',
-    label: 'MP3',
-    title: 'Big Buck Bunny Soundtrack (MP3 Stream)',
-    url: 'https://archive.org/download/Big_Buck_Bunny-13302/Jan_Morgenstern_-_01_-_Prelude.mp3',
-    type: 'audio/mpeg',
+    id: 'm4v',
+    label: 'M4V',
+    title: 'Big Buck Bunny (Apple M4V Stream)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.m4v',
+    type: 'video/x-m4v',
+  },
+  {
+    id: '3gp',
+    label: '3GP',
+    title: 'Big Buck Bunny (3GP Mobile Stream)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.3gp',
+    type: 'video/3gpp',
   },
 ];
 
@@ -71,10 +100,24 @@ export const allControls = {
 export function asPlayerSource(item) {
   const detectedType = item.type || (/\.m3u8(?:$|[?#])/.test(`${item.url} ${item.title}`)
     ? 'hls'
-    : /\.ts(?:$|[?#])/.test(`${item.url} ${item.title}`) ? 'mpegts' : undefined);
-  const uri = typeof window !== 'undefined' && item.url.startsWith('/')
-    ? new URL(item.url, window.location.href).href
-    : item.url;
+    : /\.mpd(?:$|[?#])/.test(`${item.url} ${item.title}`)
+      ? 'application/dash+xml'
+      : /\.flv(?:$|[?#])/.test(`${item.url} ${item.title}`)
+        ? 'video/x-flv'
+        : /\.ts(?:$|[?#])/.test(`${item.url} ${item.title}`)
+          ? 'mpegts'
+          : undefined);
+
+  let uri = item.url;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    if (uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
+      uri = uri.replace('https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/', '/');
+    }
+  }
+
+  if (typeof window !== 'undefined' && uri.startsWith('/')) {
+    uri = new URL(uri, window.location.href).href;
+  }
 
   return {
     uri,

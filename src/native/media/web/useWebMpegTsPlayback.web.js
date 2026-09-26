@@ -25,6 +25,16 @@ const isRawLiveTransportStream = (url) => {
   }
 };
 
+const isFlvStream = (url) => {
+  if (typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    return /\.flv$/i.test(parsed.pathname) || /^(?:ws|wss):/i.test(url);
+  } catch {
+    return /\.flv(?:$|[?#])/i.test(url) || /^(?:ws|wss):/i.test(url);
+  }
+};
+
 const isHlsUrl = (url) => /\.m3u8(?:$|[?#])/i.test(String(url || ''));
 
 function containsAc3Codec(value) {
@@ -92,12 +102,9 @@ export function useWebMpegTsPlayback({
   const [unavailableForUrl, setUnavailableForUrl] = useState('');
   const [ac3FallbackForUrl, setAc3FallbackForUrl] = useState('');
   const ac3FallbackForUrlRef = useRef('');
-  const useMpegTs = isLive
-    // The resolver may return an opaque temporary URL whose pathname no
-    // longer ends in .ts or /live/. Keep the source format from the original
-    // Xtream URL so those redirects still go through the TS demuxer. If the
-    // resolver explicitly returned HLS, let the HLS player own that source.
-    && (isRawLiveTransportStream(streamUrl) || isRawLiveTransportStream(activeUrl))
+  const isFlv = isFlvStream(streamUrl) || isFlvStream(activeUrl);
+  const isRawTs = isRawLiveTransportStream(streamUrl) || isRawLiveTransportStream(activeUrl);
+  const useMpegTs = (isFlv || (isLive && isRawTs) || isRawTs)
     && !isHlsUrl(activeUrl)
     && unavailableForUrl !== streamUrl;
   const useVideoOnly = useMpegTs && videoOnly;
@@ -125,6 +132,7 @@ export function useWebMpegTsPlayback({
     let stablePlaybackTimer = null;
     let lastPlaybackProgressAt = Date.now();
     let lastPlaybackTime = Number(video.currentTime) || 0;
+    let handleCanPlay = null;
 
     const clearStablePlaybackTimer = () => {
       if (stablePlaybackTimer) {
@@ -236,7 +244,12 @@ export function useWebMpegTsPlayback({
       delete video.dataset.mpegtsCodecGate;
       if (!pausedRef.current && player) {
         const playResult = player.play();
-        playResult?.catch?.(() => {});
+        playResult?.catch?.((err) => {
+          if (err?.name === 'NotAllowedError') {
+            video.muted = true;
+            player.play()?.catch?.(() => {});
+          }
+        });
       }
     };
 
@@ -248,31 +261,44 @@ export function useWebMpegTsPlayback({
       }
 
       player = mpegts.createPlayer({
-        type: 'mpegts',
+        type: isFlv ? 'flv' : 'mpegts',
         url: activeUrl,
-        isLive: true,
+        isLive: Boolean(isLive),
         hasAudio: !useAc3Fallback && !useVideoOnly,
         hasVideo: true,
       }, {
         enableWorker: !useVideoOnly,
         lazyLoad: false,
         enableStashBuffer: true,
-        // Match the standalone Sony test: allow a deeper forward buffer to
-        // absorb provider jitter instead of constantly chasing the live edge.
-        stashInitialSize: useVideoOnly ? 2048 : 512 * 1024,
-        liveBufferLatencyChasing: !useVideoOnly,
+        stashInitialSize: useVideoOnly ? 2048 : (isLive ? 512 * 1024 : 1024 * 1024),
+        liveBufferLatencyChasing: Boolean(isLive && !useVideoOnly),
         liveBufferLatencyMaxLatency: 8,
         liveBufferLatencyMinRemain: 3,
-        autoCleanupSourceBuffer: true,
+        autoCleanupSourceBuffer: Boolean(isLive),
         autoCleanupMaxBackwardDuration: useVideoOnly ? 120 : 30,
         autoCleanupMinBackwardDuration: useVideoOnly ? 60 : 15,
         disableAudio: useAc3Fallback || useVideoOnly,
       });
-      // Wait until the MPEG-TS demuxer reports its codecs so unsupported AC3
-      // streams can be stopped before the browser renders their video.
       video.autoplay = false;
-      video.dataset.mpegtsCodecGate = 'pending';
+      if (!isFlv) {
+        video.dataset.mpegtsCodecGate = 'pending';
+      } else {
+        delete video.dataset.mpegtsCodecGate;
+      }
       player.on(mpegts.Events.MEDIA_INFO, handleMediaInfo);
+      handleCanPlay = () => {
+        delete video.dataset.mpegtsCodecGate;
+        if (!pausedRef.current && player) {
+          const playResult = player.play();
+          playResult?.catch?.((err) => {
+            if (err?.name === 'NotAllowedError') {
+              video.muted = true;
+              player.play()?.catch?.(() => {});
+            }
+          });
+        }
+      };
+      video.addEventListener('canplay', handleCanPlay);
       video.addEventListener('timeupdate', notePlaybackProgress);
       video.addEventListener('playing', handlePlaying);
       video.addEventListener('waiting', handleWaiting);
@@ -312,6 +338,15 @@ export function useWebMpegTsPlayback({
       });
       player.attachMediaElement(video);
       player.load();
+      if (!pausedRef.current) {
+        const playResult = player.play();
+        playResult?.catch?.((err) => {
+          if (err?.name === 'NotAllowedError') {
+            video.muted = true;
+            player.play()?.catch?.(() => {});
+          }
+        });
+      }
       stallWatchdog = setInterval(() => {
         if (disposed || pausedRef.current || recoveryPending || video.currentTime <= 0) return;
         if (Date.now() - lastPlaybackProgressAt >= 12000) {
@@ -328,6 +363,7 @@ export function useWebMpegTsPlayback({
       if (recoveryTimer) clearTimeout(recoveryTimer);
       if (stallWatchdog) clearInterval(stallWatchdog);
       clearStablePlaybackTimer();
+      if (handleCanPlay) video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('timeupdate', notePlaybackProgress);
       video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('waiting', handleWaiting);
@@ -358,5 +394,5 @@ export function useWebMpegTsPlayback({
     };
   }, [activeUrl, useMpegTs, useAc3Fallback, useVideoOnly, streamUrl, videoRef, pausedRef, onErrorRef, onBufferingRef]);
 
-  return { useMpegTs, useAc3Fallback };
+  return { useMpegTs, useAc3Fallback, isFlv };
 }

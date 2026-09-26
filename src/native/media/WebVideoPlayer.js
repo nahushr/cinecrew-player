@@ -4,6 +4,7 @@ import { useWebMediaSession } from './web/useWebMediaSession';
 import { useWebVideoAspectRatio } from './web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from './web/useWebMpegTsPlayback';
 import { useWebHlsPlayback } from './web/useWebHlsPlayback';
+import { useWebDashPlayback } from './web/useWebDashPlayback';
 import { useWebAc3AudioPlayback } from './web/useWebAc3AudioPlayback';
 
 export const WebVideoPlayer = forwardRef(({
@@ -74,6 +75,12 @@ export const WebVideoPlayer = forwardRef(({
     pausedRef,
     onErrorRef: playbackErrorRef,
   });
+  const useDashSource = useWebDashPlayback({
+    activeUrl,
+    videoRef,
+    pausedRef,
+    onErrorRef: playbackErrorRef,
+  });
   const ac3Audio = useWebAc3AudioPlayback({
     active: useAc3Fallback,
     streamUrl: activeUrl,
@@ -85,9 +92,12 @@ export const WebVideoPlayer = forwardRef(({
 
   // 1. Aspect Ratio Styling
   const { videoStyle, applyAspectRatio } = useWebVideoAspectRatio(videoAspectRatio, audioOnly);
-  const videoSource = useMpegTsSource || useHlsSource ? undefined : activeUrl;
-  let streamMode = useHlsSource ? 'hls' : 'native';
-  if (useMpegTsSource) streamMode = 'mpegts';
+  const videoSource = useMpegTsSource || useHlsSource || useDashSource ? undefined : activeUrl;
+  let streamMode = 'native';
+  if (mpegTsPlayback.isFlv) streamMode = 'flv';
+  else if (useMpegTsSource) streamMode = 'mpegts';
+  else if (useHlsSource) streamMode = 'hls';
+  else if (useDashSource) streamMode = 'dash';
   const resolvedScheme = new URL(activeUrl || 'http://localhost', 'http://localhost').protocol.replace(':', '');
 
   // Report active streaming route

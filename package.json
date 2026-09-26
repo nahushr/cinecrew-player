@@ -108,12 +108,13 @@
     "@expo/vector-icons": "^15.1.1",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "^5.2.0",
+    "dashjs": "^5.2.1",
     "expo-video": "^57.0.2",
     "hls.js": "^1.7.3",
     "mediabunny": "^1.59.0",
+    "prop-types": "^15.8.1",
     "react-native-safe-area-context": "^5.7.0",
-    "react-native-svg": "^15.15.4",
-    "prop-types": "^15.8.1"
+    "react-native-svg": "^15.15.4"
   },
   "peerDependencies": {
     "react": ">=18",

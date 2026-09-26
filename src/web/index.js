@@ -2,6 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayo
 import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
+import { useWebDashPlayback } from '../native/media/web/useWebDashPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
 import { getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
 import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
@@ -459,7 +460,8 @@ function WebPlayerSurface({
   });
 }
 
-function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo }) {
+function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo, hasVideo, isPaused }) {
+  const bars = [1, 2, 3, 4, 5, 6, 7];
   return h('div', {
     className: 'cinecrew-player__audio-card',
     style: { background: '#07090E', color: theme.controlColor, borderColor: theme.accentColor },
@@ -468,13 +470,18 @@ function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo }) {
     ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' })
     : h('div', { className: 'cinecrew-player__audio-placeholder', role: 'img', 'aria-label': 'Audio artwork placeholder' },
       h(Icon, { name: 'audioOnly', icons, color: theme.accentColor })),
-  h('span', { className: 'cinecrew-player__audio-wave', style: { color: theme.accentColor }, 'aria-hidden': true }, '•••••••'),
+  h('div', {
+    className: `cinecrew-player__audio-wave${!isPaused ? ' is-playing' : ''}`,
+    'aria-hidden': true,
+  }, bars.map((b) => h('span', { key: b, style: { background: theme.accentColor } }))),
   h('strong', null, title || 'Audio only'),
-  h('button', {
-    type: 'button',
-    onClick: onSwitchToVideo,
-    style: { color: theme.accentColor, borderColor: theme.accentColor },
-  }, 'Switch to video'));
+  hasVideo && onSwitchToVideo
+    ? h('button', {
+      type: 'button',
+      onClick: onSwitchToVideo,
+      style: { color: theme.accentColor, borderColor: theme.accentColor },
+    }, 'Switch to video')
+    : null);
 }
 
 function WebPlayerError({ error, theme, renderBackButton }) {
@@ -485,8 +492,8 @@ function WebPlayerError({ error, theme, renderBackButton }) {
     renderBackButton());
 }
 
-function getDirectVideoSource({ mpegTs, useHls, sourceType, activeUrl }) {
-  if (mpegTs || useHls || /mpegurl|mpeg-ts/.test(sourceType)) return undefined;
+function getDirectVideoSource({ mpegTs, useHls, useDash, sourceType, activeUrl }) {
+  if (mpegTs || useHls || useDash || /mpegurl|mpeg-ts|dash|flv/.test(sourceType)) return undefined;
   return activeUrl;
 }
 
@@ -615,7 +622,7 @@ function getPlaybackStatus(error, buffering, paused) {
 
 function WebPlayerLayout(props) {
   let controlLayer = null;
-  if (!props.error && !props.audioOnly) {
+  if (!props.error) {
     controlLayer = h(WebPlayerControls, {
       locked: props.locked,
       buffering: props.buffering,
@@ -634,11 +641,19 @@ function WebPlayerLayout(props) {
   let loadingNotice = null;
   if (props.buffering && !props.error) {
     loadingNotice = h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
-      h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…')
+      h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…');
   }
   let audioCard = null;
   if (props.audioOnly) {
-    audioCard = h(WebAudioOnlyCard, { poster: props.poster, title: props.title, theme: props.theme, icons: props.icons, onSwitchToVideo: props.onSwitchToVideo });
+    audioCard = h(WebAudioOnlyCard, {
+      poster: props.poster,
+      title: props.title,
+      theme: props.theme,
+      icons: props.icons,
+      onSwitchToVideo: props.onSwitchToVideo,
+      hasVideo: props.hasVideo,
+      isPaused: props.isPaused,
+    });
   }
   let panelNode = null;
   if (props.activePanel && props.webPanel) {
@@ -650,23 +665,25 @@ function WebPlayerLayout(props) {
   }
   return h('div', {
     ref: props.playerRef,
-    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
+    className: `cinecrew-player${props.audioOnly ? ' cinecrew-player--audio-mode' : ''}${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
     style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '64%' },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
   props.mediaSurface,
+  audioCard,
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
   loadingNotice,
   h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.locked ? () => null : props.renderBackButton }),
   controlLayer,
-  audioCard,
   panelNode);
 }
 
-function getStreamMode(mpegTs, useHls) {
+function getStreamMode({ mpegTs, isFlv, useHls, useDash }) {
+  if (isFlv) return 'flv';
   if (mpegTs) return 'mpegts';
   if (useHls) return 'hls';
+  if (useDash) return 'dash';
   return 'native';
 }
 
@@ -1320,7 +1337,19 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
   });
-  const streamMode = getStreamMode(mpegTs.useMpegTs, useHls);
+  const useDash = useWebDashPlayback({
+    activeUrl,
+    type: media.type || media.mimeType,
+    videoRef,
+    pausedRef: pausedStateRef,
+    onErrorRef,
+  });
+  const streamMode = getStreamMode({
+    mpegTs: mpegTs.useMpegTs,
+    isFlv: mpegTs.isFlv,
+    useHls,
+    useDash,
+  });
   const ac3AudioPlayback = useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
     streamUrl,
@@ -1637,6 +1666,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const directVideoSource = getDirectVideoSource({
     mpegTs: mpegTs.useMpegTs,
     useHls,
+    useDash,
     sourceType,
     activeUrl,
   });
@@ -1831,6 +1861,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     error,
     buffering,
     audioOnly,
+    hasVideo: !audioOnly,
     activePanel,
     webPanel,
     renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
