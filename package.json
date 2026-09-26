@@ -1,6 +1,6 @@
 {
   "name": "@cinecrew/cinecrew-player",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "Customizable cross-platform live and on-demand video player for React and React Native.",
   "license": "MIT",
