@@ -38,6 +38,7 @@ class ReactVlcPlayerView extends TextureView
   private static final String EVENT_PROP_DURATION = "duration";
   private static final String EVENT_PROP_SUCCESS = "success";
   private static final String EVENT_PROP_ERROR = "error";
+  private static final String EVENT_PROP_IS_RECORDING = "isRecording";
 
   private final VideoEventEmitter eventEmitter;
   private LibVLC libvlc;
@@ -307,7 +308,7 @@ class ReactVlcPlayerView extends TextureView
               break;
             case MediaPlayer.Event.RecordChanged:
               map.putString("type", "RecordingPath");
-              map.putBoolean("isRecording", event.getRecording());
+              map.putBoolean(EVENT_PROP_IS_RECORDING, event.getRecording());
               // Record started emits and event with the record path (but no file).
               // Only want to emit when recording has stopped and the recording is created.
               if (!event.getRecording() && event.getRecordPath() != null) {
@@ -814,9 +815,9 @@ class ReactVlcPlayerView extends TextureView
     WritableMap map = Arguments.createMap();
     map.putString("operation", "start");
     map.putBoolean("requestAccepted", accepted);
-    map.putBoolean("isRecording", accepted);
+    map.putBoolean(EVENT_PROP_IS_RECORDING, accepted);
     if (!accepted) {
-      map.putString("error", "VLC rejected the recording request for this media source.");
+      map.putString(EVENT_PROP_ERROR, "VLC rejected the recording request for this media source.");
     }
     eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
@@ -826,9 +827,9 @@ class ReactVlcPlayerView extends TextureView
     WritableMap map = Arguments.createMap();
     map.putString("operation", "stop");
     map.putBoolean("requestAccepted", accepted);
-    map.putBoolean("isRecording", !accepted);
+    map.putBoolean(EVENT_PROP_IS_RECORDING, !accepted);
     if (!accepted) {
-      map.putString("error", "VLC rejected the request to stop recording.");
+      map.putString(EVENT_PROP_ERROR, "VLC rejected the request to stop recording.");
     }
     eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }

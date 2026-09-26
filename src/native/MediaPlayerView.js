@@ -19,7 +19,7 @@ import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { LiveRecordingNotice, LiveRecordingOverlay } from './media/LiveRecordingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerIcon } from './customization';
-import { isWeb, isAndroid, isElectron } from '../utils/runtimePlatform';
+import { isWeb, isElectron } from '../utils/runtimePlatform';
 import { getFontSize, getFontWeight } from '../utils/layoutUtils';
 import { isLocalMediaUri } from '../utils/mediaUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
