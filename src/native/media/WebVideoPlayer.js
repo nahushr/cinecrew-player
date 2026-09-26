@@ -239,7 +239,7 @@ export const WebVideoPlayer = forwardRef(({
     <View style={styles.container} collapsable={false}>
       {activeUrl ? (
         <video
-          key={activeUrl}
+          key={`${activeUrl}:${corsMode || 'nocors'}`}
           ref={videoRef}
           data-resolved-scheme={resolvedScheme}
           data-stream-mode={streamMode}

@@ -443,6 +443,7 @@ function WebPlayerSurface({
     };
   }
   return h('video', {
+    key: `${directVideoSource || ''}:${corsMode || 'nocors'}`,
     ref: videoRef,
     className: 'cinecrew-player__video',
     src: directVideoSource,
@@ -1407,6 +1408,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         setRecordingStatus('complete');
         try {
           if (!downloadRecording(blob, title)) throw new Error('The browser did not start the recording download. Use Download recording to retry.');
+          // Auto-dismiss back to idle after a successful download.
+          setRecordingStatus('idle');
+          recordingBlobRef.current = null;
+          if (recordingDownloadLinkRef.current?.url) URL.revokeObjectURL(recordingDownloadLinkRef.current.url);
+          recordingDownloadLinkRef.current = null;
+          setRecordingDownloadLink(null);
         } catch (downloadError) {
           setRecordingError(downloadError?.message || 'The recording could not be downloaded. Use Download recording to retry.');
         }
