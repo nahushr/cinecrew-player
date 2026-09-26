@@ -48,6 +48,33 @@ function drawVideoFrame(context, canvas, video, aspectRatio) {
   context.drawImage(video, frame.x + (frame.width - drawWidth) / 2, frame.y + (frame.height - drawHeight) / 2, drawWidth, drawHeight);
 }
 
+function isCrossOriginCaptureError(error) {
+  return error?.name === 'SecurityError' || /cross.?origin|security/i.test(error?.message || '');
+}
+
+function captureSourceStream(video, capture, ogvCanvas) {
+  try {
+    if (typeof capture === 'function') return capture.call(video);
+    return ogvCanvas.captureStream(30);
+  } catch (error) {
+    if (isCrossOriginCaptureError(error)) return null;
+    throw error;
+  }
+}
+
+function getRecordingAudioTracks(video, sourceStream, additionalAudioStream) {
+  const suppliedTracks = additionalAudioStream?.getAudioTracks?.() || [];
+  if (suppliedTracks.length) return suppliedTracks;
+
+  const ogvTracks = video.__cinecrewRecordingAudioStream?.getAudioTracks?.() || [];
+  if (ogvTracks.length) return ogvTracks;
+  return sourceStream.getAudioTracks();
+}
+
+function stopStreamTracks(stream) {
+  stream.getTracks().forEach((track) => track.stop());
+}
+
 /** Capture the visible media frame (not player chrome) and preserve its audio tracks.
  *  Returns `null` when cross-origin restrictions prevent direct capture so the
  *  caller can fall back to screen/tab capture via `createScreenRecordingStream`.
@@ -64,25 +91,10 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
     return null;
   }
 
-  let sourceStream;
-  try {
-    sourceStream = typeof capture === 'function'
-      ? capture.call(video)
-      : ogvCanvas.captureStream(30);
-  } catch (error) {
-    if (error?.name === 'SecurityError' || /cross.?origin|security/i.test(error?.message || '')) {
-      // Cross-origin media without CORS – let the caller fall back to screen capture.
-      return null;
-    }
-    throw error;
-  }
-  const suppliedAudioTracks = additionalAudioStream?.getAudioTracks?.() || [];
-  const ogvAudioTracks = video.__cinecrewRecordingAudioStream?.getAudioTracks?.() || [];
-  const audioTracks = suppliedAudioTracks.length
-    ? suppliedAudioTracks
-    : ogvAudioTracks.length
-      ? ogvAudioTracks
-      : sourceStream.getAudioTracks();
+  // Cross-origin media without CORS lets the caller fall back to screen capture.
+  const sourceStream = captureSourceStream(video, capture, ogvCanvas);
+  if (!sourceStream) return null;
+  const audioTracks = getRecordingAudioTracks(video, sourceStream, additionalAudioStream);
   const drawable = ogvCanvas || video;
   const bounds = playerElement?.getBoundingClientRect?.();
   const outputWidth = Math.max(2, video.videoWidth || drawable.width || Math.round(bounds?.width || 640));
@@ -93,7 +105,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
   canvas.height = outputHeight;
   const context = canvas.getContext('2d');
   if (!context || typeof canvas.captureStream !== 'function') {
-    sourceStream.getTracks().forEach((track) => track.stop());
+    stopStreamTracks(sourceStream);
     throw new Error('Canvas recording is not supported in this browser.');
   }
 
@@ -108,7 +120,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
   }
 
   if (!originClean) {
-    sourceStream.getTracks().forEach((track) => track.stop());
+    stopStreamTracks(sourceStream);
     return null;
   }
 
@@ -120,7 +132,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
       stream,
       aspectRatioApplied: false,
       cleanup: () => {
-        sourceStream.getTracks().forEach((track) => track.stop());
+        stopStreamTracks(sourceStream);
       },
     };
   }
@@ -138,8 +150,8 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
     aspectRatioApplied: true,
     cleanup: () => {
       cancelAnimationFrame(frameId);
-      canvasStream.getTracks().forEach((track) => track.stop());
-      sourceStream.getTracks().forEach((track) => track.stop());
+      stopStreamTracks(canvasStream);
+      stopStreamTracks(sourceStream);
     },
   };
 }
