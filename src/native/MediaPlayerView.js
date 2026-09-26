@@ -814,11 +814,9 @@ export const MediaPlayerView = ({
   const vlcRef = useRef(null);
   const playerRef = useRef(null);
   const invokeAction = useCallback((name, fallback, payload) => {
-    const callback = name === 'onAspectRatioChange'
-      ? actions?.[name] || onAspectRatioChange
-      : name === 'onBack'
-        ? actions?.[name] || onBack || onClose
-      : actions?.[name];
+    let callback = actions?.[name];
+    if (name === 'onAspectRatioChange') callback = callback || onAspectRatioChange;
+    if (name === 'onBack') callback = callback || onBack || onClose;
     return invokePlayerAction(
       fallback,
       callback,

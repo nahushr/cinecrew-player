@@ -133,7 +133,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
 export async function createScreenRecordingStream() {
   const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
   if (typeof mediaDevices?.getDisplayMedia !== 'function') {
-    throw new Error('Recording requires browser tab/screen capture, which is not available in this browser.');
+    throw new TypeError('Recording requires browser tab/screen capture, which is not available in this browser.');
   }
 
   let stream;

@@ -141,6 +141,59 @@ function InlinePlayerOverlay({
       button('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
 }
 
+function createInlinePlayerLayer(player, visible) {
+  if (!visible || !player) return null;
+  return React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player);
+}
+
+function createInlineArtworkLayer(shouldRenderVideo, artwork, accentColor) {
+  if (shouldRenderVideo) return null;
+  if (artwork) {
+    return React.createElement(Image, { source: { uri: artwork }, resizeMode: 'contain', style: styles.poster });
+  }
+  return React.createElement(View, { style: styles.emptyPoster },
+    React.createElement(PlayerIcon, { name: 'television-play', size: 48, color: accentColor }));
+}
+
+function createInlineStatusLayer(loading, error, palette) {
+  if (error) {
+    return React.createElement(View, { pointerEvents: 'none', style: styles.error },
+      React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error));
+  }
+  if (!loading) return null;
+  return React.createElement(View, { pointerEvents: 'none', style: styles.loading },
+    React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor }));
+}
+
+function InlineLivePlayerSurface({
+  height,
+  style,
+  palette,
+  fullscreen,
+  setFullscreen,
+  player,
+  shouldRenderVideo,
+  artwork,
+  loading,
+  error,
+  renderOverlay,
+}) {
+  return React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style] },
+    createInlinePlayerLayer(player, !fullscreen),
+    createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
+    createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
+    fullscreen ? null : renderOverlay(),
+    React.createElement(Modal, {
+      visible: fullscreen,
+      animationType: 'none',
+      statusBarTranslucent: true,
+      onRequestClose: () => setFullscreen(false),
+    }, React.createElement(View, { style: styles.fullscreenFrame },
+      createInlinePlayerLayer(player, true),
+      createInlineStatusLayer(loading, error, palette),
+      renderOverlay())));
+}
+
 function InlineLivePlayerView({
   source,
   url,
@@ -292,26 +345,19 @@ function InlineLivePlayerView({
   return React.createElement(
     PlayerCustomizationProvider,
     { icons, theme },
-    React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style] },
-      !fullscreen && player ? React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player) : null,
-      !shouldRenderVideo && artwork ? React.createElement(Image, { source: { uri: artwork }, resizeMode: 'contain', style: styles.poster }) : null,
-      !shouldRenderVideo && !artwork ? React.createElement(View, { style: styles.emptyPoster }, React.createElement(PlayerIcon, { name: 'television-play', size: 48, color: palette.accentColor })) : null,
-      shouldRenderVideo && loading && !error ? React.createElement(View, { pointerEvents: 'none', style: styles.loading }, React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor })) : null,
-      error ? React.createElement(View, { pointerEvents: 'none', style: styles.error }, React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error)) : null,
-      !fullscreen ? renderOverlay() : null,
-      React.createElement(Modal, {
-        visible: fullscreen,
-        animationType: 'none',
-        statusBarTranslucent: true,
-        onRequestClose: () => setFullscreen(false),
-      }, React.createElement(View, { style: styles.fullscreenFrame },
-        player ? React.createElement(View, { pointerEvents: 'none', style: StyleSheet.absoluteFill }, player) : null,
-        loading && !error ? React.createElement(View, { pointerEvents: 'none', style: styles.loading }, React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor })) : null,
-        error ? React.createElement(View, { pointerEvents: 'none', style: styles.error }, React.createElement(Text, { style: [styles.errorText, { color: palette.controlColor }] }, error)) : null,
-        renderOverlay(),
-      ),
-      ),
-    ),
+    React.createElement(InlineLivePlayerSurface, {
+      height,
+      style,
+      palette,
+      fullscreen,
+      setFullscreen,
+      player,
+      shouldRenderVideo,
+      artwork,
+      loading,
+      error,
+      renderOverlay,
+    }),
   );
 }
 
