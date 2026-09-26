@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "0.1.6",
+    "@cinecrew/cinecrew-player": "file:../..",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

@@ -99,10 +99,20 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
   }
 
   if (!originClean) {
+    sourceStream.getTracks().forEach((track) => track.stop());
+    return null;
+  }
+
+  const mode = String(getAspectRatio?.() || 'FIT').toUpperCase();
+  const needsCanvas = mode !== 'FIT' && mode !== 'DEFAULT';
+  if (!needsCanvas) {
+    const stream = new MediaStream([...sourceStream.getVideoTracks(), ...audioTracks]);
     return {
-      stream: sourceStream,
+      stream,
       aspectRatioApplied: false,
-      cleanup: () => sourceStream.getTracks().forEach((track) => track.stop()),
+      cleanup: () => {
+        sourceStream.getTracks().forEach((track) => track.stop());
+      },
     };
   }
 
@@ -163,10 +173,12 @@ export async function createScreenRecordingStream() {
   };
 }
 
-export function getRecordingMimeType() {
+export function getRecordingMimeType(hasAudio = true) {
   if (typeof MediaRecorder === 'undefined') return '';
-  const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
-  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || '';
+  const candidates = hasAudio
+    ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || (MediaRecorder.isTypeSupported?.('video/webm') ? 'video/webm' : '');
 }
 
 export function createRecordingDownloadLink(blob, title = 'cinecrew-recording') {

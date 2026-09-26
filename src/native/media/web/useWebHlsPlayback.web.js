@@ -4,7 +4,7 @@ import Hls from 'hls.js';
 const isHlsUrl = (url) => /\.m3u8(?:$|[?#])/i.test(String(url || ''));
 
 export function useWebHlsPlayback({ activeUrl, isLive, videoRef, pausedRef, onErrorRef }) {
-  const useHls = isLive && isHlsUrl(activeUrl);
+  const useHls = Boolean(isHlsUrl(activeUrl));
 
   useEffect(() => {
     if (!useHls || !activeUrl || typeof window === 'undefined') return undefined;
@@ -43,6 +43,9 @@ export function useWebHlsPlayback({ activeUrl, isLive, videoRef, pausedRef, onEr
       hls.loadSource(activeUrl);
       video.crossOrigin = 'anonymous';
       hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!pausedRef.current) video.play().catch(() => {});
+      });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = activeUrl;
       video.load();

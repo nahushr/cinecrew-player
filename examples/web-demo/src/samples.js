@@ -17,14 +17,16 @@ export const sampleSources = [
   {
     id: 'mp4',
     label: 'MP4',
-    title: 'Big Buck Bunny · MP4',
-    url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
+    title: 'Local MP4 fixture',
+    url: '/cinecrew-mp4-fixture.mp4',
+    type: 'video/mp4',
   },
   {
     id: 'mkv',
     label: 'MKV',
-    title: 'Big Buck Bunny · MKV',
-    url: 'https://test-videos.co.uk/vids/bigbuckbunny/mkv/360/Big_Buck_Bunny_360_10s_1MB.mkv',
+    title: 'Local MKV fixture',
+    url: '/cinecrew-mkv-fixture.mkv',
+    type: 'video/webm',
   },
 ];
 

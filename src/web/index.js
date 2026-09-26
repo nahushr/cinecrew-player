@@ -314,14 +314,6 @@ function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPa
     const children = [];
     if (error) children.push(h('span', null, error));
     children.push(h('strong', { className: 'cinecrew-player__recording-ready' }, 'Recording ready'));
-    if (downloadLink) {
-      children.push(h('a', {
-        className: 'cinecrew-player__recording-download',
-        href: downloadLink.url,
-        download: downloadLink.filename,
-        onClick: onDownload,
-      }, 'Download recording'));
-    }
     children.push(h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording controls' }, 'Done'));
     return h(React.Fragment, null, ...children);
   }
@@ -523,6 +515,9 @@ function stopBrowserRecorder(recorderRef, completionRef, finalizerRef) {
       return;
     }
     recorder.addEventListener('error', (event) => reject(event.error || new Error('Recording failed.')), { once: true });
+    try {
+      if (recorder.state === 'recording') recorder.requestData();
+    } catch {}
     recorder.stop();
     if (completion) completion.then(resolve, reject);
     else resolve();
@@ -544,16 +539,21 @@ async function performRecordingStop({ stop, action, recordingElapsed, streamUrl,
   let stopCore = () => stopBrowserRecorder(recorderRef, completionRef, finalizerRef);
   if (stop) stopCore = () => stop();
   await action('onRecordingStop', stopCore, { elapsedMs: recordingElapsed, source: streamUrl, title });
-  if (!stop) await waitForRecordingFinalization(completionRef.current);
+  if (!stop) return await waitForRecordingFinalization(completionRef.current);
+  return null;
 }
 
-function updateRecordingStopState({ clock, recordingBlobRef, stop, setRecordingElapsed, setRecordingStatus, setRecordingError }) {
+function updateRecordingStopState({ clock, completedBlob, stop, setRecordingElapsed, setRecordingStatus, setRecordingError }) {
   if (clock.startedAt) clock.accumulatedMs += Date.now() - clock.startedAt;
   setRecordingElapsed(clock.accumulatedMs);
-  const hasRecording = Boolean(recordingBlobRef.current);
-  setRecordingStatus(hasRecording ? 'complete' : 'idle');
-  if (!hasRecording && !stop) {
+  if (completedBlob) {
+    setRecordingStatus('idle');
+    setRecordingError('');
+  } else if (!stop) {
+    setRecordingStatus('idle');
     setRecordingError((current) => current || 'The browser returned no recorded media data for this source. Try a local or CORS-enabled video while it is playing.');
+  } else {
+    setRecordingStatus('idle');
   }
 }
 
@@ -1232,9 +1232,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 
   const handleError = useCallback((detail) => {
     const message = typeof detail === 'string' ? detail : detail?.message || 'Unable to play this media source.';
-    // If the video failed while crossOrigin="anonymous" was set, retry without
+    // If playback failed while crossOrigin="anonymous" was set, retry without
     // CORS so playback still works (recording will fall back to screen capture).
-    if (detail?.isCorsCandidate && corsModeRef.current === 'anonymous') {
+    if (corsModeRef.current === 'anonymous') {
       setCorsMode(undefined);
       corsModeRef.current = undefined;
       return;
@@ -1339,7 +1339,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         handleError(playError);
       }
     });
-  }, [isPaused, streamUrl, handleError]);
+  }, [isPaused, streamUrl, corsMode, handleError]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1376,14 +1376,15 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 
   const startBuiltinRecording = useCallback(async () => {
     const video = videoRef.current;
-    const mimeType = getRecordingMimeType();
-    if (typeof MediaRecorder === 'undefined' || !mimeType) throw new Error('This browser does not support WebM audio/video recording.');
     if (!video) throw new Error('The media element is not ready to record.');
     let capture = createVideoRecordingStream(video, playerRef.current, () => aspectRatioRef.current, ac3AudioPlayback.getRecordingAudioStream());
     // Fallback: if direct capture failed (CORS / tainted), use screen capture.
     if (!capture) {
       capture = await createScreenRecordingStream();
     }
+    const hasAudio = Boolean(capture.stream?.getAudioTracks?.().length);
+    const mimeType = getRecordingMimeType(hasAudio);
+    if (typeof MediaRecorder === 'undefined' || !mimeType) throw new Error('This browser does not support WebM audio/video recording.');
     const recorder = new MediaRecorder(capture.stream, { mimeType });
     recordingCaptureRef.current = capture;
     recordingChunksRef.current = [];
@@ -1405,17 +1406,18 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         if (!downloadLink) throw new Error('The recording is empty. Play the video briefly, then stop and download again.');
         recordingDownloadLinkRef.current = downloadLink;
         setRecordingDownloadLink(downloadLink);
-        setRecordingStatus('complete');
         try {
-          if (!downloadRecording(blob, title)) throw new Error('The browser did not start the recording download. Use Download recording to retry.');
+          if (!downloadRecording(blob, title)) throw new Error('The browser did not start the recording download. Try a local or CORS-enabled source.');
           // Auto-dismiss back to idle after a successful download.
           setRecordingStatus('idle');
+          setRecordingError('');
           recordingBlobRef.current = null;
           if (recordingDownloadLinkRef.current?.url) URL.revokeObjectURL(recordingDownloadLinkRef.current.url);
           recordingDownloadLinkRef.current = null;
           setRecordingDownloadLink(null);
         } catch (downloadError) {
-          setRecordingError(downloadError?.message || 'The recording could not be downloaded. Use Download recording to retry.');
+          setRecordingError(downloadError?.message || 'The recording could not be downloaded.');
+          setRecordingStatus('idle');
         }
       } catch (error_) {
         setRecordingError(error_?.message || 'Could not finish the recording.');
@@ -1498,7 +1500,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const stopRecording = useCallback(async () => {
     try {
       const stop = integrations.recording?.stop;
-      await performRecordingStop({
+      const completedBlob = await performRecordingStop({
         stop,
         action,
         recordingElapsed,
@@ -1511,7 +1513,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       });
       updateRecordingStopState({
         clock: recordingClockRef.current,
-        recordingBlobRef,
+        completedBlob,
         stop,
         setRecordingElapsed,
         setRecordingStatus,

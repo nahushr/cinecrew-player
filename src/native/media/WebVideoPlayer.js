@@ -161,7 +161,7 @@ export const WebVideoPlayer = forwardRef(({
     ) {
       video.play().catch(() => {});
     }
-  }, [paused, activeUrl]);
+  }, [paused, activeUrl, corsMode]);
 
   // Gain and volume
   useEffect(() => {
