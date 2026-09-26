@@ -60,25 +60,90 @@ function attemptPlayback(player, pausedRef) {
   });
 }
 
-function applyPlayerStyle(player, playerStyle) {
-  if (!player?.style) return;
+function readCustomRatio(playerStyle) {
+  if (playerStyle?.width !== 'auto' || playerStyle?.height !== 'auto') return null;
+  const parts = String(playerStyle.aspectRatio || '').split('/').map(Number);
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const ratio = parts[0] / parts[1];
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : null;
+}
 
-  // Ratio geometry belongs on the OGV video itself, not the full-size stage.
-  // Reset previous custom geometry so switching back to FIT also restores it.
-  [
-    'position', 'inset', 'left', 'top', 'right', 'bottom', 'transform',
-    'maxWidth', 'maxHeight', 'aspectRatio',
-  ].forEach((key) => { player.style[key] = ''; });
+function applyPlayerStyle(stage, frame, player, playerStyle) {
+  if (!stage?.style || !frame?.style || !player?.style) return;
+
+  const style = playerStyle || {};
+  const ratio = readCustomRatio(style);
+  const stageWidth = stage.clientWidth;
+  const stageHeight = stage.clientHeight;
+
+  Object.assign(stage.style, {
+    overflow: 'hidden',
+    backgroundColor: style.backgroundColor || '#000',
+  });
+
+  // OGVPlayer has no intrinsic CSS size. Applying width/height:auto directly
+  // to it collapses its canvas in browsers. Size a wrapper from the measured
+  // stage instead, keeping the decoder element itself at 100% of that frame.
+  if (ratio && stageWidth > 0 && stageHeight > 0) {
+    const frameWidth = Math.min(stageWidth, stageHeight * ratio);
+    const frameHeight = frameWidth / ratio;
+    Object.assign(frame.style, {
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      right: 'auto',
+      bottom: 'auto',
+      transform: 'translate(-50%, -50%)',
+      width: `${frameWidth}px`,
+      height: `${frameHeight}px`,
+      maxWidth: '100%',
+      maxHeight: '100%',
+      aspectRatio: style.aspectRatio,
+      opacity: style.opacity == null ? '1' : String(style.opacity),
+      backgroundColor: style.backgroundColor || '#000',
+      overflow: 'hidden',
+    });
+  } else {
+    Object.assign(frame.style, {
+      position: 'absolute',
+      inset: '0',
+      left: '0',
+      top: '0',
+      right: '0',
+      bottom: '0',
+      transform: 'none',
+      width: '100%',
+      height: '100%',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      aspectRatio: 'auto',
+      opacity: style.opacity == null ? '1' : String(style.opacity),
+      backgroundColor: style.backgroundColor || '#000',
+      overflow: 'hidden',
+    });
+  }
+
+  // Only the wrapper owns custom ratio geometry. Reset it from the decoder
+  // element so switching between custom ratios and FIT never leaves stale CSS.
   Object.assign(player.style, {
+    position: 'relative',
+    inset: 'auto',
+    left: 'auto',
+    top: 'auto',
+    right: 'auto',
+    bottom: 'auto',
+    transform: 'none',
+    maxWidth: 'none',
+    maxHeight: 'none',
+    aspectRatio: 'auto',
     width: '100%',
     height: '100%',
     display: 'block',
     visibility: 'visible',
-    objectFit: 'contain',
-    backgroundColor: '#000',
-    opacity: '',
+    objectFit: style.objectFit || 'contain',
+    backgroundColor: style.backgroundColor || '#000',
+    opacity: '1',
   });
-  Object.assign(player.style, playerStyle || {});
 }
 
 /**
@@ -106,6 +171,7 @@ export function useWebOgvPlayback({
   onPlaybackRouteRef,
 }) {
   const useOgv = Boolean(isOgvSource(activeUrl, type));
+  const playerFrameRef = useRef(null);
   const playbackOptionsRef = useRef({ paused, muted, volume, playbackRate, videoOnly });
   playbackOptionsRef.current = { paused, muted, volume, playbackRate, videoOnly };
   const playerStyleRef = useRef(playerStyle);
@@ -119,6 +185,8 @@ export function useWebOgvPlayback({
 
     let disposed = false;
     let player = null;
+    let playerFrame = null;
+    let resizeObserver = null;
     const reportError = (error) => {
       if (disposed) return;
       onBufferingRef?.current?.(false);
@@ -141,6 +209,9 @@ export function useWebOgvPlayback({
     const handleTimeUpdate = () => onProgressRef?.current?.();
     const handleEnded = () => onEndedRef?.current?.();
     const handleError = (event) => reportError(event?.error || event);
+    const handleResize = () => {
+      applyPlayerStyle(container, playerFrame, player, playerStyleRef.current);
+    };
 
     onBufferingRef?.current?.(true);
     const resolvedBase = normalizeResourceBase(resourceBase);
@@ -157,7 +228,17 @@ export function useWebOgvPlayback({
           worker: true,
         });
         player.className = 'cinecrew-player__video';
-        applyPlayerStyle(player, playerStyleRef.current);
+        playerFrame = document.createElement('div');
+        playerFrame.className = 'cinecrew-player__ogv-frame';
+        playerFrameRef.current = playerFrame;
+        playerFrame.appendChild(player);
+        applyPlayerStyle(container, playerFrame, player, playerStyleRef.current);
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(handleResize);
+          resizeObserver.observe(container);
+        } else {
+          window.addEventListener('resize', handleResize);
+        }
         const options = playbackOptionsRef.current;
         player.muted = Boolean(options.muted || options.videoOnly);
         player.volume = Math.max(0, Math.min(1, Number(options.volume) || 0));
@@ -172,7 +253,7 @@ export function useWebOgvPlayback({
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('ended', handleEnded);
         player.addEventListener('error', handleError);
-        container.replaceChildren(player);
+        container.replaceChildren(playerFrame);
         videoRef.current = player;
         player.src = activeUrl;
         if (!options.paused) attemptPlayback(player, pausedRef);
@@ -182,6 +263,8 @@ export function useWebOgvPlayback({
     return () => {
       disposed = true;
       onBufferingRef?.current?.(false);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleResize);
       if (player) {
         player.removeEventListener('waiting', handleWaiting);
         player.removeEventListener('loadstart', handleWaiting);
@@ -196,6 +279,7 @@ export function useWebOgvPlayback({
         try { player.remove(); } catch {}
         if (videoRef.current === player) videoRef.current = null;
       }
+      if (playerFrameRef.current === playerFrame) playerFrameRef.current = null;
     };
   }, [activeUrl, useOgv, playerContainerRef, videoRef, pausedRef, onErrorRef, onBufferingRef, resourceBase, onProgressRef, onPlayingRef, onEndedRef, onPlaybackRouteRef]);
 
@@ -212,8 +296,13 @@ export function useWebOgvPlayback({
 
   useEffect(() => {
     if (!useOgv) return;
-    applyPlayerStyle(videoRef.current, playerStyleRef.current);
-  }, [useOgv, videoRef, playerStyleKey]);
+    applyPlayerStyle(
+      playerContainerRef.current,
+      playerFrameRef.current,
+      videoRef.current,
+      playerStyleRef.current,
+    );
+  }, [useOgv, playerContainerRef, videoRef, playerStyleKey]);
 
   return useOgv;
 }
