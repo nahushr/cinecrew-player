@@ -559,6 +559,24 @@ function waitForRecordingFinalization(completion) {
   ]).finally(() => window.clearTimeout(timeoutId));
 }
 
+async function performRecordingStop({ stop, action, recordingElapsed, streamUrl, title, recorderRef, completionRef, finalizerRef, setRecordingStatus }) {
+  if (!stop) setRecordingStatus('finalizing');
+  let stopCore = () => stopBrowserRecorder(recorderRef, completionRef, finalizerRef);
+  if (stop) stopCore = () => stop();
+  await action('onRecordingStop', stopCore, { elapsedMs: recordingElapsed, source: streamUrl, title });
+  if (!stop) await waitForRecordingFinalization(completionRef.current);
+}
+
+function updateRecordingStopState({ clock, recordingBlobRef, stop, setRecordingElapsed, setRecordingStatus, setRecordingError }) {
+  if (clock.startedAt) clock.accumulatedMs += Date.now() - clock.startedAt;
+  setRecordingElapsed(clock.accumulatedMs);
+  const hasRecording = Boolean(recordingBlobRef.current);
+  setRecordingStatus(hasRecording ? 'complete' : 'idle');
+  if (!hasRecording && !stop) {
+    setRecordingError((current) => current || 'The browser returned no recorded media data for this source. Try a local or CORS-enabled video while it is playing.');
+  }
+}
+
 function buildUnlockedControls({
   control, onBack, isLive, restart, toggleLock, toggleMute, muted, hasRecording,
   recordingStatus, startRecording, resumeRecording, stopRecording, activePanel,
@@ -1474,23 +1492,25 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const stopRecording = useCallback(async () => {
     try {
       const stop = integrations.recording?.stop;
-      if (!stop) setRecordingStatus('finalizing');
-      const stopRecordingCore = stop
-        ? () => stop()
-        : () => stopBrowserRecorder(recorderRef, recordingCompletionRef, recordingFinalizerRef);
-      await action('onRecordingStop', stopRecordingCore, { elapsedMs: recordingElapsed, source: streamUrl, title });
-      if (!stop) await waitForRecordingFinalization(recordingCompletionRef.current);
-      const clock = recordingClockRef.current;
-      if (clock.startedAt) clock.accumulatedMs += Date.now() - clock.startedAt;
-      setRecordingElapsed(clock.accumulatedMs);
-      if (recordingBlobRef.current) {
-        setRecordingStatus('complete');
-      } else if (!stop) {
-        setRecordingStatus('idle');
-        setRecordingError((current) => current || 'The browser returned no recorded media data for this source. Try a local or CORS-enabled video while it is playing.');
-      } else {
-        setRecordingStatus('idle');
-      }
+      await performRecordingStop({
+        stop,
+        action,
+        recordingElapsed,
+        streamUrl,
+        title,
+        recorderRef,
+        completionRef: recordingCompletionRef,
+        finalizerRef: recordingFinalizerRef,
+        setRecordingStatus,
+      });
+      updateRecordingStopState({
+        clock: recordingClockRef.current,
+        recordingBlobRef,
+        stop,
+        setRecordingElapsed,
+        setRecordingStatus,
+        setRecordingError,
+      });
     } catch (stopError) {
       setRecordingError(stopError?.message || 'Could not finish recording.');
     }
