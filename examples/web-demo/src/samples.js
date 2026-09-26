@@ -17,16 +17,37 @@ export const sampleSources = [
   {
     id: 'mp4',
     label: 'MP4',
-    title: 'Local MP4 fixture',
-    url: '/cinecrew-mp4-fixture.mp4',
+    title: 'HTTPS MP4 Stream',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/cinecrew-mp4-fixture.mp4',
     type: 'video/mp4',
   },
   {
     id: 'mkv',
     label: 'MKV',
-    title: 'Local MKV fixture',
-    url: '/cinecrew-mkv-fixture.mkv',
+    title: 'HTTPS MKV Stream',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/cinecrew-mkv-fixture.mkv',
     type: 'video/webm',
+  },
+  {
+    id: 'webm',
+    label: 'WebM',
+    title: 'HTTPS WebM Stream',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/cinecrew-webm-fixture.webm',
+    type: 'video/webm',
+  },
+  {
+    id: 'mov',
+    label: 'MOV',
+    title: 'HTTPS MOV Stream',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/cinecrew-mov-fixture.mov',
+    type: 'video/quicktime',
+  },
+  {
+    id: 'mp3',
+    label: 'MP3',
+    title: 'HTTPS MP3 Audio Stream',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/cinecrew-mp3-fixture.mp3',
+    type: 'audio/mpeg',
   },
 ];
 
