@@ -121,11 +121,13 @@ export function useWebAc3AudioPlayback({
 
     const context = new AudioContextConstructor({ latencyHint: 'interactive' });
     const gain = context.createGain();
+    const recordingDestination = context.createMediaStreamDestination?.();
     gain.gain.value = enabledRef.current
       ? Math.max(0, Math.min(1, Number(volumeRef.current) / 100))
       : 0;
     gain.connect(context.destination);
-    audioRef.current = { context, gain };
+    if (recordingDestination) gain.connect(recordingDestination);
+    audioRef.current = { context, gain, recordingDestination };
     return audioRef.current;
   }, []);
 
@@ -212,8 +214,12 @@ export function useWebAc3AudioPlayback({
   useEffect(() => () => {
     const { context } = audioRef.current;
     if (context && context.state !== 'closed') context.close().catch(() => {});
-    audioRef.current = { context: null, gain: null };
+    audioRef.current = { context: null, gain: null, recordingDestination: null };
   }, []);
 
-  return { activateAudio, deactivateAudio };
+  return {
+    activateAudio,
+    deactivateAudio,
+    getRecordingAudioStream: () => audioRef.current.recordingDestination?.stream || null,
+  };
 }

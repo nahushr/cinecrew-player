@@ -38,8 +38,9 @@ export function nearestPipCorner(x, y, winW, winH, insets) {
 }
 
 export const ASPECT_OPTIONS = [
-  { label: 'Fit Screen', value: 'FIT' },
-  { label: 'Fill Screen', value: 'FILL_SCREEN' },
+  { label: 'Fit', value: 'FIT' },
+  { label: 'Fill', value: 'FILL' },
+  { label: 'Stretch', value: 'STRETCH' },
   { label: '16:9', value: '16:9' },
   { label: '4:3', value: '4:3' },
   { label: '21:9', value: '21:9' },
@@ -156,4 +157,3 @@ export function applyTrackDefaults(selected, setSelected, setTracks, tracksProp)
   const active = tracksProp.find((t) => t.selected || t.active) || tracksProp[0];
   if (active) setSelected(active.id);
 }
-

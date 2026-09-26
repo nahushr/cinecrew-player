@@ -109,10 +109,12 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
           enablejsapi: 1,
           fs: 0,
           iv_load_policy: 3,
+          modestbranding: 1,
           mute: latestPropsRef.current.muted ? 1 : 0,
           origin: window.location.origin,
           playsinline: 1,
           rel: 0,
+          showinfo: 0,
         },
         events: {
           onReady: (event) => {

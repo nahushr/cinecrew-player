@@ -42,7 +42,6 @@ export const allControls = {
   lock: true,
   mute: true,
   aspectRatio: true,
-  videoOnly: true,
   audioOnly: true,
   audioTracks: true,
   playbackRate: true,

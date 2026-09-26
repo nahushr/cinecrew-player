@@ -100,3 +100,35 @@ test('README documents the full-player and inline-preview props', () => {
     }
   }
 });
+
+test('progress-bar callback is public, documented, and connected on web and native', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const formatter = readFileSync(path.join(root, 'src/utils/progressBarTime.js'), 'utf8');
+
+  assert.match(declarations, /onProgressBarChange\?: \(time: string\) => void/);
+  assert.match(readme, /`onProgressBarChange`[\s\S]*`HH:MM:SS`/);
+  assert.match(webEntry, /emitProgressBarTime\(seconds, onProgressBarChange/);
+  assert.match(nativeEntry, /emitProgressBarTime\(progress\.seconds, onProgressBarChange/);
+  assert.match(formatter, /padStart\(2, '0'\)/);
+});
+
+test('web player keeps chat paging automatic and exposes customizable aspect modes', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
+  const recording = readFileSync(path.join(root, 'src/utils/webRecording.js'), 'utf8');
+  const youtube = readFileSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js'), 'utf8');
+
+  assert.match(declarations, /aspectRatios\?: Array<AspectRatio \| AspectRatioOption>/);
+  assert.match(declarations, /defaultAspectRatio\?: AspectRatio/);
+  assert.match(webEntry, /actions\?\.\[name\] \|\| props\.onAspectRatioChange/);
+  assert.match(webEntry, /onScroll:[\s\S]*loadOlderMessages/);
+  assert.doesNotMatch(webEntry, /See more messages/);
+  assert.doesNotMatch(webEntry, /name: 'videoOnly'/);
+  assert.match(webStyles, /cinecrew-player__menu-option\.is-selected/);
+  assert.match(webStyles, /cinecrew-player__controls\.is-recording/);
+  assert.match(recording, /new MediaRecorder|MediaRecorder/);
+  assert.match(recording, /canvas\.captureStream/);
+  assert.match(youtube, /controls: 0/);
+  assert.match(youtube, /pointerEvents: 'none'/);
+});

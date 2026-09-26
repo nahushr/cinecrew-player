@@ -17,8 +17,13 @@ export function useWebVideoAspectRatio(videoAspectRatio, audioOnly) {
     } else if (aspect === 'CENTER') {
       setAspectFit('none');
       setAspectRatioVal(undefined);
-    } else if (typeof aspect === 'string' && aspect.includes(':')) {
-      const parts = aspect.split(':');
+    } else if (typeof aspect === 'string' && /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(aspect)) {
+      const parts = aspect.split(':').map(Number);
+      if (!parts[0] || !parts[1]) {
+        setAspectFit('contain');
+        setAspectRatioVal(undefined);
+        return;
+      }
       setAspectFit('contain');
       setAspectRatioVal(`${parts[0]}/${parts[1]}`);
     } else {

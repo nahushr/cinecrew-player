@@ -53,7 +53,7 @@ flowchart LR
 | Area | Included capabilities | Designed for |
 |---|---|---|
 | 🎞️ **Playback** | On-demand and live media; URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path; embedded YouTube playback | Movies, episodes, trailers, and channels |
-| 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, video-only/audio-only modes, audio tracks, playback speed, fullscreen, back | A complete control surface without hard-wiring your app navigation |
+| 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, audio-only mode, audio tracks, playback speed, fullscreen, back | A complete control surface without hard-wiring your app navigation |
 | 🎨 **Branding** | Theme colors, radius, platform styles, replaceable icons, custom panel render slots | Match your app without forking the player |
 | 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; recording adapter hooks | Channel browsing and live-viewing workflows |
 | 🔌 **App integration** | Per-action callbacks, imperative ref API, source resolver, progress/presence/events hooks, sleep timer callback | Keep account, IPTV, analytics, and storage logic in your app |
@@ -70,12 +70,12 @@ flowchart LR
 | 🔒 | `lock` | Lock / unlock controls | Prevent accidental touches |
 | 🔊 | `mute` | Mute / unmute | Volume prop also sets initial level |
 | 🖼️ | `aspectRatio` | Fit / fill / stretch | Available choices depend on renderer |
-| 🔇 | `videoOnly` | Video-only mode | Keeps video presentation while muting audio |
+| 🔇 | `videoOnly` | Legacy video-only visibility key | Kept for compatibility; no separate video-only button is rendered |
 | 🎧 | `audioOnly` | Audio-only presentation | Playback continues behind the audio card |
 | 🎚️ | `audioTracks` | Audio-track selection | Depends on exposed tracks / platform engine |
 | ⏩ | `playbackRate` | Playback speed | On-demand experience |
 | ⛶ | `fullscreen` | Fullscreen / promote preview | Native full-player presentation is platform-specific |
-| ⏺️ | `recording` | Recording controls | Requires an app recording adapter or callback |
+| ⏺️ | `recording` | Recording controls | Web uses built-in MediaRecorder when supported; native uses an app recording adapter |
 | 💬 | `liveChat` | Live chat panel | Requires an adapter, render slot, or callback |
 | 📅 | `epg` | Electronic program guide | Requires an adapter, render slot, or callback |
 | ⏱️ | `seek` | Seek bar | Meaningful for seekable media |
@@ -89,7 +89,7 @@ flowchart LR
 |---|---|
 | 🎨 Colors and shape | `theme`: accent, background, control, surface, error colors, border radius, and native palette |
 | 🪄 Icons | `icons`: provide a glyph/string, React node, or icon component; omitted icons keep CineCrew defaults |
-| 🧠 Per-control behavior | `actions`: override only the actions your app wants to own; built-in behavior remains the default otherwise |
+| 🧠 Per-control behavior | `actions`: observe completed player actions in your app without replacing built-in behavior |
 | 🧱 Chat and EPG drawers | `drawerMode`, `drawerStyle`, and optional app-owned `renderLiveChat` / `renderEpg` views |
 | 🔗 Source handling | `resolveSource` for share pages or host-specific resolution; direct media sources pass through unchanged |
 | 📐 Layout | `style`, web `className`, inline preview geometry, and `InlineLivePlayer` height |
@@ -343,13 +343,15 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `muted` | `boolean` | `false` | Initial mute state. |
 | `volume` | `number` | `1` | Initial volume from `0` to `1`. |
 | `playbackRate` | `number` | `1` | Initial playback speed; the on-demand speed control can change it afterward. |
+| `aspectRatios` | `(string \| { value, label? })[]` | built-in choices | Customize the aspect-ratio menu. Values include `FIT`, `FILL`, `STRETCH`, or a ratio such as `1:1`; labels are optional. |
+| `defaultAspectRatio` | `string` | `'FIT'` | Initial and source-reset aspect mode. Must match an item in `aspectRatios` to appear selected. |
 | `controls` | `PlayerControls` | defaults below | Show/hide individual control buttons. |
 | `features` | feature flags | `{}` | Optional player features, including web stream diagnostics with `{ diagnostics: true }`. |
-| `actions` | `PlayerActions` | `{}` | Replace the built-in behavior for individual actions. If a callback is provided, that callback owns the action. |
+| `actions` | `PlayerActions` | `{}` | Observe built-in actions. The player performs its core action first, then invokes the callback with the resulting action payload. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
 | `drawerMode` | `'overlay' \| 'resize'` | `'overlay'` | Web/Electron drawer behavior: overlay the video or resize it to make room for chat, EPG, and diagnostics. |
 | `drawerStyle` | `React.CSSProperties` / React Native `ViewStyle` | — | Platform-specific style overrides for the chat, EPG, and diagnostics drawer. |
-| `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older pages load from the drawer’s “See more” control. |
+| `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older messages load automatically when the list is scrolled to the top. |
 | `theme` | `PlayerTheme` | built-in theme | Customize player colors, borders, and shape. |
 | `icons` | `PlayerIcons` | built-in icons | Override any control icon by key. |
 | `style` | platform style | — | Outer player style. On web this is a CSS style object; native uses React Native style props. |
@@ -365,13 +367,15 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `playlist` | `object[]` | — | Episode list used for automatic next-episode behavior. |
 | `shuffle` | `boolean` | `false` | Select a random next episode when the current episode ends. |
 | `onClose`, `onBack` | callbacks | — | Player lifecycle/navigation callbacks. |
+| `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
+| `onProgressBarChange` | `(time: string) => void` | — | Reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. Progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
 | `initialShowLiveChat`, `liveChatNonce` | `boolean`, `number` | `false`, `0` | Open or re-open the live-chat panel (when available). |
 | `inlinePreview`, `inlinePreviewRect`, `onInlinePreviewWheel`, `onPromotePreview`, `onPlayerHostRef` | preview options and callbacks | — | Embed/manage the player as a movable inline preview. Mainly useful for app-level player shells. |
 
-`features={{ diagnostics: true }}` enables the diagnostics button and built-in stream status panel on web; `controls.diagnostics` can hide it and `actions.onDiagnosticsOpen` can replace the panel action. `onFullscreen` receives `{ isFullscreen }`. All lifecycle callbacks in the table are optional; native event objects differ from browser events.
+`features={{ diagnostics: true }}` enables the diagnostics button and built-in stream status panel on web; `controls.diagnostics` can hide it. `onFullscreen` receives `{ isFullscreen }` after the player requests the fullscreen change. All lifecycle callbacks in the table are optional; native event objects differ from browser events.
 
 ### Player source
 
@@ -406,7 +410,7 @@ type PlayerSource = string | {
 | `onActivate` | `() => void` | — | Called when an inactive preview poster is selected. |
 | `onFullscreen` | `() => void` | — | Called to promote/open the full player. |
 | `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen'>` | all shown | Toggle its compact controls. |
-| `actions` | matching `PlayerActions` subset | built-in | Replace play/pause, mute, or promote behavior. |
+| `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
 | `theme`, `icons`, `style` | `PlayerTheme`, `PlayerIcons`, platform style | defaults | Customize preview colors, controls, and layout. |
 | `onError`, `onPlaying` | callbacks | — | Playback lifecycle callbacks. |
@@ -447,20 +451,22 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `lock` | Lock/unlock touch controls. |
 | `mute` | Mute/unmute. |
 | `aspectRatio` | Fit/fill/stretch and available aspect choices. |
-| `videoOnly` | Mute audio while keeping video visible. |
+| `videoOnly` | Legacy compatibility setting; the player does not render a separate video-only button. |
 | `audioOnly` | Show the audio-only card while playback continues. |
 | `audioTracks` | Audio-track picker when tracks are exposed. |
 | `playbackRate` | On-demand playback speed. |
 | `fullscreen` | Fullscreen button on web and inline previews. Native player opens full-screen. |
-| `recording` | Recording controls; requires `integrations.recording` or an action override. |
-| `liveChat` | Chat drawer/panel; requires a chat adapter, render slot, or action override. |
-| `epg` | EPG drawer/panel; requires an EPG adapter, render slot, or action override. |
-| `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}` or provide `actions.onDiagnosticsOpen`. |
+| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. Browser security requires local media or a source that permits capture (typically same-origin or CORS-enabled); the player reports when a source cannot be captured. |
+| `liveChat` | Chat drawer/panel; requires a chat adapter or render slot. |
+| `epg` | EPG drawer/panel; requires an EPG adapter or render slot. |
+| `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}`. |
 | `seek` | On-demand seek bar. |
 
 ## Actions and callbacks
 
-Callbacks passed to `actions` **replace** built-in behavior; this is useful when an app wants to own navigation, playback state, or a control. Each receives an action payload and a context with the imperative `player` API (and the web video element where available).
+Callbacks passed to `actions` are notifications, not replacements: the player executes the built-in control behavior first, then calls the matching callback. This keeps core playback working while allowing your app to show a snackbar, update analytics, or synchronize app state. Each callback receives an action payload and a context with the imperative `player` API (and the web video element where available). For app navigation, use `onBack` / `onClose` as appropriate. If a notification callback throws, the player logs that callback error without undoing or blocking the already-completed player action. The callback should not repeat the player command—the control has already performed it.
+
+`onProgressBarChange` is separate from the platform-specific `onProgress` event: it emits a compact time string such as `00:00:05` once per playback second. A seek emits its final target time after the player applies the seek; skipped positions are not reported as watched time.
 
 ```tsx
 const playerRef = React.useRef(null);
@@ -469,17 +475,18 @@ const playerRef = React.useRef(null);
   ref={playerRef}
   source={source}
   actions={{
-    onRestart: (_payload, { player }) => player?.restart(),
-    onBack: () => navigation.goBack(),
-    onMute: ({ muted }, { player }) => player?.setMuted(muted),
-    onAspectRatioChange: ({ aspectRatio }, { player }) => player?.setAspectRatio(aspectRatio),
+    onRestart: () => analytics.track('player_restart'),
+    onPlayPause: ({ isPlaying }) => analytics.track('player_play_pause', { isPlaying }),
+    onMute: ({ muted }) => analytics.track('player_mute', { muted }),
+    onAspectRatioChange: ({ aspectRatio }) => analytics.track('player_aspect_ratio', { aspectRatio }),
   }}
+  onBack={() => navigation.goBack()}
 />
 ```
 
 Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
 
-The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported.
+The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported.
 
 ## Integrations
 
@@ -517,9 +524,13 @@ Integrations are optional. The package has no CineCrew account, database, or wor
 />
 ```
 
-On web and Electron, the player supplies the chat drawer UI—including the composer and emoji picker—when `integrations.liveChat.loadMessages` is provided. `sendMessage` connects the built-in composer to your chat service; omit it to show a read-only chat. Messages may include `id`, `username`, `comment` (or `message`), and `timestamp` (or `createdAt`). The drawer requests the newest page with `offset: 0`, then requests older pages with the same `limit` and an increasing `offset` when “See more messages” is selected. Return each page in chronological order (oldest first); return `{ messages, hasMore }` when your service can report whether older pages exist. Otherwise, a full page implies there may be more. Live chat polls for new messages at `pollIntervalMs` (defaults to five seconds).
+On web and Electron, the player supplies the chat drawer UI—including the composer and searchable, grouped emoji picker—when `integrations.liveChat.loadMessages` is provided. `sendMessage` connects the built-in composer to your chat service; omit it to show a read-only chat. Messages may include `id`, `username`, `comment` (or `message`), and `timestamp` (or `createdAt`). The drawer requests the newest page with `offset: 0`, then automatically requests older pages with the same `limit` and increasing `offset` as the viewer scrolls to the top. Return each page in chronological order (oldest first); return `{ messages, hasMore }` when your service can report whether older pages exist. Otherwise, a full page implies there may be more. Live chat polls for new messages at `pollIntervalMs` (defaults to five seconds); new messages scroll into view at the bottom.
 
 The EPG drawer uses `integrations.epg.loadListings`, which returns entries with `startMs` and `endMs` epoch-millisecond timestamps. Both drawers default to a semi-transparent right-side overlay, so video size does not change. Set `drawerMode="resize"` to reserve space and shrink the video; customize the drawer with `drawerStyle`. You may supply `renderLiveChat` / `renderEpg` or integration render callbacks to replace the built-in drawer contents. The native player renders its platform-native chat and EPG UI from the same adapters.
+
+### Web recording
+
+On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. YouTube embeds are not recordable through this built-in path. Aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the browser only permits capture of the media element's original frame, so the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation or use a native adapter.
 
 ## Themes and icons
 

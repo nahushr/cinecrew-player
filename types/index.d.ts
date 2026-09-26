@@ -1,6 +1,7 @@
 import type * as React from 'react';
 
 export type AspectRatio = 'FIT' | 'FILL' | 'STRETCH' | 'FILL_SCREEN' | string;
+export interface AspectRatioOption { value: AspectRatio; label?: string }
 export type PlayerMediaType = 'live' | 'channel' | 'movie' | 'series' | string;
 
 export interface PlayerSource {
@@ -57,6 +58,8 @@ export interface PlayerApi {
   seekBy(seconds: number): void;
   back(): void;
   setPlaybackRate(rate: number): void;
+  setPanel(panel: 'chat' | 'epg' | 'diagnostics' | null): void;
+  closePanel(): void;
   getVideoElement(): unknown | null;
   getAudioTracks(): AudioTrack[];
   enterFullscreen?(): void | Promise<void>;
@@ -77,6 +80,7 @@ export interface PlayerActionContext {
   video?: unknown | null;
 }
 
+/** Notification invoked after the player's built-in action has executed. */
 export type PlayerAction = (payload?: Record<string, unknown>, context?: PlayerActionContext) => unknown;
 
 export interface PlayerActions {
@@ -209,9 +213,14 @@ export interface CineCrewPlayerProps {
   drawerMode?: PlayerDrawerMode;
   /** Web CSS or React Native view-style overrides for the chat, EPG, and diagnostics drawer. */
   drawerStyle?: React.CSSProperties | import('react-native').ViewStyle;
-  /** Number of chat messages fetched per page; older pages load from the drawer's See more button. Defaults to 50. */
+  /** Number of chat messages fetched per page. Older pages load automatically when scrolling to the top. Defaults to 50. */
   messagePageSize?: number;
+  /** Available aspect-ratio choices. Items may be values or labeled { value, label } options. */
+  aspectRatios?: Array<AspectRatio | AspectRatioOption>;
+  /** Initial aspect-ratio choice. Defaults to FIT. */
+  defaultAspectRatio?: AspectRatio;
   features?: { diagnostics?: boolean; [key: string]: boolean | undefined };
+  /** App callbacks invoked after each corresponding built-in action. */
   actions?: PlayerActions;
   integrations?: PlayerIntegrations;
   theme?: PlayerTheme;
@@ -236,6 +245,8 @@ export interface CineCrewPlayerProps {
   onClose?: () => void;
   onBack?: () => void;
   onFullscreen?: (state: { isFullscreen: boolean }) => void;
+  /** Invoked after the player applies an aspect ratio selection; actions.onAspectRatioChange takes precedence when both are supplied. */
+  onAspectRatioChange?: PlayerAction;
   onPlayerHostRef?: (node: unknown | null) => void;
   onInlinePreviewWheel?: (deltaY: number) => void;
   inlinePreview?: boolean;
@@ -245,6 +256,8 @@ export interface CineCrewPlayerProps {
   liveChatNonce?: number;
   onReady?: (playerOrEvent: unknown) => void;
   onProgress?: (event: unknown) => void;
+  /** Called once for each elapsed playback second and after a completed seek/restart with a zero-padded HH:MM:SS position. */
+  onProgressBarChange?: (time: string) => void;
   onPlaying?: (event: unknown) => void;
   onBuffering?: (buffering: boolean) => void;
   onError?: (error: Error | Record<string, unknown>) => void;

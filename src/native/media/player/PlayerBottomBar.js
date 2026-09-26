@@ -21,7 +21,7 @@ function SeekControls({ isLive, controls, insets, scale, isSeeking, sliderPos, c
   );
 }
 
-function AspectRatioControl({ controls, open, aspectRatio, onToggle, onSelect }) {
+function AspectRatioControl({ controls, open, aspectRatio, aspectRatios = ASPECT_OPTIONS, onToggle, onSelect }) {
   const palette = usePlayerColors();
   if (controls.aspectRatio === false) return null;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
@@ -29,7 +29,7 @@ function AspectRatioControl({ controls, open, aspectRatio, onToggle, onSelect })
     <View style={styles.speedButtonContainer}>
       {open ? <View style={[styles.speedPickerPopup, { right: 'auto', left: 0, backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}>
         <Text style={[styles.speedPickerTitle, { color: palette.mutedColor }]}>Aspect Ratio</Text>
-        {ASPECT_OPTIONS.map((option) => {
+        {aspectRatios.map((option) => {
           const selected = aspectRatio === option.value;
           return <TouchableOpacity key={option.label} style={styles.speedOption} onPress={(event) => { event.stopPropagation(); onSelect(option.value); }} activeOpacity={0.7}>
             <PlayerIcon name="check" size={15} color={selected ? palette.accentColor : 'transparent'} />
@@ -48,12 +48,6 @@ function AudioOnlyModeControl({ isAudioOnly, onToggle }) {
   const palette = usePlayerColors();
   const selectedStyle = isAudioOnly ? { backgroundColor: palette.surfaceColor, borderWidth: 1, borderColor: palette.accentColor } : null;
   return <TouchableOpacity style={[styles.speedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} accessibilityLabel="Audio-Only Mode"><PlayerIcon name="headphones" size={18} color={isAudioOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
-}
-
-function VideoOnlyControl({ isVideoOnly, onToggle }) {
-  const palette = usePlayerColors();
-  const selectedStyle = isVideoOnly ? { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor } : null;
-  return <TouchableOpacity style={[styles.speedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle?.(); }} accessibilityLabel={isVideoOnly ? 'Disable video-only mode' : 'Video only'}><PlayerIcon name="video" size={18} color={isVideoOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
 }
 
 function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect }) {
@@ -129,6 +123,7 @@ export const PlayerBottomBar = ({
   isAudioOnly,
   showAspectPicker,
   aspectRatio,
+  aspectRatios = ASPECT_OPTIONS,
   showSpeedPicker,
   playbackRate,
   showAudioPicker,
@@ -147,8 +142,6 @@ export const PlayerBottomBar = ({
   onSelectAudioTrack,
   onToggleFullscreen,
   controls = {},
-  isVideoOnly = false,
-  onToggleVideoOnly,
 }) => {
   return (
     <View
@@ -167,8 +160,7 @@ export const PlayerBottomBar = ({
       <View style={styles.bottomControlsRow} pointerEvents="box-none">
         <View style={styles.leftActionsContainer}>
           {isAudioOnlyFeatureEnabled && controls.audioOnly !== false ? <AudioOnlyModeControl isAudioOnly={isAudioOnly} onToggle={onToggleAudioOnly} /> : null}
-          <AspectRatioControl controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} />
-          {controls.videoOnly ? <VideoOnlyControl isVideoOnly={isVideoOnly} onToggle={onToggleVideoOnly} /> : null}
+          <AspectRatioControl controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} aspectRatios={aspectRatios} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} />
         </View>
 
         {/* RIGHT ACTIONS: Playback Speed, Audio, Fullscreen */}

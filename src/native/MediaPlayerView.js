@@ -23,6 +23,8 @@ import { PlayerIcon } from './customization';
 import { isWeb, isAndroid, isElectron } from '../utils/runtimePlatform';
 import { getFontSize, getFontWeight } from '../utils/layoutUtils';
 import { isLocalMediaUri } from '../utils/mediaUtils';
+import { invokePlayerAction } from '../utils/invokePlayerAction.js';
+import { emitProgressBarTime } from '../utils/progressBarTime.js';
 import {
   USER_AGENT,
   calculateScreenAspectRatio,
@@ -67,6 +69,17 @@ function pickShuffleCandidate(candidates, season, episode) {
     hash = Math.imul(hash ^ character.codePointAt(0), 16777619);
   }
   return candidates[(hash >>> 0) % candidates.length];
+}
+
+function normalizeAspectOptions(values) {
+  if (!Array.isArray(values) || values.length === 0) return ASPECT_OPTIONS;
+  const unique = new Map();
+  values.forEach((item) => {
+    const value = typeof item === 'string' ? item : item?.value;
+    if (!value || typeof value !== 'string') return;
+    unique.set(value, { value, label: typeof item === 'string' ? item : item.label || value });
+  });
+  return unique.size ? [...unique.values()] : ASPECT_OPTIONS;
 }
 
 // Gesture events can arrive much faster than the native player can consume
@@ -590,7 +603,7 @@ function FullscreenControlsPanel(props) {
         duration={props.duration}
         isAudioOnlyFeatureEnabled={props.isAudioOnlyFeatureEnabled}
         isAudioOnly={props.isAudioOnly}
-        isVideoOnly={props.videoOnlyMode}
+        aspectRatios={props.aspectRatios}
         controls={props.controls}
         showAspectPicker={props.showAspectPicker}
         aspectRatio={props.aspectRatio}
@@ -611,7 +624,6 @@ function FullscreenControlsPanel(props) {
         onToggleAudioPicker={props.onToggleAudioPicker}
         onSelectAudioTrack={props.handleAudioTrackAction}
         onToggleFullscreen={props.handleFullscreenAction}
-        onToggleVideoOnly={props.handleVideoOnlyAction}
       />
     </>
   );
@@ -790,6 +802,9 @@ export const MediaPlayerView = ({
   liveChatNonce = 0,
   messagePageSize = 50,
   drawerStyle,
+  aspectRatios,
+  defaultAspectRatio = DEFAULT_ASPECT_RATIO,
+  onAspectRatioChange,
   genre,
   categoryName,
   controls = {},
@@ -805,6 +820,7 @@ export const MediaPlayerView = ({
   style,
   onReady,
   onProgress,
+  onProgressBarChange,
   onPlaying,
   onBuffering,
   onError,
@@ -830,12 +846,16 @@ export const MediaPlayerView = ({
   const vlcRef = useRef(null);
   const playerRef = useRef(null);
   const invokeAction = useCallback((name, fallback, payload) => {
-    const callback = actions?.[name];
-    if (typeof callback === 'function') {
-      return callback(payload, { player: playerApiRef?.current || null });
-    }
-    return fallback?.();
-  }, [actions, playerApiRef]);
+    const callback = name === 'onAspectRatioChange'
+      ? actions?.[name] || onAspectRatioChange
+      : actions?.[name];
+    return invokePlayerAction(
+      fallback,
+      callback,
+      payload,
+      { player: playerApiRef?.current || null },
+    );
+  }, [actions, onAspectRatioChange, playerApiRef]);
   const handlePlayerHostRef = useCallback((node) => {
     playerRef.current = node;
     onPlayerHostRef?.(node);
@@ -981,8 +1001,9 @@ export const MediaPlayerView = ({
   useEffect(() => {
     isLockedRef.current = isLocked;
   }, [isLocked]);
-  const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT_RATIO);
-  const aspectRatioRef = useRef(DEFAULT_ASPECT_RATIO);
+  const [aspectRatio, setAspectRatio] = useState(defaultAspectRatio || DEFAULT_ASPECT_RATIO);
+  const aspectRatioRef = useRef(defaultAspectRatio || DEFAULT_ASPECT_RATIO);
+  const aspectOptions = useMemo(() => normalizeAspectOptions(aspectRatios), [aspectRatios]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [audioTracks, setAudioTracks] = useState([]);
@@ -1112,7 +1133,7 @@ export const MediaPlayerView = ({
       let targetRatio = val;
       if (val === 'FIT') {
         targetRatio = 'FIT';
-      } else if (val === 'FILL_SCREEN') {
+      } else if (val === 'FILL_SCREEN' || val === 'FILL') {
         targetRatio = calculateScreenAspectRatio(windowWidth, windowHeight);
       }
 
@@ -1148,6 +1169,7 @@ export const MediaPlayerView = ({
   const isSeeking = useRef(false);
   const bufferingTimerRef = useRef(null);
   const seekCompletedAt = useRef(0);
+  const lastProgressBarSecondRef = useRef(null);
   const lastKnownTimeRef = useRef(0);
   const lastKnownDurRef = useRef(Number(durationSecs) || 0);
   const hasResumedRef = useRef(false);
@@ -1336,6 +1358,7 @@ export const MediaPlayerView = ({
     setIsPlaying(!initialPaused);
     isPlayingRef.current = !initialPaused;
     setVideoOnlyMode(!!videoOnly);
+    lastProgressBarSecondRef.current = null;
     setPlaybackUrl(streamUrl || '');
     setIsLocked(false);
     setIsAudioOnly(!!initialAudioOnly);
@@ -1374,14 +1397,14 @@ export const MediaPlayerView = ({
   // Reset aspect ratio & zoom state every time player opens or streamUrl changes
   useEffect(() => {
     if (visible) {
-      setAspectRatio(DEFAULT_ASPECT_RATIO);
-      aspectRatioRef.current = DEFAULT_ASPECT_RATIO;
+      setAspectRatio(defaultAspectRatio || DEFAULT_ASPECT_RATIO);
+      aspectRatioRef.current = defaultAspectRatio || DEFAULT_ASPECT_RATIO;
       setZoomScale(1);
       zoomScaleRef.current = 1;
       setZoomBadgeText('');
       setSeekRipple(null);
     }
-  }, [visible, streamUrl]);
+  }, [visible, streamUrl, defaultAspectRatio]);
 
   // Auto-hide controls 4 seconds after inactivity
   const scheduleHide = useCallback(() => {
@@ -1575,8 +1598,9 @@ export const MediaPlayerView = ({
     setSliderPos(0);
     lastKnownTimeRef.current = 0;
     seekCompletedAt.current = Date.now();
+    emitProgressBarTime(0, onProgressBarChange, lastProgressBarSecondRef, { force: true });
     if (!showControls) setShowControls(true);
-  }, [showControls]);
+  }, [onProgressBarChange, showControls]);
 
   // Episode finished: auto-advance to the next episode (sequential) or to a
   // random episode (shuffle mode). Last episode in the playlist stops playback.
@@ -1775,6 +1799,7 @@ export const MediaPlayerView = ({
       lastKnownTimeRef,
       setSliderPosition: setSliderPos,
     });
+    if (progress) emitProgressBarTime(progress.seconds, onProgressBarChange, lastProgressBarSecondRef);
   };
 
   const handleNativeOpen = (event) => {
@@ -1882,10 +1907,14 @@ export const MediaPlayerView = ({
       setSliderPos(target);
       seekCompletedAt.current = Date.now();
       debouncedSaveProgress();
+      emitProgressBarTime(target, onProgressBarChange, lastProgressBarSecondRef, { force: true });
     }, { seconds: Number(seconds) || 0, currentTime: lastKnownTimeRef.current },
-  ), [invokeAction, handleSeekTo, debouncedSaveProgress]);
+  ), [invokeAction, handleSeekTo, debouncedSaveProgress, onProgressBarChange]);
   const handleSeekByAction = (deltaSeconds) => invokeAction(
-    'onSeek', () => handleSeekBy(deltaSeconds), { deltaSeconds: Number(deltaSeconds) || 0, currentTime: lastKnownTimeRef.current },
+    'onSeek', () => {
+      handleSeekBy(deltaSeconds);
+      emitProgressBarTime(lastKnownTimeRef.current, onProgressBarChange, lastProgressBarSecondRef, { force: true });
+    }, { deltaSeconds: Number(deltaSeconds) || 0, currentTime: lastKnownTimeRef.current },
   );
   const handleMuteAction = useCallback(() => invokeAction(
     'onMute', toggleMute, { muted: !mutedRef.current },
@@ -1912,14 +1941,17 @@ export const MediaPlayerView = ({
     event?.stopPropagation?.();
     return invokeAction(name, fallback, { title, streamUrl, mediaId });
   }, [invokeAction, title, streamUrl, mediaId]);
-  const handlePanelAction = useCallback((tab) => invokeAction(
-    getPanelActionName(tab),
-    () => {
-      if (showLiveChat && drawerTab === tab) setShowLiveChat(false);
-      else { setDrawerTab(tab); setShowLiveChat(true); }
-    },
-    { tab, isOpen: showLiveChat && drawerTab === tab },
-  ), [invokeAction, showLiveChat, drawerTab]);
+  const handlePanelAction = useCallback((tab) => {
+    const isOpen = !(showLiveChat && drawerTab === tab);
+    return invokeAction(
+      getPanelActionName(tab),
+      () => {
+        if (isOpen) { setDrawerTab(tab); setShowLiveChat(true); }
+        else setShowLiveChat(false);
+      },
+      { tab, isOpen },
+    );
+  }, [invokeAction, showLiveChat, drawerTab]);
 
   useEffect(() => {
     if (!playerApiRef) return undefined;
@@ -2591,6 +2623,7 @@ export const MediaPlayerView = ({
     videoOnlyMode,
     showAspectPicker,
     aspectRatio,
+    aspectRatios: aspectOptions,
     showSpeedPicker,
     playbackRate,
     showAudioPicker,

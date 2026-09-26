@@ -13,6 +13,7 @@ import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
 import { isAndroid, isElectron, isIOS, isWeb } from '../utils/runtimePlatform';
 import { USER_AGENT } from './media/player/playerConstants';
+import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -82,8 +83,7 @@ function InlineControlButton({
     accessibilityLabel: label,
     onPress: () => {
       const callback = actions?.[actionName];
-      if (typeof callback === 'function') callback(payload, { player: null });
-      else fallback?.();
+      invokePlayerAction(fallback, callback, payload, { player: null });
     },
     style: [styles.button, { backgroundColor: palette.controlBackground }, active && { borderColor: palette.accentColor, borderWidth: 1 }],
   }, React.createElement(PlayerIcon, { name: icon, size: 19, color: palette.controlColor }));
@@ -213,15 +213,16 @@ function InlineLivePlayerView({
   }, [onPlaying]);
 
   const performAction = (name, fallback, payload) => {
-    if (typeof actions?.[name] === 'function') return actions[name](payload);
-    return fallback?.();
+    return invokePlayerAction(fallback, actions?.[name], payload, { player: null });
   };
 
   const togglePlay = (event) => {
     event?.stopPropagation?.();
     if (!shouldRenderVideo) {
-      onActivate?.();
-      setInternallyPaused(false);
+      performAction('onPlayPause', () => {
+        onActivate?.();
+        setInternallyPaused(false);
+      }, true);
       return;
     }
     performAction('onPlayPause', () => setInternallyPaused((value) => !value), !pausedNow);

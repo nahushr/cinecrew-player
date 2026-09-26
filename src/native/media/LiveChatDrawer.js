@@ -124,7 +124,6 @@ function LiveChatPanel({
   messages,
   flatListRef,
   renderMessageItem,
-  hasMoreMessages,
   loadOlderMessages,
   loadingOlderMessages,
   chatError,
@@ -161,19 +160,16 @@ function LiveChatPanel({
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={hasMoreMessages ? (
-            <TouchableOpacity
-              style={styles.loadMoreMessages}
-              onPress={loadOlderMessages}
-              disabled={loadingOlderMessages}
-              accessibilityRole="button"
-            >
-              {loadingOlderMessages ? <ActivityIndicator size="small" color="#00E5FF" /> : null}
-              <Text style={styles.loadMoreMessagesText}>
-                {loadingOlderMessages ? 'Loading older messages…' : 'See more messages'}
-              </Text>
-            </TouchableOpacity>
+          ListHeaderComponent={loadingOlderMessages ? (
+            <View style={styles.loadingOlderMessages}>
+              <ActivityIndicator size="small" color="#00E5FF" />
+              <Text style={styles.loadingOlderMessagesText}>Loading older messages…</Text>
+            </View>
           ) : null}
+          onScroll={(event) => {
+            if (event.nativeEvent.contentOffset.y <= 24) loadOlderMessages();
+          }}
+          scrollEventThrottle={16}
           ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
         />
       )}
@@ -670,7 +666,6 @@ export const LiveChatDrawer = ({
           messages={messages}
           flatListRef={flatListRef}
           renderMessageItem={renderMessageItem}
-          hasMoreMessages={hasMoreMessages}
           loadOlderMessages={loadOlderMessages}
           loadingOlderMessages={loadingOlderMessages}
           chatError={chatError}
@@ -994,22 +989,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
   },
-  loadMoreMessages: {
-    minHeight: 40,
+  loadingOlderMessages: {
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 229, 255, 0.35)',
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    gap: 7,
+    paddingVertical: 6,
   },
-  loadMoreMessagesText: {
+  loadingOlderMessagesText: {
     color: '#00E5FF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
   },
   chatErrorText: {
     color: '#FF7A8A',

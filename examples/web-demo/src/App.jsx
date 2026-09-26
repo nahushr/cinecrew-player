@@ -1,93 +1,45 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import '@cinecrew/cinecrew-player/styles.css';
-import { allControls, asPlayerSource, sampleSources } from './samples.js';
-
-function createSampleChatMessages() {
-  const messages = [
-    ['Maya', 'That replay was unreal!'],
-    ['Aarav', 'The keeper never saw it coming 😄'],
-    ['Jordan', 'What a finish!'],
-    ['Maya', 'This match keeps getting better.'],
-    ['Leo', 'The crowd is electric tonight 🔥'],
-    ['Aarav', 'Great pass to set that up.'],
-    ['Priya', 'Who do you think takes the next one?'],
-    ['Jordan', 'Going with the home side.'],
-    ['Leo', 'Same here — they look sharp.'],
-    ['Maya', 'That was so close!'],
-    ['Priya', '👏👏👏'],
-    ['Aarav', 'Best game this week.'],
-    ['Jordan', 'One more goal would seal it.'],
-    ['Leo', 'Here we go again!'],
-    ['Maya', 'Enjoying the stream, everyone 💙'],
-  ];
-  return messages.map(([username, comment], index) => ({
-    id: `demo-message-${index + 1}`,
-    username,
-    comment,
-    timestamp: new Date(Date.now() - (messages.length - index - 1) * 4 * 60 * 1000).toISOString(),
-  }));
-}
+import { asPlayerSource, sampleSources } from './samples.js';
+import { PlayerViewport } from './components/PlayerViewport.jsx';
+import { SourceControls } from './components/SourceControls.jsx';
+import { ToastViewport } from './components/ToastViewport.jsx';
+import { useDemoIntegrations } from './hooks/useDemoIntegrations.js';
+import { useDemoPlayerActions } from './hooks/useDemoPlayerActions.js';
 
 export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
-  const [draftUrl, setDraftUrl] = useState(active.url);
+  const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
   const [live, setLive] = useState(false);
   const [status, setStatus] = useState('Ready');
+  const [progressTime, setProgressTime] = useState('00:00:00');
   const [drawerMode, setDrawerMode] = useState('overlay');
-  const [sampleMessages, setSampleMessages] = useState(createSampleChatMessages);
-  const [chatToast, setChatToast] = useState('');
-  const sampleMessagesRef = useRef(sampleMessages);
-  const chatToastTimerRef = useRef(null);
-  sampleMessagesRef.current = sampleMessages;
+  const [toast, setToast] = useState(null);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
+  const toastTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const notify = useCallback((title, message) => {
+    setToast({ title, message: String(message || '') });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3600);
+  }, []);
 
   useEffect(() => () => {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
 
+  useEffect(() => {
+    setProgressTime('00:00:00');
+  }, [active.url]);
+
   useEffect(() => () => {
-    if (chatToastTimerRef.current) clearTimeout(chatToastTimerRef.current);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
-  const integrations = useMemo(() => ({
-    user: { id: 'demo-viewer', username: 'You' },
-    liveChat: {
-      pollIntervalMs: 10000,
-      loadMessages: async ({ limit, offset = 0 }) => {
-        const messages = sampleMessagesRef.current;
-        const end = Math.max(0, messages.length - offset);
-        const start = Math.max(0, end - limit);
-        return { messages: messages.slice(start, end), hasMore: start > 0 };
-      },
-      sendMessage: async ({ username, comment }) => {
-        const completeMessage = String(comment || '');
-        setSampleMessages((current) => [...current, {
-          id: `demo-message-${Date.now()}`,
-          username,
-          comment: completeMessage,
-          timestamp: new Date().toISOString(),
-        }]);
-        setChatToast(`${username || 'You'}: ${completeMessage}`);
-        if (chatToastTimerRef.current) clearTimeout(chatToastTimerRef.current);
-        chatToastTimerRef.current = setTimeout(() => setChatToast(''), 5000);
-      },
-    },
-    epg: {
-      loadListings: async () => {
-        const now = Date.now();
-        return [
-          { id: 'demo-epg-1', title: 'Live coverage', startMs: now - 20 * 60_000, endMs: now + 40 * 60_000, description: 'The event is underway.' },
-          { id: 'demo-epg-2', title: 'Post-match analysis', startMs: now + 40 * 60_000, endMs: now + 90 * 60_000 },
-          { id: 'demo-epg-3', title: 'Highlights', startMs: now + 90 * 60_000, endMs: now + 120 * 60_000 },
-        ];
-      },
-    },
-    recording: {
-      start: async () => setStatus('Demo recording adapter: connect your recorder/storage.'),
-      stop: async () => setStatus('Recording stopped.'),
-    },
-  }), []);
+  const integrations = useDemoIntegrations(notify);
+  const actions = useDemoPlayerActions({ notify, setSelectedAudioTrack });
 
   const selectSample = (sample) => {
     setActive(sample);
@@ -111,8 +63,14 @@ export default function App() {
     const objectUrl = URL.createObjectURL(file);
     setActive({ id: 'file', title: file.name, url: objectUrl, objectUrl });
     setLive(false);
-    setDraftUrl(objectUrl);
     setStatus(`Loaded local file: ${file.name}`);
+  };
+
+  const clearFile = () => {
+    if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
+    setActive({ id: 'cleared', title: '', url: '' });
+    setStatus('Video file cleared. Choose a sample, enter a URL, or select another file.');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const source = { ...asPlayerSource(active), isLive: live, mediaType: live ? 'live' : 'movie' };
@@ -125,91 +83,42 @@ export default function App() {
         <span className="platform-tag">React · Vite</span>
       </header>
 
-      <section className="source-card">
-        <div className="sample-list" aria-label="Sample sources">
-          {sampleSources.map((sample) => (
-            <button
-              className={active.id === sample.id ? 'sample active' : 'sample'}
-              key={sample.id}
-              onClick={() => selectSample(sample)}
-            >{sample.label}</button>
-          ))}
-        </div>
-        <form className="url-form" onSubmit={loadUrl}>
-          <input aria-label="Media URL" value={draftUrl} onChange={(event) => setDraftUrl(event.target.value)} />
-          <button type="submit">Load URL</button>
-          <label className="file-button">
-            Choose video file
-            <input type="file" accept=".ts,.mp4,.mkv,video/mp4,video/x-matroska,video/mp2t" onChange={loadFile} />
-          </label>
-        </form>
-        <div className="player-options">
-          <div className="player-options-row">
-            <label className="inline-toggle">
-              <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
-              Use compact inline player
-            </label>
-          </div>
-          <div className="player-options-row">
-            <label className="inline-toggle">
-              <input type="checkbox" checked={live} onChange={(event) => setLive(event.target.checked)} />
-              Treat source as live
-            </label>
-            <label className="inline-toggle">
-              Drawer layout
-              <select aria-label="Drawer layout" value={drawerMode} onChange={(event) => setDrawerMode(event.target.value)}>
-                <option value="overlay">Overlay video</option>
-                <option value="resize">Resize video</option>
-              </select>
-            </label>
-          </div>
-        </div>
-        <p className="source-note">{status} · Browser format and CORS support depend on the source host.</p>
-      </section>
+      <SourceControls
+        active={active}
+        draftUrl={draftUrl}
+        fileInputRef={fileInputRef}
+        inline={inline}
+        live={live}
+        drawerMode={drawerMode}
+        onSelectSample={selectSample}
+        onDraftUrlChange={setDraftUrl}
+        onLoadUrl={loadUrl}
+        onChooseFile={loadFile}
+        onClearFile={clearFile}
+        onInlineChange={setInline}
+        onLiveChange={setLive}
+        onDrawerModeChange={setDrawerMode}
+        progressTime={progressTime}
+        status={status}
+      />
 
       <section className="player-card" aria-label="Video player">
-        {inline ? (
-          <InlineLivePlayer
-            key={active.url}
-            source={source}
-            title={active.title}
-            height={360}
-            isActive
-            paused={false}
-            controls={{ playPause: true, mute: true, fullscreen: true }}
-            onError={(error) => setStatus(error?.message || 'Playback error')}
-            onPlaying={() => setStatus('Playing')}
-          />
-        ) : (
-          <CineCrewPlayer
-            key={active.url}
-            source={source}
-            title={active.title}
-            mediaId={active.id}
-            autoPlay
-            muted={isYouTubeSource}
-            controls={allControls}
-            integrations={integrations}
-            drawerMode={drawerMode}
-            messagePageSize={5}
-            actions={{
-              onBack: () => setStatus('Back action — connect your app navigation.'),
-            }}
-            features={{ diagnostics: true }}
-            onBuffering={(buffering) => setStatus(buffering ? 'Buffering…' : 'Ready')}
-            onPlaying={() => setStatus('Playing')}
-            onError={(error) => setStatus(error?.message || 'Playback error')}
-          />
-        )}
+        <PlayerViewport
+          active={active}
+          source={source}
+          drawerMode={drawerMode}
+          inline={inline}
+          muted={isYouTubeSource}
+          selectedAudioTrack={selectedAudioTrack}
+          integrations={integrations}
+          actions={actions}
+          onProgressBarChange={setProgressTime}
+          onStatus={setStatus}
+        />
       </section>
 
-      <p className="footnote">The chat drawer has 15 sample messages and loads 5 per page to demonstrate “See more”; production defaults to 50. Choose overlay or resized-video drawer layout above.</p>
-      {chatToast ? (
-        <div className="chat-toast" role="status" aria-live="polite">
-          <strong>Message sent</strong>
-          <span>{chatToast}</span>
-        </div>
-      ) : null}
+      <p className="footnote">The chat drawer contains 15 sample messages; the demo requests 5 per page to exercise automatic loading when you scroll to the top. Production defaults to 50. Choose overlay or resized-video drawer layout above. Audio-track selection is demonstrated with Test 1 and Test 2.</p>
+      <ToastViewport toast={toast} onDismiss={() => setToast(null)} />
     </main>
   );
 }
