@@ -920,10 +920,9 @@
   .cinecrew-player__controls { padding: 10px; }
   .cinecrew-player__top-controls { align-items: center; gap: 6px; flex-wrap: wrap; }
   .cinecrew-player__title { order: 3; flex: 0 0 100%; box-sizing: border-box; padding: 0 4px; text-align: center; }
-  .cinecrew-player__top-left-actions { order: 1; }
-  .cinecrew-player__top-right-actions { order: 2; }
-  .cinecrew-player__top-left-actions { gap: 4px; }
+  .cinecrew-player__top-left-actions { order: 1; gap: 4px; }
   .cinecrew-player__top-right-actions {
+    order: 2;
     max-width: calc(100% - 128px);
     flex-wrap: wrap;
     gap: 4px;

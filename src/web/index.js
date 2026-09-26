@@ -308,31 +308,47 @@ function WebBottomControls(props) {
         renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }))));
 }
 
-function WebRecordingOverlay({ status, elapsed, error, theme, downloadLink, onPause, onResume, onStop, onDownload, onDismiss }) {
+function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPause, onResume, onStop, onDownload, onDismiss }) {
+  if (status === 'complete') {
+    const children = [];
+    if (error) children.push(h('span', null, error));
+    children.push(h('strong', { className: 'cinecrew-player__recording-ready' }, 'Recording ready'));
+    if (downloadLink) {
+      children.push(h('a', {
+        className: 'cinecrew-player__recording-download',
+        href: downloadLink.url,
+        download: downloadLink.filename,
+        onClick: onDownload,
+      }, 'Download recording'));
+    }
+    children.push(h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording controls' }, 'Done'));
+    return h(React.Fragment, null, ...children);
+  }
+  if (status === 'finalizing') {
+    return h('strong', { className: 'cinecrew-player__recording-ready' }, 'Preparing recording…');
+  }
+  if (error) return h('span', null, error);
+
+  const isPaused = status === 'paused';
+  return h(React.Fragment, null,
+    h('span', { className: 'cinecrew-player__recording-indicator' }, 'REC'),
+    h('strong', { className: 'cinecrew-player__recording-timer' }, formatTime(elapsed / 1000)),
+    h('div', { className: 'cinecrew-player__recording-actions' },
+      h('button', { type: 'button', onClick: isPaused ? onResume : onPause }, isPaused ? 'Resume' : 'Pause'),
+      h('button', { type: 'button', onClick: onStop }, 'Stop & download')));
+}
+
+function WebRecordingOverlay(props) {
+  const { status, error, theme, onDismiss } = props;
   if (status === 'idle' && !error) return null;
-  return h('div', { className: `cinecrew-player__recording-overlay${error ? ' is-error' : ''}`, style: { color: theme.controlColor }, role: error ? 'alert' : 'status' },
-    status === 'complete'
-      ? h(React.Fragment, null,
-        error ? h('span', null, error) : null,
-          h('strong', { className: 'cinecrew-player__recording-ready' }, 'Recording ready'),
-          downloadLink ? h('a', {
-            className: 'cinecrew-player__recording-download',
-            href: downloadLink.url,
-            download: downloadLink.filename,
-            onClick: onDownload,
-          }, 'Download recording') : null,
-          h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording controls' }, 'Done'))
-      : status === 'finalizing'
-        ? h('strong', { className: 'cinecrew-player__recording-ready' }, 'Preparing recording…')
-      : error
-        ? h('span', null, error)
-      : h(React.Fragment, null,
-        h('span', { className: 'cinecrew-player__recording-indicator' }, 'REC'),
-        h('strong', { className: 'cinecrew-player__recording-timer' }, formatTime(elapsed / 1000)),
-        h('div', { className: 'cinecrew-player__recording-actions' },
-          h('button', { type: 'button', onClick: status === 'paused' ? onResume : onPause }, status === 'paused' ? 'Resume' : 'Pause'),
-          h('button', { type: 'button', onClick: onStop }, 'Stop & download'))),
-    error ? h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording message' }, '×') : null);
+  const dismissButton = error
+    ? h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording message' }, '×')
+    : null;
+  return h('div', {
+    className: `cinecrew-player__recording-overlay${error ? ' is-error' : ''}`,
+    style: { color: theme.controlColor },
+    role: error ? 'alert' : 'status',
+  }, getRecordingOverlayContent(props), dismissButton);
 }
 
 function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, togglePlay, bottomProps }) {
@@ -517,6 +533,32 @@ function getInlinePlayerStyle(inlinePreview, rect) {
   return { position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
+function stopBrowserRecorder(recorderRef, completionRef, finalizerRef) {
+  return new Promise((resolve, reject) => {
+    const recorder = recorderRef.current;
+    const completion = completionRef.current;
+    if (!recorder || recorder.state === 'inactive') {
+      finalizerRef.current?.();
+      Promise.resolve(completion).then(resolve, reject);
+      return;
+    }
+    recorder.addEventListener('error', (event) => reject(event.error || new Error('Recording failed.')), { once: true });
+    recorder.stop();
+    if (completion) completion.then(resolve, reject);
+    else resolve();
+  });
+}
+
+function waitForRecordingFinalization(completion) {
+  let timeoutId;
+  return Promise.race([
+    completion,
+    new Promise((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error('The browser did not finish finalizing the recording. Try again with a local or CORS-enabled source.')), 10000);
+    }),
+  ]).finally(() => window.clearTimeout(timeoutId));
+}
+
 function buildUnlockedControls({
   control, onBack, isLive, restart, toggleLock, toggleMute, muted, hasRecording,
   recordingStatus, startRecording, resumeRecording, stopRecording, activePanel,
@@ -525,12 +567,7 @@ function buildUnlockedControls({
   const leftControls = [control('back', 'Back', onBack, { defaultVisible: backVisible })];
   let recordingControl = null;
   if (hasRecording) {
-    const isRecording = recordingStatus === 'recording';
-    const isPaused = recordingStatus === 'paused';
-    const isFinalizing = recordingStatus === 'finalizing';
-    const recordingLabel = isRecording ? 'Stop recording' : isPaused ? 'Resume recording' : isFinalizing ? 'Preparing recording' : 'Start recording';
-    const handleRecordingToggle = isRecording ? stopRecording : isPaused ? resumeRecording : isFinalizing ? () => {} : startRecording;
-    recordingControl = control('recording', recordingLabel, handleRecordingToggle, { active: recordingStatus !== 'idle', disabled: isFinalizing });
+    recordingControl = buildRecordingControl(control, recordingStatus, startRecording, resumeRecording, stopRecording);
   }
   const chatLabel = activePanel === 'chat' ? 'Close live chat' : 'Live chat';
   const epgLabel = activePanel === 'epg' ? 'Close programme guide' : 'Programme guide';
@@ -547,6 +584,23 @@ function buildUnlockedControls({
     control('lock', 'Lock controls', toggleLock, { active: false, defaultVisible: true }),
   );
   return { left: leftControls, right: rightControls };
+}
+
+function buildRecordingControl(control, status, startRecording, resumeRecording, stopRecording) {
+  let label = 'Start recording';
+  let callback = startRecording;
+  if (status === 'recording') {
+    label = 'Stop recording';
+    callback = stopRecording;
+  } else if (status === 'paused') {
+    label = 'Resume recording';
+    callback = resumeRecording;
+  } else if (status === 'finalizing') {
+    label = 'Preparing recording';
+    callback = () => {};
+  }
+  const isFinalizing = status === 'finalizing';
+  return control('recording', label, callback, { active: status !== 'idle', disabled: isFinalizing });
 }
 
 function getDrawerLabel(activePanel) {
@@ -1295,11 +1349,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, []);
 
   const action = useCallback((name, fallback, payload) => {
-    const callback = name === 'onAspectRatioChange'
-      ? actions?.[name] || props.onAspectRatioChange
-      : name === 'onFullscreen'
-        ? actions?.[name] || onFullscreen
-        : actions?.[name];
+    let callback = actions?.[name];
+    if (name === 'onAspectRatioChange') callback = callback || props.onAspectRatioChange;
+    else if (name === 'onFullscreen') callback = callback || onFullscreen;
     return invokePlayerAction(
       fallback,
       callback,
@@ -1341,8 +1393,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         } catch (downloadError) {
           setRecordingError(downloadError?.message || 'The recording could not be downloaded. Use Download recording to retry.');
         }
-      } catch (recordingErrorValue) {
-        setRecordingError(recordingErrorValue?.message || 'Could not finish the recording.');
+      } catch (error_) {
+        setRecordingError(error_?.message || 'Could not finish the recording.');
         setRecordingStatus('idle');
       } finally {
         recordingCaptureRef.current?.cleanup?.();
@@ -1423,39 +1475,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     try {
       const stop = integrations.recording?.stop;
       if (!stop) setRecordingStatus('finalizing');
-      await action('onRecordingStop', stop
+      const stopRecordingCore = stop
         ? () => stop()
-        : () => new Promise((resolve, reject) => {
-          const recorder = recorderRef.current;
-          const completion = recordingCompletionRef.current;
-          if (!recorder || recorder.state === 'inactive') {
-            recordingFinalizerRef.current?.();
-            Promise.resolve(completion).then(resolve, reject);
-            return;
-          }
-          recorder.addEventListener('error', (event) => reject(event.error || new Error('Recording failed.')), { once: true });
-          recorder.stop();
-          if (completion) {
-            completion.then(resolve, reject);
-          } else {
-            resolve();
-          }
-        }), { elapsedMs: recordingElapsed, source: streamUrl, title });
-      if (!stop) {
-        // A browser must dispatch the final dataavailable and stop events before
-        // this completion promise resolves; don't guess with a zero-delay timer.
-        let timeoutId;
-        try {
-          await Promise.race([
-            recordingCompletionRef.current,
-            new Promise((_, reject) => {
-              timeoutId = window.setTimeout(() => reject(new Error('The browser did not finish finalizing the recording. Try again with a local or CORS-enabled source.')), 10000);
-            }),
-          ]);
-        } finally {
-          window.clearTimeout(timeoutId);
-        }
-      }
+        : () => stopBrowserRecorder(recorderRef, recordingCompletionRef, recordingFinalizerRef);
+      await action('onRecordingStop', stopRecordingCore, { elapsedMs: recordingElapsed, source: streamUrl, title });
+      if (!stop) await waitForRecordingFinalization(recordingCompletionRef.current);
       const clock = recordingClockRef.current;
       if (clock.startedAt) clock.accumulatedMs += Date.now() - clock.startedAt;
       setRecordingElapsed(clock.accumulatedMs);

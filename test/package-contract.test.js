@@ -121,7 +121,7 @@ test('web player keeps chat paging automatic and exposes customizable aspect mod
 
   assert.match(declarations, /aspectRatios\?: Array<AspectRatio \| AspectRatioOption>/);
   assert.match(declarations, /defaultAspectRatio\?: AspectRatio/);
-  assert.match(webEntry, /actions\?\.\[name\] \|\| props\.onAspectRatioChange/);
+  assert.match(webEntry, /if \(name === 'onAspectRatioChange'\) callback = callback \|\| props\.onAspectRatioChange/);
   assert.match(webEntry, /onScroll:[\s\S]*loadOlderMessages/);
   assert.doesNotMatch(webEntry, /See more messages/);
   assert.doesNotMatch(webEntry, /name: 'videoOnly'/);
