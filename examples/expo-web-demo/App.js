@@ -1,178 +1,154 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react-native-web';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import '@cinecrew/cinecrew-player/styles.css';
-import { allControls, asPlayerSource, sampleSources } from '../web-demo/src/samples.js';
-
-function DemoPanel({ title, source, onClose }) {
-  return (
-    <View style={styles.panel}>
-      <View style={styles.panelHeader}>
-        <Text style={styles.panelTitle}>{title}</Text>
-        <Pressable onPress={onClose}><Text style={styles.accent}>Close ×</Text></Pressable>
-      </View>
-      <Text style={styles.bodyText}>{source.title || source.uri}</Text>
-      <Text style={styles.mutedText}>Demo adapter only — connect your own service.</Text>
-    </View>
-  );
-}
-
-function ActionButton({ children, onPress, active = false }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.button, active && styles.activeButton]}>
-      <Text style={styles.buttonText}>{children}</Text>
-    </Pressable>
-  );
-}
+import { asPlayerSource, sampleSources } from '../web-demo/src/samples.js';
+import { PlayerViewport } from './src/components/PlayerViewport';
+import { SourceControls } from './src/components/SourceControls';
+import { ToastViewport } from './src/components/ToastViewport';
+import { useDemoIntegrations } from '../web-demo/src/hooks/useDemoIntegrations.js';
+import { useDemoPlayerActions } from '../web-demo/src/hooks/useDemoPlayerActions.js';
+import { getPlayerErrorMessage } from '../web-demo/src/utils/playerErrorMessage.js';
 
 export default function App() {
+  const { width } = useWindowDimensions();
   const [active, setActive] = useState(sampleSources[0]);
-  const [draftUrl, setDraftUrl] = useState(active.url);
+  const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
-  const [live, setLive] = useState(false);
   const [status, setStatus] = useState('Ready');
-  const fileInput = useRef(null);
+  const [progressTime, setProgressTime] = useState('00:00:00');
+  const [drawerMode, setDrawerMode] = useState('overlay');
+  const [toast, setToast] = useState(null);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
+  const toastTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const notify = useCallback((title, message, variant = 'success') => {
+    setToast({ title, message: String(message || ''), variant });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3600);
+  }, []);
 
   useEffect(() => () => {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
 
-  const integrations = useMemo(() => ({
-    liveChat: { render: (props) => <DemoPanel {...props} title="Live chat" /> },
-    epg: { render: (props) => <DemoPanel {...props} title="Programme guide" /> },
-    recording: {
-      start: async () => setStatus('Demo recording adapter: connect your recorder/storage.'),
-      stop: async () => setStatus('Recording stopped.'),
-    },
-  }), []);
+  useEffect(() => {
+    setProgressTime('00:00:00');
+  }, [active.url]);
 
-  const selectSample = (sample) => {
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
+
+  const integrations = useDemoIntegrations(notify);
+  const actions = useDemoPlayerActions({ notify, setSelectedAudioTrack });
+
+  const reportPlaybackError = useCallback((error) => {
+    notify(
+      'Playback error',
+      getPlayerErrorMessage(error) || 'The media engine did not provide an error message.',
+      'error',
+    );
+  }, [notify]);
+
+  const selectSample = useCallback((sample) => {
     setActive(sample);
     setDraftUrl(sample.url);
-    setLive(Boolean(sample.isLive));
     setStatus('Loading selected sample…');
-  };
+  }, []);
 
-  const loadUrl = () => {
+  const loadUrl = useCallback(() => {
     const url = draftUrl.trim();
     if (!url) return;
     setActive({ id: 'custom', title: url, url });
-    setLive(false);
     setStatus('Loading URL…');
-  };
+  }, [draftUrl]);
 
-  const loadFile = (event) => {
-    const file = event.target.files?.[0];
+  const loadFile = useCallback((event) => {
+    const file = event?.target?.files?.[0];
     if (!file) return;
     const objectUrl = URL.createObjectURL(file);
     setActive({ id: 'file', title: file.name, url: objectUrl, objectUrl });
-    setLive(false);
-    setDraftUrl(objectUrl);
     setStatus(`Loaded local file: ${file.name}`);
-  };
+  }, []);
 
-  const source = { ...asPlayerSource(active), isLive: live, mediaType: live ? 'live' : 'movie' };
+  const clearFile = useCallback(() => {
+    setActive({ id: 'cleared', title: '', url: '' });
+    setStatus('Video file cleared. Choose a sample, enter a URL, or select another file.');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  const source = asPlayerSource(active);
+  const horizontalPadding = width < 600 ? 12 : 20;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.eyebrow}>PLAYGROUND · EXPO WEB</Text>
-      <Text style={styles.title}>CineCrew Player</Text>
-      <Text style={styles.mutedText}>React Native UI · browser player renderer</Text>
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.pageHeader}>
+          <View>
+            <Text style={styles.eyebrow}>PLAYGROUND</Text>
+            <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
+          </View>
+          <View style={styles.platformTag}><Text style={styles.platformTagText}>Expo · Web</Text></View>
+        </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.samples}>
-        {sampleSources.map((sample) => (
-          <ActionButton key={sample.id} active={active.id === sample.id} onPress={() => selectSample(sample)}>
-            {sample.label}
-          </ActionButton>
-        ))}
-      </ScrollView>
-
-      <View style={styles.urlRow}>
-        <TextInput
-          accessibilityLabel="Media URL"
-          value={draftUrl}
-          onChangeText={setDraftUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-          style={styles.input}
+        <SourceControls
+          active={active}
+          draftUrl={draftUrl}
+          fileInputRef={fileInputRef}
+          inline={inline}
+          drawerMode={drawerMode}
+          onSelectSample={selectSample}
+          onDraftUrlChange={setDraftUrl}
+          onLoadUrl={loadUrl}
+          onChooseFile={loadFile}
+          onClearFile={clearFile}
+          onInlineChange={setInline}
+          onDrawerModeChange={setDrawerMode}
+          progressTime={progressTime}
+          status={status}
+          viewportWidth={width}
         />
-        <ActionButton onPress={loadUrl}>Load URL</ActionButton>
-        <ActionButton onPress={() => fileInput.current?.click()}>Choose file</ActionButton>
-        {React.createElement('input', {
-          ref: fileInput,
-          type: 'file',
-          accept: '.ts,.mp4,.mkv,video/mp4,video/x-matroska,video/mp2t',
-          onChange: loadFile,
-          style: { display: 'none' },
-        })}
-      </View>
 
-      <Pressable onPress={() => setInline((value) => !value)} style={styles.toggle}>
-        <View style={[styles.checkbox, inline && styles.checkboxActive]} />
-        <Text style={styles.bodyText}>Use compact inline player</Text>
-      </Pressable>
-      <Pressable onPress={() => setLive((value) => !value)} style={styles.toggle}>
-        <View style={[styles.checkbox, live && styles.checkboxActive]} />
-        <Text style={styles.bodyText}>Treat source as live</Text>
-      </Pressable>
-      <Text style={styles.mutedText}>{status} · Browser format and CORS support depend on the source host.</Text>
-
-      <View style={styles.player}>
-        {inline ? (
-          <InlineLivePlayer
-            key={active.url}
+        <View style={styles.playerCard} accessibilityLabel="Video player">
+          <PlayerViewport
+            active={active}
             source={source}
-            title={active.title}
-            height={320}
-            isActive
-            paused={false}
-            controls={{ playPause: true, mute: true, fullscreen: true }}
-            onError={(error) => setStatus(error?.message || 'Playback error')}
-            onPlaying={() => setStatus('Playing')}
-          />
-        ) : (
-          <CineCrewPlayer
-            key={active.url}
-            source={source}
-            title={active.title}
-            mediaId={active.id}
-            autoPlay
-            controls={allControls}
+            drawerMode={drawerMode}
+            inline={inline}
+            selectedAudioTrack={selectedAudioTrack}
             integrations={integrations}
-            actions={{
-              onBack: () => setStatus('Back action — connect your app navigation.'),
-            }}
-            features={{ diagnostics: true }}
-            onBuffering={(buffering) => setStatus(buffering ? 'Buffering…' : 'Ready')}
-            onPlaying={() => setStatus('Playing')}
-            onError={(error) => setStatus(error?.message || 'Playback error')}
+            actions={actions}
+            onProgressBarChange={setProgressTime}
+            onStatus={setStatus}
+            onPlaybackError={reportPlaybackError}
           />
-        )}
-      </View>
-      <Text style={styles.mutedText}>Full player enables every control and demo integration. Inline mode has compact play, mute, and fullscreen controls.</Text>
-    </ScrollView>
+        </View>
+
+        <Text style={styles.footnote}>
+          The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
+          Choose overlay or resized-video drawer layout above. Audio-track selection is demonstrated
+          with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
+        </Text>
+      </ScrollView>
+      <ToastViewport toast={toast} onDismiss={() => setToast(null)} viewportWidth={width} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
-  content: { width: '100%', maxWidth: 1080, alignSelf: 'center', padding: 20, gap: 12 },
-  eyebrow: { color: '#16c7d9', fontSize: 11, fontWeight: '800', letterSpacing: 2 },
-  title: { color: '#f3f7fc', fontSize: 34, fontWeight: '800' },
-  bodyText: { color: '#f3f7fc', fontSize: 15 },
-  mutedText: { color: '#a9bbcf', fontSize: 13 },
-  accent: { color: '#16c7d9' },
-  samples: { gap: 8, paddingVertical: 6 },
-  urlRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { flexGrow: 1, flexBasis: 240, minWidth: 180, color: '#f3f7fc', backgroundColor: '#0d1a2a', borderColor: '#29415d', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  button: { borderWidth: 1, borderColor: '#29415d', borderRadius: 22, backgroundColor: '#12243a', paddingHorizontal: 14, paddingVertical: 10 },
-  activeButton: { backgroundColor: '#087f91', borderColor: '#16c7d9' },
-  buttonText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4 },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderColor: '#68809b', borderWidth: 1 },
-  checkboxActive: { backgroundColor: '#16c7d9', borderColor: '#16c7d9' },
-  player: { width: '100%', minHeight: 240, marginTop: 4, overflow: 'hidden', borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 10 },
-  panel: { padding: 14, gap: 8 },
-  panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  panelTitle: { color: '#f3f7fc', fontSize: 16, fontWeight: '700' },
+  scroll: { flex: 1 },
+  content: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingTop: 28, paddingBottom: 56, gap: 16 },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 12 },
+  eyebrow: { color: '#16c7d9', fontSize: 11, fontWeight: '800', letterSpacing: 2.3 },
+  title: { color: '#f3f7fc', fontWeight: '800', marginTop: 2 },
+  platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
+  platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
+  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12 },
+  footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20, marginTop: -4 },
 });

@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import '../../../../vendor/mpegts.js/mpegts.js';
+import * as mpegtsModule from '../../../../vendor/mpegts.js/mpegts.js';
 import {
   WEB_AC3_UNSUPPORTED_CODE,
   WEB_AC3_UNSUPPORTED_MESSAGE,
 } from './webPlaybackErrors';
 
 const getMpegts = () => {
-  if (typeof globalThis !== 'undefined' && globalThis.mpegts) return globalThis.mpegts;
-  if (typeof window !== 'undefined' && window.mpegts) return window.mpegts;
-  return undefined;
+  const candidates = [
+    mpegtsModule.default,
+    mpegtsModule.default?.default,
+    mpegtsModule.mpegts,
+    typeof globalThis !== 'undefined' ? globalThis.mpegts : undefined,
+    typeof window !== 'undefined' ? window.mpegts : undefined,
+  ];
+  return candidates.find((candidate) => (
+    typeof candidate?.isSupported === 'function'
+    && typeof candidate?.createPlayer === 'function'
+  ));
 };
 
 const getStashInitialSize = (useVideoOnly, isLive) => {

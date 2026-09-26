@@ -62,7 +62,14 @@ export function useWebDashPlayback({
       })
       .catch((err) => {
         if (!disposed) {
-          onErrorRef.current?.({ message: 'Failed to initialize MPEG-DASH engine.', err });
+          const actualMessage = typeof err?.message === 'string' && err.message.trim()
+            ? err.message.trim()
+            : String(err || 'Unknown module loading error');
+          onErrorRef.current?.({
+            message: `Failed to initialize MPEG-DASH engine: ${actualMessage}`,
+            actualMessage,
+            err,
+          });
         }
       });
 

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@cinecrew/cinecrew-player": "file:../..",
+    "dashjs": "^5.2.1",
     "expo": "~57.0.25",
     "react": "19.2.3",
     "react-dom": "19.2.3",
