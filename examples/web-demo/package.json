@@ -6,10 +6,11 @@
     "dev": "vite",
     "build": "vite build",
     "build:electron": "vite build --config vite.electron.config.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "update:player": "npm install --no-save @cinecrew/cinecrew-player@latest"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "file:../..",
+    "@cinecrew/cinecrew-player": "latest",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

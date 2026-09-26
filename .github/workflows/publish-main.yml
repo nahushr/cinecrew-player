@@ -175,14 +175,12 @@ jobs:
             npm publish --ignore-scripts --registry=https://npm.pkg.github.com
           fi
 
-      - name: Point the React demo at the published npm version
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
+      - name: Refresh the React demo lockfile to the latest npm package
         run: |
           set -euo pipefail
-          package="@cinecrew/cinecrew-player@$VERSION"
+          package='@cinecrew/cinecrew-player@latest'
           for attempt in $(seq 1 12); do
-            if npm install --package-lock-only --ignore-scripts --save-exact --prefer-online \
+            if npm install --package-lock-only --ignore-scripts --save=false --prefer-online \
               --cache="$RUNNER_TEMP/npm-release-cache" "$package" \
               --prefix examples/web-demo --registry=https://registry.npmjs.org; then
               exit 0
