@@ -19,8 +19,8 @@ function drawVideoFrame(context, canvas, video, aspectRatio) {
 
   const ratio = parseRatio(aspectRatio);
   const frame = fitRect(width, height, ratio);
-  const sourceWidth = video.videoWidth;
-  const sourceHeight = video.videoHeight;
+  const sourceWidth = video.videoWidth || video.width;
+  const sourceHeight = video.videoHeight || video.height;
   if (!sourceWidth || !sourceHeight) return;
 
   const mode = String(aspectRatio || 'FIT').toUpperCase();
@@ -57,15 +57,18 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
   if (!video || typeof MediaStream === 'undefined') {
     throw new Error('This browser does not support recording this media element.');
   }
+  const ogvCanvas = typeof capture !== 'function' ? video.__cinecrewRecordingCanvas : null;
 
   // captureStream may not exist on every browser / element combination.
-  if (typeof capture !== 'function') {
+  if (typeof capture !== 'function' && typeof ogvCanvas?.captureStream !== 'function') {
     return null;
   }
 
   let sourceStream;
   try {
-    sourceStream = capture.call(video);
+    sourceStream = typeof capture === 'function'
+      ? capture.call(video)
+      : ogvCanvas.captureStream(30);
   } catch (error) {
     if (error?.name === 'SecurityError' || /cross.?origin|security/i.test(error?.message || '')) {
       // Cross-origin media without CORS – let the caller fall back to screen capture.
@@ -73,10 +76,16 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
     }
     throw error;
   }
-  const extraAudioTracks = additionalAudioStream?.getAudioTracks?.() || [];
-  const audioTracks = extraAudioTracks.length ? extraAudioTracks : sourceStream.getAudioTracks();
+  const suppliedAudioTracks = additionalAudioStream?.getAudioTracks?.() || [];
+  const ogvAudioTracks = video.__cinecrewRecordingAudioStream?.getAudioTracks?.() || [];
+  const audioTracks = suppliedAudioTracks.length
+    ? suppliedAudioTracks
+    : ogvAudioTracks.length
+      ? ogvAudioTracks
+      : sourceStream.getAudioTracks();
+  const drawable = ogvCanvas || video;
   const bounds = playerElement?.getBoundingClientRect?.();
-  const outputWidth = Math.max(2, video.videoWidth || Math.round(bounds?.width || 640));
+  const outputWidth = Math.max(2, video.videoWidth || drawable.width || Math.round(bounds?.width || 640));
   const playerRatio = bounds?.width && bounds?.height ? bounds.width / bounds.height : 16 / 9;
   const outputHeight = Math.max(2, Math.round(outputWidth / playerRatio));
   const canvas = document.createElement('canvas');
@@ -90,7 +99,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
 
   let originClean = false;
   try {
-    drawVideoFrame(context, canvas, video, getAspectRatio());
+    drawVideoFrame(context, canvas, drawable, getAspectRatio());
     context.getImageData(0, 0, 1, 1);
     originClean = true;
   } catch {
@@ -120,7 +129,7 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
   const stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
   let frameId;
   const draw = () => {
-    drawVideoFrame(context, canvas, video, getAspectRatio());
+    drawVideoFrame(context, canvas, drawable, getAspectRatio());
     frameId = requestAnimationFrame(draw);
   };
   frameId = requestAnimationFrame(draw);

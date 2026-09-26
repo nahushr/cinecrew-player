@@ -150,6 +150,33 @@ function applyPlayerStyle(stage, frame, player, playerStyle) {
   });
 }
 
+function createOgvRecordingAudioRoute() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+
+  let audioContext;
+  try {
+    audioContext = new AudioContextClass();
+    const output = audioContext.createGain();
+    const recordingDestination = audioContext.createMediaStreamDestination();
+    output.connect(audioContext.destination);
+    output.connect(recordingDestination);
+
+    return {
+      audioContext,
+      audioDestination: output,
+      stream: recordingDestination.stream,
+      cleanup: () => {
+        recordingDestination.stream.getTracks().forEach((track) => track.stop());
+        if (audioContext.state !== 'closed') audioContext.close().catch(() => {});
+      },
+    };
+  } catch {
+    if (audioContext && audioContext.state !== 'closed') audioContext.close().catch(() => {});
+    return null;
+  }
+}
+
 /**
  * Use ogv.js for Ogg/Theora media on web, while keeping the returned media-like
  * player in videoRef so the shared controls, progress, and recording logic work.
@@ -191,6 +218,7 @@ export function useWebOgvPlayback({
     let player = null;
     let playerFrame = null;
     let resizeObserver = null;
+    let recordingAudioRoute = null;
     const reportError = (error) => {
       if (disposed) return;
       onBufferingRef?.current?.(false);
@@ -227,10 +255,20 @@ export function useWebOgvPlayback({
         }
 
         OGVLoader.base = resolvedBase;
+        recordingAudioRoute = createOgvRecordingAudioRoute();
         player = new OGVPlayer({
           base: resolvedBase,
           worker: true,
+          ...(recordingAudioRoute ? {
+            audioContext: recordingAudioRoute.audioContext,
+            audioDestination: recordingAudioRoute.audioDestination,
+          } : {}),
         });
+        if (recordingAudioRoute) {
+          player.__cinecrewRecordingAudioStream = recordingAudioRoute.stream;
+          player.__cinecrewRecordingAudioContext = recordingAudioRoute.audioContext;
+          player.__cinecrewRecordingCanvas = player.querySelector('canvas') || player._view;
+        }
         player.className = 'cinecrew-player__video';
         playerFrame = document.createElement('div');
         playerFrame.className = 'cinecrew-player__ogv-frame';
@@ -283,6 +321,7 @@ export function useWebOgvPlayback({
         try { player.remove(); } catch {}
         if (videoRef.current === player) videoRef.current = null;
       }
+      recordingAudioRoute?.cleanup();
       if (playerFrameRef.current === playerFrame) playerFrameRef.current = null;
     };
   }, [activeUrl, useOgv, playerContainerRef, videoRef, pausedRef, onErrorRef, onBufferingRef, resourceBase, onProgressRef, onPlayingRef, onEndedRef, onPlaybackRouteRef]);

@@ -40,7 +40,7 @@ export const sampleSources = [
     title: 'Big Buck Bunny (MPEG-TS Stream)',
     url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.ts',
     type: 'mpegts',
-    isLive: true,
+    isLive: false,
   },
   {
     id: 'flv',
