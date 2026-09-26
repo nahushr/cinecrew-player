@@ -104,7 +104,7 @@ export function useWebMpegTsPlayback({
   const ac3FallbackForUrlRef = useRef('');
   const isFlv = isFlvStream(streamUrl) || isFlvStream(activeUrl);
   const isRawTs = isRawLiveTransportStream(streamUrl) || isRawLiveTransportStream(activeUrl);
-  const useMpegTs = (isFlv || (isLive && isRawTs) || isRawTs)
+  const useMpegTs = !isFlv && isRawTs
     && !isHlsUrl(activeUrl)
     && unavailableForUrl !== streamUrl;
   const useVideoOnly = useMpegTs && videoOnly;

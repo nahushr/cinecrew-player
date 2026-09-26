@@ -9,8 +9,8 @@ export const sampleSources = [
   {
     id: 'dash',
     label: 'MPEG-DASH',
-    title: 'Big Buck Bunny (MPEG-DASH Stream)',
-    url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
+    title: 'Envivio (MPEG-DASH Stream)',
+    url: 'https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd',
     type: 'application/dash+xml',
   },
   {
@@ -48,13 +48,13 @@ export const sampleSources = [
     title: 'Big Buck Bunny (HTTP-FLV Stream)',
     url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/big-buck-bunny.flv',
     type: 'video/x-flv',
-    isLive: true,
+    isLive: false,
   },
   {
     id: 'ogv',
     label: 'OGV',
-    title: 'Big Buck Bunny (Ogg Theora Stream)',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/7/79/Big_Buck_Bunny_small.ogv',
+    title: 'Surfing with Audio (Ogg Theora Stream)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/sample_1280x720_surfing_with_audio.ogv',
     type: 'video/ogg',
   },
   {
@@ -110,7 +110,7 @@ export function asPlayerSource(item) {
 
   let uri = item.url;
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    if (uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
+    if (item.id !== 'flv' && uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
       uri = uri.replace('https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/', '/');
     }
   }

@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useWebMediaSession } from './web/useWebMediaSession';
 import { useWebVideoAspectRatio } from './web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from './web/useWebMpegTsPlayback';
+import { useWebFlvPlayback } from './web/useWebFlvPlayback';
 import { useWebHlsPlayback } from './web/useWebHlsPlayback';
 import { useWebDashPlayback } from './web/useWebDashPlayback';
 import { useWebAc3AudioPlayback } from './web/useWebAc3AudioPlayback';
@@ -66,6 +67,15 @@ export const WebVideoPlayer = forwardRef(({
     onErrorRef: playbackErrorRef,
     onBufferingRef,
   });
+  const useFlvSource = useWebFlvPlayback({
+    activeUrl,
+    type: streamUrl,
+    isLive,
+    videoRef,
+    pausedRef,
+    onErrorRef: playbackErrorRef,
+    onBufferingRef,
+  });
   const useMpegTsSource = mpegTsPlayback.useMpegTs;
   const useAc3Fallback = mpegTsPlayback.useAc3Fallback;
   const useHlsSource = useWebHlsPlayback({
@@ -92,7 +102,7 @@ export const WebVideoPlayer = forwardRef(({
 
   // 1. Aspect Ratio Styling
   const { videoStyle, applyAspectRatio } = useWebVideoAspectRatio(videoAspectRatio, audioOnly);
-  const videoSource = useMpegTsSource || useHlsSource || useDashSource ? undefined : activeUrl;
+  const videoSource = useMpegTsSource || useFlvSource || useHlsSource || useDashSource ? undefined : activeUrl;
   let streamMode = 'native';
   if (mpegTsPlayback.isFlv) streamMode = 'flv';
   else if (useMpegTsSource) streamMode = 'mpegts';

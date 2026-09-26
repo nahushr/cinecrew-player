@@ -1,6 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRatio';
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
+import { useWebFlvPlayback } from '../native/media/web/useWebFlvPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebDashPlayback } from '../native/media/web/useWebDashPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
@@ -1330,6 +1331,15 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onErrorRef,
     onBufferingRef,
   });
+  const useFlv = useWebFlvPlayback({
+    activeUrl,
+    type: media.type || media.mimeType,
+    isLive,
+    videoRef,
+    pausedRef: pausedStateRef,
+    onErrorRef,
+    onBufferingRef,
+  });
   const useHls = useWebHlsPlayback({
     activeUrl,
     isLive,
@@ -1664,7 +1674,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const hasDiagnostics = Boolean(features.diagnostics) || typeof actions.onDiagnosticsOpen === 'function';
   const sourceType = String(media.type || media.mimeType || '').toLowerCase();
   const directVideoSource = getDirectVideoSource({
-    mpegTs: mpegTs.useMpegTs,
+    mpegTs: mpegTs.useMpegTs || useFlv,
     useHls,
     useDash,
     sourceType,
