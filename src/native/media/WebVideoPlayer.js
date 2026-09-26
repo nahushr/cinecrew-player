@@ -6,6 +6,7 @@ import { useWebMpegTsPlayback } from './web/useWebMpegTsPlayback';
 import { useWebFlvPlayback } from './web/useWebFlvPlayback';
 import { useWebHlsPlayback } from './web/useWebHlsPlayback';
 import { useWebDashPlayback } from './web/useWebDashPlayback';
+import { useWebOgvPlayback } from './web/useWebOgvPlayback';
 import { useWebAc3AudioPlayback } from './web/useWebAc3AudioPlayback';
 
 export const WebVideoPlayer = forwardRef(({
@@ -29,8 +30,10 @@ export const WebVideoPlayer = forwardRef(({
   onTogglePlayPause,
   onSeekBy,
   onPlaybackRoute,
+  ogvResourceBase,
 }, ref) => {
   const videoRef = useRef(null);
+  const ogvContainerRef = useRef(null);
   const pausedRef = useRef(paused);
   const playbackRateRef = useRef(playbackRate);
   const lastKnownPosRef = useRef(0);
@@ -40,6 +43,8 @@ export const WebVideoPlayer = forwardRef(({
   const onErrorRef = useRef(onError);
   const playbackErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
+  const onProgressRef = useRef(null);
+  const onPlaybackRouteEventRef = useRef(null);
   const [activeUrl, setActiveUrl] = useState('');
   const [corsMode, setCorsMode] = useState('anonymous');
   const corsModeRef = useRef('anonymous');
@@ -91,6 +96,27 @@ export const WebVideoPlayer = forwardRef(({
     pausedRef,
     onErrorRef: playbackErrorRef,
   });
+  const { videoStyle, applyAspectRatio } = useWebVideoAspectRatio(videoAspectRatio, audioOnly);
+  const useOgvSource = useWebOgvPlayback({
+    activeUrl,
+    type: streamUrl,
+    videoRef,
+    playerContainerRef: ogvContainerRef,
+    playerStyle: videoStyle,
+    pausedRef,
+    onErrorRef: playbackErrorRef,
+    onBufferingRef,
+    resourceBase: ogvResourceBase,
+    paused,
+    muted,
+    volume: (volume ?? 100) / 100,
+    playbackRate,
+    videoOnly,
+    onProgressRef,
+    onPlayingRef,
+    onEndedRef,
+    onPlaybackRouteRef: onPlaybackRouteEventRef,
+  });
   const ac3Audio = useWebAc3AudioPlayback({
     active: useAc3Fallback,
     streamUrl: activeUrl,
@@ -101,13 +127,13 @@ export const WebVideoPlayer = forwardRef(({
   });
 
   // 1. Aspect Ratio Styling
-  const { videoStyle, applyAspectRatio } = useWebVideoAspectRatio(videoAspectRatio, audioOnly);
-  const videoSource = useMpegTsSource || useFlvSource || useHlsSource || useDashSource ? undefined : activeUrl;
+  const videoSource = useMpegTsSource || useFlvSource || useHlsSource || useDashSource || useOgvSource ? undefined : activeUrl;
   let streamMode = 'native';
   if (mpegTsPlayback.isFlv) streamMode = 'flv';
   else if (useMpegTsSource) streamMode = 'mpegts';
   else if (useHlsSource) streamMode = 'hls';
   else if (useDashSource) streamMode = 'dash';
+  else if (useOgvSource) streamMode = 'ogv';
   const resolvedScheme = new URL(activeUrl || 'http://localhost', 'http://localhost').protocol.replace(':', '');
 
   // Report active streaming route
@@ -140,6 +166,11 @@ export const WebVideoPlayer = forwardRef(({
       });
     }
   }, [onProgress]);
+  onProgressRef.current = emitProgress;
+  onPlaybackRouteEventRef.current = (attachedUrl) => {
+    const emit = onPlaybackRouteRef.current;
+    if (typeof emit === 'function' && attachedUrl) emit(attachedUrl);
+  };
 
   // The host supplies the media URL. Scheme and source resolution are left to
   // the consumer and the playback engine on each platform.
@@ -258,6 +289,21 @@ export const WebVideoPlayer = forwardRef(({
   return (
     <View style={styles.container} collapsable={false}>
       {activeUrl ? (
+        useOgvSource ? (
+          <div
+            key={activeUrl}
+            ref={ogvContainerRef}
+            data-resolved-scheme={resolvedScheme}
+            data-stream-mode="ogv"
+            className="cinecrew-player__video"
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#000',
+            }}
+          />
+        ) : (
         <video
           key={`${activeUrl}:${corsMode || 'nocors'}`}
           ref={videoRef}
@@ -337,6 +383,7 @@ export const WebVideoPlayer = forwardRef(({
             />
           ))}
         </video>
+        )
       ) : null}
     </View>
   );

@@ -4,6 +4,7 @@ import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.w
 import { useWebFlvPlayback } from '../native/media/web/useWebFlvPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebDashPlayback } from '../native/media/web/useWebDashPlayback.web';
+import { useWebOgvPlayback } from '../native/media/web/useWebOgvPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
 import { getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
 import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
@@ -413,7 +414,24 @@ function WebPlayerSurface({
   onError,
   handleError,
   corsMode,
+  useOgv,
+  mediaType,
+  ogvResourceBase,
+  pausedRef,
+  onErrorRef,
 }) {
+  const ogvContainerRef = useRef(null);
+  useWebOgvPlayback({
+    activeUrl: streamUrl,
+    type: mediaType,
+    videoRef,
+    playerContainerRef: ogvContainerRef,
+    playerStyle: videoStyle,
+    pausedRef,
+    onErrorRef,
+    onBufferingRef: bufferingRef,
+    resourceBase: ogvResourceBase,
+  });
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
   let resizedVideoStyle = {};
   if (drawerResize && videoStyle.width === 'auto') {
@@ -436,8 +454,35 @@ function WebPlayerSurface({
       transform: 'none',
     };
   }
+  const surfaceStyle = {
+    ...videoStyle,
+    ...resizedVideoStyle,
+    opacity: audioOnly ? 0 : 1,
+  };
+  if (useOgv) {
+    const ogvStageStyle = {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: drawerResize ? 'auto' : 0,
+      bottom: 0,
+      width: drawerResize ? 'var(--cinecrew-media-width, 64%)' : '100%',
+      height: '100%',
+      backgroundColor: '#000',
+      opacity: audioOnly ? 0 : 1,
+    };
+    return h('div', {
+      ref: ogvContainerRef,
+      className: 'cinecrew-player__video',
+      style: ogvStageStyle,
+      onClick: inlinePreview ? onPromotePreview : undefined,
+      'data-stream-mode': 'ogv',
+    });
+  }
   return h('video', {
-    key: `${directVideoSource || ''}:${corsMode || 'nocors'}`,
+    // MSE-backed engines (HLS, DASH, MPEG-TS, FLV) own this element. Changing
+    // the CORS mode must not replace it after an engine has attached to it.
+    key: directVideoSource ? `${directVideoSource}:${corsMode || 'nocors'}` : 'managed-media',
     ref: videoRef,
     className: 'cinecrew-player__video',
     src: directVideoSource,
@@ -447,11 +492,7 @@ function WebPlayerSurface({
     playsInline: true,
     preload: 'auto',
     crossOrigin: corsMode,
-    style: {
-      ...videoStyle,
-      ...resizedVideoStyle,
-      opacity: audioOnly ? 0 : 1,
-    },
+    style: surfaceStyle,
     onClick: inlinePreview ? onPromotePreview : undefined,
     onError: (event) => {
       if (!directVideoSource) return;
@@ -493,8 +534,8 @@ function WebPlayerError({ error, theme, renderBackButton }) {
     renderBackButton());
 }
 
-function getDirectVideoSource({ mpegTs, useHls, useDash, sourceType, activeUrl }) {
-  if (mpegTs || useHls || useDash || /mpegurl|mpeg-ts|dash|flv/.test(sourceType)) return undefined;
+function getDirectVideoSource({ mpegTs, useHls, useDash, useOgv, sourceType, activeUrl }) {
+  if (mpegTs || useHls || useDash || useOgv || /mpegurl|mpeg-ts|dash|flv|video\/ogg|ogv/.test(sourceType)) return undefined;
   return activeUrl;
 }
 
@@ -680,11 +721,12 @@ function WebPlayerLayout(props) {
   panelNode);
 }
 
-function getStreamMode({ mpegTs, isFlv, useHls, useDash }) {
+function getStreamMode({ mpegTs, isFlv, useHls, useDash, useOgv }) {
   if (isFlv) return 'flv';
   if (mpegTs) return 'mpegts';
   if (useHls) return 'hls';
   if (useDash) return 'dash';
+  if (useOgv) return 'ogv';
   return 'native';
 }
 
@@ -1252,7 +1294,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const message = typeof detail === 'string' ? detail : detail?.message || 'Unable to play this media source.';
     // If playback failed while crossOrigin="anonymous" was set, retry without
     // CORS so playback still works (recording will fall back to screen capture).
-    if (corsModeRef.current === 'anonymous') {
+    if (detail?.isCorsCandidate && corsModeRef.current === 'anonymous') {
       setCorsMode(undefined);
       corsModeRef.current = undefined;
       return;
@@ -1354,11 +1396,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
   });
+  const useOgv = Boolean(/\.ogv(?:$|[?#])/i.test(activeUrl)
+    || /(?:video\/ogg|\bogv\b)/i.test(String(media.type || media.mimeType || '')));
   const streamMode = getStreamMode({
     mpegTs: mpegTs.useMpegTs,
     isFlv: mpegTs.isFlv,
     useHls,
     useDash,
+    useOgv,
   });
   const ac3AudioPlayback = useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
@@ -1368,12 +1413,18 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     volume: volume * 100,
     videoRef,
   });
+  const isManagedPlayback = mpegTs.useMpegTs || useFlv || useHls || useDash || useOgv;
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     if (isPaused) {
       video.pause();
+    } else if (isManagedPlayback && video.readyState < 2) {
+      // Let the streaming engine start playback once its MediaSource has
+      // produced a decodable frame. Calling play() before then can reject and
+      // incorrectly trigger the native-source CORS retry path.
+      return;
     } else {
       const playPromise = video.play();
       if (playPromise !== undefined) {
@@ -1383,12 +1434,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
             setMuted(true);
             video.play().catch(() => {});
           } else if (playError?.name !== 'AbortError') {
-            handleError(playError);
+            handleError({ message: playError?.message || 'Unable to start playback.', err: playError });
           }
         });
       }
     }
-  }, [isPaused, streamUrl, corsMode, handleError]);
+  }, [isPaused, streamUrl, corsMode, handleError, isManagedPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1677,6 +1728,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     mpegTs: mpegTs.useMpegTs || useFlv,
     useHls,
     useDash,
+    useOgv,
     sourceType,
     activeUrl,
   });
@@ -1817,6 +1869,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onError: handleError,
     handleError,
     corsMode,
+    useOgv,
+    mediaType: media.type || media.mimeType,
+    ogvResourceBase: props.ogvResourceBase,
+    pausedRef: pausedStateRef,
+    onErrorRef,
   });
   const bottomControlProps = {
     isLive,

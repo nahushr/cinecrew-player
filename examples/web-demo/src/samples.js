@@ -23,8 +23,8 @@ export const sampleSources = [
   {
     id: 'webm',
     label: 'WebM',
-    title: 'Big Buck Bunny 720p (WebM Stream)',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/Big_buck_bunny_720p_5mb.webm',
+    title: 'Ocean (WebM with Audio)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/sample_960x400_ocean_with_audio.webm',
     type: 'video/webm',
   },
   {
@@ -53,8 +53,8 @@ export const sampleSources = [
   {
     id: 'ogv',
     label: 'OGV',
-    title: 'Surfing with Audio (Ogg Theora Stream)',
-    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/sample_1280x720_surfing_with_audio.ogv',
+    title: 'Echo Here We Are (Ogg Theora Stream)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/echo-hereweare.ogv',
     type: 'video/ogg',
   },
   {

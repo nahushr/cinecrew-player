@@ -234,6 +234,8 @@ export interface CineCrewPlayerProps {
   videoOnly?: boolean;
   /** Optional resolver for share pages or other non-media links. */
   resolveSource?: (source: PlayerSource, context: { platform: 'web' | 'native' | 'electron' }) => PlayerSource | string | Promise<PlayerSource | string>;
+  /** Optional base URL for ogv.js worker/WASM assets; defaults to the versioned jsDelivr distribution. */
+  ogvResourceBase?: string;
   audioTracks?: AudioTrack[];
   selectedAudioTrack?: string | number;
   resumePosition?: number;

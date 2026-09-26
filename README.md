@@ -112,6 +112,7 @@ flowchart LR
 | MP4 / browser-native media | ✅ Browser media element | ✅ Native engine | A directly playable URL or local URI |
 | HLS (`.m3u8`) | ✅ hls.js / native HLS where available | ✅ Native engine | Origin access, valid playlist/segments, compatible codecs |
 | MPEG-TS (`.ts`) | ✅ Bundled patched MPEG-TS client, when browser conditions permit | ✅ VLC path | Browser codecs and CORS; native module availability |
+| Ogg/Theora (`.ogv`) | ✅ `ogv.js` WebAssembly decoder | ✅ Native VLC path | Web uses the versioned ogv.js worker/WASM assets; provide `ogvResourceBase` to self-host them |
 | Hosted-video or share pages | ⚙️ Resolve to a direct media URL with `resolveSource` | ⚙️ Resolve to a direct media URL with `resolveSource` | A watch/share page is not a media stream |
 | Local files | ✅ Platform-supported local/blob URI | ✅ Platform-supported file URI | App obtains and passes the platform-readable URI |
 | Share pages / cloud-drive pages | ⚙️ Optional `resolveSource` | ⚙️ Optional `resolveSource` | Your app resolves authentication and obtains a playable media URL |
@@ -352,6 +353,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `videoOnly` | `boolean` | `false` | Start muted in video-only mode. |
 | `audioOnly` | `boolean` | `false` | Start in audio-only presentation. Playback continues while the visual card is shown. |
 | `resolveSource` | callback | — | Optional synchronous or asynchronous resolver for share pages and provider-specific links. Receives `{ uri, ...source }` and `{ platform }`; return a playable URL or `PlayerSource`. Without it, the original source is passed through unchanged. |
+| `ogvResourceBase` | `string` | versioned jsDelivr ogv.js assets | Optional base URL for the OGV decoder’s worker and WebAssembly files. Use this to self-host the matching `ogv@1.9.0/dist/` resources. Web OGV playback is selected by `.ogv` URLs or the `video/ogg` type. |
 | `audioTracks` | `AudioTrack[]` | detected | Optional supplied track list (web). Native tracks are read from the native player. |
 | `selectedAudioTrack` | `string \| number` | first/default track | Initial or preferred audio track. |
 | `resumePosition` | `number` | `0` | Resume position in seconds for on-demand playback. |
