@@ -45,8 +45,8 @@ export const sampleSources = [
   {
     id: 'flv',
     label: 'FLV',
-    title: 'Ocean (FLV with MP3 Audio)',
-    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/sample_960x400_ocean_with_audio.flv',
+    title: 'Ocean (FLV · H.264 + AAC · 10 sec)',
+    url: 'https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/ocean-10s-h264-aac.flv',
     type: 'video/x-flv',
     isLive: false,
   },
