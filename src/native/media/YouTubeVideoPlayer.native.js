@@ -7,6 +7,8 @@ const stateName = (value) => ({ 0: 'ended', 1: 'playing', 2: 'paused', 3: 'buffe
 
 export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   videoId,
+  title = '',
+  poster,
   paused = false,
   muted = false,
   volume = 1,
@@ -77,8 +79,8 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
 
   const validVideoId = /^[\w-]{11}$/.test(String(videoId || ''));
   const html = useMemo(
-    () => validVideoId ? buildYouTubePlayerHtml(videoId, !paused) : '<!doctype html><html><body style="background:#000"></body></html>',
-    [validVideoId, videoId],
+    () => validVideoId ? buildYouTubePlayerHtml(videoId, !paused, { title, poster }) : '<!doctype html><html><body style="background:#000"></body></html>',
+    [validVideoId, videoId, title, poster],
   );
   const webViewSource = useMemo(() => ({ html, baseUrl: 'https://www.youtube.com' }), [html]);
 

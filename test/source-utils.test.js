@@ -22,10 +22,13 @@ test('recognizes common YouTube URL shapes and explicit YouTube IDs', () => {
 });
 
 test('builds an embedded YouTube player document without external navigation', () => {
-  const html = buildYouTubePlayerHtml('dQw4w9WgXcQ', false);
+  const html = buildYouTubePlayerHtml('dQw4w9WgXcQ', false, { title: 'Example title', poster: 'https://example.test/poster.jpg' });
   assert.match(html, /youtube\.com\/iframe_api/);
   assert.match(html, /cinecrewPlayerCommand/);
   assert.match(html, /autoplay:0/);
+  assert.match(html, /controls:1/);
+  assert.match(html, /setActionHandler\('play'/);
+  assert.match(html, /Example title/);
   assert.throws(() => buildYouTubePlayerHtml('invalid-id'), /valid YouTube video ID/);
 });
 

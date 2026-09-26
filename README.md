@@ -293,6 +293,8 @@ Pass a YouTube watch, Shorts, or `youtu.be` URL as the source to play it inside 
 
 The video must allow embedding. Other URLs are passed unchanged to the platform engine. A Google Drive/share page or other webpage is not itself a media stream; resolve it in your app and provide the playable URL, or use the optional `resolveSource` callback. This keeps provider authentication, CORS policy, and URL extraction under the consuming app’s control.
 
+YouTube sources use YouTube's own playback controls; CineCrew hides its duplicate center play/pause control and title for those sources. The embed remains subject to YouTube's playback, branding, and background-playback behavior.
+
 ```tsx
 <CineCrewPlayer
   source={{ uri: driveShareUrl, title: 'My video' }}
@@ -456,7 +458,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `audioTracks` | Audio-track picker when tracks are exposed. |
 | `playbackRate` | On-demand playback speed. |
 | `fullscreen` | Fullscreen button on web and inline previews. Native player opens full-screen. |
-| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. Browser security requires local media or a source that permits capture (typically same-origin or CORS-enabled); the player reports when a source cannot be captured. |
+| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. YouTube on web/Electron uses the browser's explicit tab/screen capture picker; native adapters receive `isYouTube` and `youtubeVideoId` and must use a user-consented OS capture API. |
 | `liveChat` | Chat drawer/panel; requires a chat adapter or render slot. |
 | `epg` | EPG drawer/panel; requires an EPG adapter or render slot. |
 | `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}`. |
@@ -530,7 +532,13 @@ The EPG drawer uses `integrations.epg.loadListings`, which returns entries with 
 
 ### Web recording
 
-On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. YouTube embeds are not recordable through this built-in path. Aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the browser only permits capture of the media element's original frame, so the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation or use a native adapter.
+On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. For YouTube, the browser opens its native screen/tab chooser; select the player tab and enable tab audio when offered. This records the captured tab/screen, not a private YouTube media stream, so browser controls/overlays may be included and capture depends on browser support and the user's permission. Native React Native apps need an `integrations.recording` implementation backed by Android MediaProjection or iOS ReplayKit (with the platform's permission flow); the player does not capture the YouTube iframe's protected media itself. The `start` adapter receives `isYouTube` and `youtubeVideoId`, and `getVideoElement()` is `null` for YouTube.
+
+For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation.
+
+### Audio-only and locked-screen playback
+
+Audio-only mode fully covers the video with an opaque dark surface; its poster remains visible in the audio card. Native VLC playback is configured to continue in audio-only mode when the app is backgrounded. YouTube remains an embedded YouTube player: CineCrew exposes Media Session metadata and lock-screen play/pause/seek actions where supported, but the host browser/OS and YouTube decide whether an embed may continue after the device is locked. A generic player component cannot grant YouTube's account-dependent background-playback entitlement or override mobile OS background execution rules. Native apps must also configure their platform background-audio capability where applicable.
 
 ## Themes and icons
 

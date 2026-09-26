@@ -3,10 +3,9 @@ import { useWebVideoAspectRatio } from '../native/media/web/useWebVideoAspectRat
 import { useWebMpegTsPlayback } from '../native/media/web/useWebMpegTsPlayback.web';
 import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
-import { YouTubeVideoPlayer } from '../native/media/YouTubeVideoPlayer.web.js';
-import { getYouTubeVideoId, getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
+import { getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
 import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
-import { createRecordingDownloadLink, createVideoRecordingStream, createYouTubeScreenRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
+import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
 import './styles.css';
@@ -351,7 +350,7 @@ function WebRecordingOverlay(props) {
   }, getRecordingOverlayContent(props), dismissButton);
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, togglePlay, bottomProps, isYouTube }) {
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, togglePlay, bottomProps }) {
   let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -363,7 +362,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
   let centerControls = null;
   let bottomControls = null;
   if (!locked) {
-    if (!isYouTube && !buffering && bottomProps.recordingStatus === 'idle') {
+    if (!buffering && bottomProps.recordingStatus === 'idle') {
       const playLabel = paused ? 'Play' : 'Pause';
       const playIcon = paused ? 'play' : 'pause';
       centerControls = h('div', { className: 'cinecrew-player__center-controls' },
@@ -375,7 +374,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
   return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}`, style: { color: theme.controlColor } },
     h('div', { className: 'cinecrew-player__top-controls' },
       h('div', { className: 'cinecrew-player__top-left-actions' }, leftControls),
-      !isYouTube && !locked && paused && title ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor }, title }, title) : null,
+      !locked && paused && title ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor }, title }, title) : null,
       h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     h(WebRecordingOverlay, {
@@ -394,11 +393,9 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
 }
 
 function WebPlayerSurface({
-  youtubeVideoId,
   title,
   streamUrl,
   videoRef,
-  youtubeRef,
   directVideoSource,
   poster,
   autoPlay,
@@ -417,31 +414,10 @@ function WebPlayerSurface({
   onProgress,
   onPlaying,
   onEnded,
-  onStateChange,
   onError,
   handleError,
   corsMode,
 }) {
-  if (youtubeVideoId) {
-    return h(YouTubeVideoPlayer, {
-      ref: youtubeRef,
-      videoId: youtubeVideoId,
-      title,
-      poster,
-      paused,
-      muted: muted || videoOnly,
-      volume,
-      playbackRate,
-      onReady,
-      onProgress,
-      onPlaying,
-      onBuffering: bufferingRef.current,
-      onStateChange,
-      onError,
-      onEnded,
-      style: drawerResize ? { width: 'var(--cinecrew-media-width, 64%)', height: '100%', inset: '0 auto 0 0' } : undefined,
-    });
-  }
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
   let resizedVideoStyle = {};
   if (drawerResize && videoStyle.width === 'auto') {
@@ -653,7 +629,6 @@ function WebPlayerLayout(props) {
       title: props.title,
       togglePlay: props.togglePlay,
       bottomProps: props.bottomControlProps,
-      isYouTube: props.isYouTube,
     });
   }
   let loadingNotice = null;
@@ -675,7 +650,7 @@ function WebPlayerLayout(props) {
   }
   return h('div', {
     ref: props.playerRef,
-    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.isYouTube ? ' cinecrew-player--youtube' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
+    className: `cinecrew-player${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
     style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '64%' },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
@@ -689,8 +664,7 @@ function WebPlayerLayout(props) {
   panelNode);
 }
 
-function getStreamMode(youtubeVideoId, mpegTs, useHls) {
-  if (youtubeVideoId) return 'youtube';
+function getStreamMode(mpegTs, useHls) {
   if (mpegTs) return 'mpegts';
   if (useHls) return 'hls';
   return 'native';
@@ -1203,11 +1177,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const resolution = useResolvedPlayerSource(source, url, resolveSource, getWebRuntimePlatform());
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
-  const youtubeVideoId = getYouTubeVideoId(media);
   const isLive = liveProp ?? media.isLive ?? false;
   const theme = { ...DEFAULT_THEME, ...themeProp };
   const videoRef = useRef(null);
-  const youtubeRef = useRef(null);
   const playerRef = useRef(null);
   const publicPlayerRef = useRef(null);
   const pausedRef = useRef(pausedProp ?? !autoPlay);
@@ -1324,7 +1296,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     if (liveChatNonce) setActivePanel('chat');
   }, [liveChatNonce]);
 
-  const activeUrl = getActiveMediaUrl(youtubeVideoId, streamUrl);
+  const activeUrl = streamUrl;
 
   const mpegTs = useWebMpegTsPlayback({
     streamUrl,
@@ -1343,7 +1315,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     pausedRef: pausedStateRef,
     onErrorRef,
   });
-  const streamMode = getStreamMode(youtubeVideoId, mpegTs.useMpegTs, useHls);
+  const streamMode = getStreamMode(mpegTs.useMpegTs, useHls);
   const ac3AudioPlayback = useWebAc3AudioPlayback({
     active: mpegTs.useAc3Fallback,
     streamUrl,
@@ -1362,7 +1334,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         handleError(playError);
       }
     });
-  }, [isPaused, streamUrl, youtubeVideoId, handleError]);
+  }, [isPaused, streamUrl, handleError]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1370,7 +1342,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     video.muted = muted || videoOnly;
     video.volume = volume;
     video.playbackRate = Number(playbackRate) || 1;
-  }, [muted, volume, playbackRate, videoOnly, streamUrl, youtubeVideoId]);
+  }, [muted, volume, playbackRate, videoOnly, streamUrl]);
 
   useEffect(() => {
     if (!streamUrl) return undefined;
@@ -1388,6 +1360,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     let callback = actions?.[name];
     if (name === 'onAspectRatioChange') callback = callback || props.onAspectRatioChange;
     else if (name === 'onFullscreen') callback = callback || onFullscreen;
+    else if (name === 'onBack') callback = callback || onBack || props.onClose;
     return invokePlayerAction(
       fallback,
       callback,
@@ -1400,16 +1373,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const video = videoRef.current;
     const mimeType = getRecordingMimeType();
     if (typeof MediaRecorder === 'undefined' || !mimeType) throw new Error('This browser does not support WebM audio/video recording.');
-    let capture;
-    if (youtubeVideoId) {
-      capture = await createYouTubeScreenRecordingStream();
-    } else {
-      if (!video) throw new Error('The media element is not ready to record.');
-      capture = createVideoRecordingStream(video, playerRef.current, () => aspectRatioRef.current, ac3AudioPlayback.getRecordingAudioStream());
-      // Fallback: if direct capture failed (CORS / tainted), use screen capture.
-      if (!capture) {
-        capture = await createScreenRecordingStream();
-      }
+    if (!video) throw new Error('The media element is not ready to record.');
+    let capture = createVideoRecordingStream(video, playerRef.current, () => aspectRatioRef.current, ac3AudioPlayback.getRecordingAudioStream());
+    // Fallback: if direct capture failed (CORS / tainted), use screen capture.
+    if (!capture) {
+      capture = await createScreenRecordingStream();
     }
     const recorder = new MediaRecorder(capture.stream, { mimeType });
     recordingCaptureRef.current = capture;
@@ -1459,7 +1427,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setRecordingError(event.error?.message || 'The browser could not record this stream.');
     }, { once: true });
     recorder.start(1000);
-  }, [ac3AudioPlayback, title, youtubeVideoId]);
+  }, [ac3AudioPlayback, title]);
 
   const startRecording = useCallback(async () => {
     setRecordingError('');
@@ -1470,7 +1438,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     try {
       const adapterStart = integrations.recording?.start;
       await action('onRecordingStart', adapterStart
-        ? () => adapterStart({ getVideoElement: () => videoRef.current, streamUrl, title, isYouTube: Boolean(youtubeVideoId), youtubeVideoId })
+        ? () => adapterStart({ getVideoElement: () => videoRef.current, streamUrl, title })
         : startBuiltinRecording, { source: streamUrl, title });
       recordingClockRef.current = { startedAt: Date.now(), accumulatedMs: 0 };
       setRecordingElapsed(0);
@@ -1479,7 +1447,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setRecordingStatus('idle');
       setRecordingError(startError?.message || 'Could not start recording.');
     }
-  }, [action, integrations.recording, startBuiltinRecording, streamUrl, title, youtubeVideoId]);
+  }, [action, integrations.recording, startBuiltinRecording, streamUrl, title]);
 
   const pauseRecording = useCallback(async () => {
     try {
@@ -1584,7 +1552,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const restart = useCallback(() => action('onRestart', () => {
     const video = videoRef.current;
     if (video) video.currentTime = 0;
-    else youtubeRef.current?.seekTo?.(0);
     setPaused(false);
     emitProgressBarTime(0, onProgressBarChange, lastProgressBarSecondRef, { force: true });
   }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, onProgressBarChange, setPaused]);
@@ -1603,10 +1570,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const seekTo = useCallback((seconds) => action('onSeek', () => {
     const targetSeconds = Math.max(0, Number(seconds) || 0);
     if (videoRef.current) videoRef.current.currentTime = targetSeconds;
-    else youtubeRef.current?.seekTo?.(targetSeconds);
     emitProgressBarTime(targetSeconds, onProgressBarChange, lastProgressBarSecondRef, { force: true });
   }, { seconds: Number(seconds) || 0 }), [action, onProgressBarChange]);
-  const handleBack = useCallback(() => action('onBack', onBack || props.onClose, { title, source: media }), [action, onBack, props.onClose, title, media]);
+  const handleBack = useCallback(() => action('onBack', undefined, { title, source: media }), [action, title, media]);
   useImperativeHandle(ref, () => {
     const api = {
       play: () => setPaused(false),
@@ -1640,8 +1606,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
-  const canRecordFromBrowser = typeof MediaRecorder !== 'undefined'
-    && (!youtubeVideoId || typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function');
+  const canRecordFromBrowser = typeof MediaRecorder !== 'undefined';
   const hasRecording = controlOverrides.recording !== false
     && (!!integrations.recording || typeof actions.onRecordingStart === 'function' || canRecordFromBrowser);
   const hasDiagnostics = Boolean(features.diagnostics) || typeof actions.onDiagnosticsOpen === 'function';
@@ -1652,11 +1617,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     sourceType,
     activeUrl,
   });
-
-  const handleYouTubeStateChange = useCallback((state) => {
-    if (state === 'playing') setIsPaused(false);
-    if (state === 'paused' || state === 'ended') setIsPaused(true);
-  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1770,19 +1730,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     messagePageSize,
   });
 
-  const handleYouTubeProgress = (event) => {
-    const seconds = Number(event.currentTime) / 1000 || 0;
-    setCurrentTime(seconds);
-    setDuration(Number(event.duration) / 1000 || 0);
-    emitProgressBarTime(seconds, onProgressBarChange, lastProgressBarSecondRef);
-    onProgress?.(event);
-  };
   const mediaSurface = h(WebPlayerSurface, {
-    youtubeVideoId,
     title,
     streamUrl,
     videoRef,
-    youtubeRef,
     directVideoSource,
     poster,
     autoPlay,
@@ -1798,10 +1749,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onPromotePreview,
     bufferingRef: onBufferingRef,
     onReady,
-    onProgress: handleYouTubeProgress,
+    onProgress,
     onPlaying,
     onEnded,
-    onStateChange: handleYouTubeStateChange,
     onError: handleError,
     handleError,
     corsMode,
@@ -1850,7 +1800,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     style,
     theme,
     streamMode,
-    isYouTube: Boolean(youtubeVideoId),
     mediaSurface,
     title,
     poster,
@@ -1859,7 +1808,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     audioOnly,
     activePanel,
     webPanel,
-    renderBackButton: () => control('back', 'Close player', () => action('onBack', props.onBack || props.onClose, { title, source: media }), { icon: 'close' }),
+    renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
     onSwitchToVideo: () => setAudioOnlyMode(false),
     locked,
     controlOverrides,

@@ -57,6 +57,8 @@ const stateName = (value) => ({ 0: 'ended', 1: 'playing', 2: 'paused', 3: 'buffe
 
 export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   videoId,
+  title = '',
+  poster,
   paused = false,
   muted = false,
   volume = 1,
@@ -81,6 +83,7 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
   const onErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
   const readyRef = useRef(false);
+  const mediaSessionCleanupRef = useRef(null);
   latestPropsRef.current = { paused, muted, volume, playbackRate };
   const stateRef = useRef('unstarted');
   onReadyRef.current = onReady;
@@ -104,8 +107,8 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
         videoId,
         playerVars: {
           autoplay: latestPropsRef.current.paused ? 0 : 1,
-          controls: 0,
-          disablekb: 1,
+          controls: 1,
+          disablekb: 0,
           enablejsapi: 1,
           fs: 0,
           iv_load_policy: 3,
@@ -122,6 +125,8 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
             clearTimeout(readyTimer);
             playerRef.current = event.target;
             readyRef.current = true;
+            mediaSessionCleanupRef.current?.();
+            mediaSessionCleanupRef.current = connectYouTubeMediaSession(event.target, { title, poster });
             const latest = latestPropsRef.current;
             event.target.setVolume(Math.round(Math.max(0, Math.min(1, latest.volume)) * 100));
             if (latest.muted) event.target.mute();
@@ -141,6 +146,7 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
           onStateChange: (event) => {
             const state = stateName(event.data);
             stateRef.current = state;
+            updateYouTubeMediaSessionState(state);
             onStateChangeRef.current?.(state);
             onBufferingRef.current?.(state === 'buffering');
             if (state === 'playing') onPlayingRef.current?.(event);
@@ -170,10 +176,12 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
       clearInterval(progressTimer);
       clearTimeout(readyTimer);
       readyRef.current = false;
+      mediaSessionCleanupRef.current?.();
+      mediaSessionCleanupRef.current = null;
       try { player?.destroy?.(); } catch {}
       playerRef.current = null;
     };
-  }, [videoId]);
+  }, [videoId, title, poster]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -217,9 +225,49 @@ export const YouTubeVideoPlayer = forwardRef(function YouTubeVideoPlayer({
       height: '100%',
       background: '#000',
       ...style,
-      pointerEvents: 'none',
+      pointerEvents: 'auto',
     },
   });
 });
+
+function connectYouTubeMediaSession(player, { title, poster }) {
+  if (typeof navigator === 'undefined' || !navigator.mediaSession) return null;
+  const session = navigator.mediaSession;
+  try {
+    if (typeof window !== 'undefined' && window.MediaMetadata) {
+      session.metadata = new window.MediaMetadata({
+        title: title || 'YouTube',
+        artist: 'YouTube',
+        artwork: poster ? [{ src: poster, sizes: '512x512' }] : [],
+      });
+    }
+    const actions = {
+      play: () => player.playVideo?.(),
+      pause: () => player.pauseVideo?.(),
+      seekbackward: ({ seekOffset = 10 } = {}) => player.seekTo?.(Math.max(0, (player.getCurrentTime?.() || 0) - seekOffset), true),
+      seekforward: ({ seekOffset = 10 } = {}) => player.seekTo?.((player.getCurrentTime?.() || 0) + seekOffset, true),
+      seekto: ({ seekTime } = {}) => { if (Number.isFinite(seekTime)) player.seekTo?.(seekTime, true); },
+      stop: () => player.pauseVideo?.(),
+    };
+    for (const [name, handler] of Object.entries(actions)) {
+      try { session.setActionHandler(name, handler); } catch { /* Unsupported action on this browser. */ }
+    }
+    return () => {
+      for (const name of Object.keys(actions)) {
+        try { session.setActionHandler(name, null); } catch { /* Unsupported action on this browser. */ }
+      }
+      session.metadata = null;
+      session.playbackState = 'none';
+    };
+  } catch {
+    return null;
+  }
+}
+
+function updateYouTubeMediaSessionState(state) {
+  if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+  const playbackState = state === 'playing' ? 'playing' : state === 'paused' || state === 'ended' ? 'paused' : null;
+  if (playbackState) navigator.mediaSession.playbackState = playbackState;
+}
 
 export default YouTubeVideoPlayer;

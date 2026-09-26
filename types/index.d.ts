@@ -177,7 +177,12 @@ export interface PlayerIntegrations {
     render?: (context: { title: string; source: PlayerSource; onClose: () => void }) => React.ReactNode;
   };
   recording?: {
-    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string }) => Promise<unknown>;
+    /**
+     * Starts host-managed recording. For YouTube, the cross-origin iframe does
+     * not expose a media element; native apps must use an OS screen-capture
+     * implementation (with user consent) and web apps may use getDisplayMedia.
+     */
+    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string; isYouTube?: boolean; youtubeVideoId?: string }) => Promise<unknown>;
     pause?: () => Promise<unknown>;
     resume?: () => Promise<unknown>;
     stop?: () => Promise<{ filename?: string } | unknown>;

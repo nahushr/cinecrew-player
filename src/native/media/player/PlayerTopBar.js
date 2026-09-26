@@ -21,8 +21,8 @@ function BackButton({ visible, palette, scale, onClose }) {
   );
 }
 
-function RecordingControls({ isLive, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette }) {
-  if (!isLive || !enabled || controls.recording === false) return null;
+function RecordingControls({ isLive, isYouTube, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette }) {
+  if ((!isLive && !isYouTube) || !enabled || controls.recording === false) return null;
   if (status === 'idle') {
     return (
       <TouchableOpacity style={[styles.pill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
@@ -93,6 +93,7 @@ export const PlayerTopBar = ({
   scale,
   title,
   episodeLabel,
+  isYouTube = false,
   isLive,
   isScreenRecorderEnabled,
   recStatus,
@@ -142,15 +143,15 @@ export const PlayerTopBar = ({
     >
       <View style={[styles.headerRow, !isPortrait && styles.landscapeHeaderRow, isPortrait && styles.portraitHeaderRow]}>
         <BackButton visible={controls.back !== false} palette={palette} scale={scale} onClose={onClose} />
-        <PlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
+        {isYouTube ? <View style={styles.headerSpacer} /> : <PlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />}
 
         <View style={styles.topRightActions}>
-          <RecordingControls isLive={isLive} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
+          <RecordingControls isLive={isLive} isYouTube={isYouTube} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
           <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} />
           <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} />
         </View>
       </View>
-      <PortraitPlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
+      {!isYouTube ? <PortraitPlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
     </View>
   );
 };

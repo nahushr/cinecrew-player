@@ -243,6 +243,8 @@ function PlatformMediaSurface(props) {
         key={`youtube-${youtubeVideoId}`}
         ref={vlcRef}
         videoId={youtubeVideoId}
+        title={title}
+        poster={posterUrl}
         paused={!isPlaying}
         muted={muted || videoOnlyMode}
         volume={volume / 100}
@@ -512,11 +514,11 @@ function InlinePreviewFrame({
   );
 }
 
-function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
+function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, isYouTube }) {
   return (
     <View
       collapsable={false}
-      pointerEvents="none"
+      pointerEvents={isYouTube ? 'auto' : 'none'}
       style={[
         styles.videoContainer,
         styles.videoWrapFullscreen,
@@ -529,8 +531,8 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
   );
 }
 
-function FullscreenGestureLayer({ isAudioOnly, panResponder, handlers }) {
-  if (isAudioOnly) return null;
+function FullscreenGestureLayer({ isAudioOnly, isYouTube, panResponder, handlers }) {
+  if (isAudioOnly || isYouTube) return null;
   if (!isWeb() && panResponder) {
     return (
       <View collapsable={false} style={[StyleSheet.absoluteFill, styles.gestureCatcher]} {...panResponder.panHandlers} />
@@ -564,6 +566,7 @@ function FullscreenControlsPanel(props) {
         insets={props.insets}
         scale={props.scale}
         title={props.title}
+        isYouTube={props.isYouTube}
         episodeLabel={props.episodeLabel}
         isLive={props.isLive}
         isScreenRecorderEnabled={props.isScreenRecorderEnabled}
@@ -587,7 +590,7 @@ function FullscreenControlsPanel(props) {
         onToggleLock={props.handleLockAction}
       />
       <CenterControls
-        visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
+        visible={!props.isYouTube && !props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
@@ -707,9 +710,10 @@ function FullscreenChatLayer(props) {
 }
 
 function FullscreenRecordingLayer(props) {
+  const recordingEligible = props.isLive || props.isYouTube;
   return (
     <>
-      {!props.isAudioOnly && props.isLive && (props.isScreenRecorderEnabled || props.recStatus !== 'idle') ? (
+      {!props.isAudioOnly && recordingEligible && (props.isScreenRecorderEnabled || props.recStatus !== 'idle') ? (
         <LiveRecordingOverlay
           status={props.recStatus}
           elapsedMs={props.recElapsedMs}
@@ -721,7 +725,7 @@ function FullscreenRecordingLayer(props) {
           onStop={props.handleStopRecording}
         />
       ) : null}
-      {!props.isAudioOnly && props.isLive && props.isScreenRecorderEnabled ? (
+      {!props.isAudioOnly && recordingEligible && props.isScreenRecorderEnabled ? (
         <LiveRecordingNotice notice={props.recNotice} colors={props.colors} onDismiss={props.onDismissNotice} />
       ) : null}
     </>
@@ -1518,7 +1522,7 @@ export const MediaPlayerView = ({
 
   const handleStartRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
-    if (!isScreenRecorderEnabled || !isLive || recStatusRef.current !== 'idle') return;
+    if (!isScreenRecorderEnabled || (!isLive && !youtubeVideoId) || recStatusRef.current !== 'idle') return;
     try {
       await recording?.start?.({
         getVideoElement: () => {
@@ -1528,6 +1532,8 @@ export const MediaPlayerView = ({
         },
         streamUrl: playbackUrl || streamUrl,
         title,
+        isYouTube: Boolean(youtubeVideoId),
+        youtubeVideoId: youtubeVideoId || undefined,
       });
       if (muted) {
         showRecNotice({
@@ -1538,7 +1544,7 @@ export const MediaPlayerView = ({
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not start recording.' });
     }
-  }, [isLive, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording]);
+  }, [isLive, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, youtubeVideoId]);
 
   const handlePauseRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
@@ -2588,6 +2594,7 @@ export const MediaPlayerView = ({
   const fullscreenControlsProps = {
     insets,
     scale,
+    isYouTube: Boolean(youtubeVideoId),
     title,
     episodeLabel,
     isLive,
@@ -2679,7 +2686,7 @@ export const MediaPlayerView = ({
     >
       <StatusBar hidden={!showControls} translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} />
+      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} isYouTube={Boolean(youtubeVideoId)} />
       <FullscreenVisualFeedback
         isAudioOnly={isAudioOnly}
         isWebPlatform={isWeb()}
@@ -2689,6 +2696,7 @@ export const MediaPlayerView = ({
       />
       <FullscreenGestureLayer
         isAudioOnly={isAudioOnly}
+        isYouTube={Boolean(youtubeVideoId)}
         panResponder={panResponder}
         handlers={{
           onPointerDown: handleWebPointerDown,
@@ -2739,6 +2747,7 @@ export const MediaPlayerView = ({
       <FullscreenRecordingLayer
         isAudioOnly={isAudioOnly}
         isLive={isLive}
+        isYouTube={Boolean(youtubeVideoId)}
         isScreenRecorderEnabled={isScreenRecorderEnabled}
         recStatus={recStatus}
         recElapsedMs={recElapsedMs}

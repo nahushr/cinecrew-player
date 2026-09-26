@@ -48,23 +48,6 @@ function SoundWave({ isPlaying, isLandscape, accentColor }) {
   );
 }
 
-function AudioOnlyBackdrop({ posterUrl }) {
-  return (
-    <>
-      {posterUrl ? (
-        <Image
-          source={{ uri: posterUrl }}
-          style={[StyleSheet.absoluteFill, styles.audioOnlyBackdropImage]}
-          resizeMode="cover"
-          blurRadius={isWeb() ? 40 : 25}
-          pointerEvents="none"
-        />
-      ) : null}
-      <View style={styles.audioOnlyBackdropDim} pointerEvents="none" />
-    </>
-  );
-}
-
 function AudioOnlyBadge({ usesAudioProxy, palette, isLandscape }) {
   const message = usesAudioProxy
     ? 'Battery Saver Audio Mode • Screen can be locked'
@@ -101,10 +84,9 @@ export const AudioOnlyView = ({
   );
 
   return (
-    <View style={[styles.audioOnlyContainer, { backgroundColor: palette.backgroundColor }]} pointerEvents="auto">
-      <AudioOnlyBackdrop posterUrl={posterUrl} />
+    <View style={styles.audioOnlyContainer} pointerEvents="auto">
 
-      <View style={[styles.audioOnlyCard, isLandscape && styles.audioOnlyCardLandscape, { backgroundColor: palette.surfaceColor, borderColor: palette.accentColor }]} pointerEvents="auto">
+      <View style={[styles.audioOnlyCard, isLandscape && styles.audioOnlyCardLandscape, { borderColor: palette.accentColor }]} pointerEvents="auto">
         <AudioArtwork posterUrl={posterUrl} isLandscape={isLandscape} palette={palette} />
 
         <SoundWave isPlaying={isPlaying} isLandscape={isLandscape} accentColor={palette.accentColor} />
@@ -153,25 +135,6 @@ const styles = StyleSheet.create({
     zIndex: 50,
     elevation: 50,
   },
-  audioOnlyBackdropImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  audioOnlyBackdropDim: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(7, 9, 14, 0.88)',
-  },
   audioOnlyCard: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -180,7 +143,7 @@ const styles = StyleSheet.create({
     maxWidth: 440,
     maxHeight: '92%',
     borderRadius: 20,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: '#0B1220',
     borderWidth: 1,
     borderColor: 'rgba(0, 229, 255, 0.25)',
     shadowColor: '#000',

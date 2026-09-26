@@ -118,6 +118,7 @@ test('web player keeps chat paging automatic and exposes customizable aspect mod
   const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
   const recording = readFileSync(path.join(root, 'src/utils/webRecording.js'), 'utf8');
   const youtube = readFileSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js'), 'utf8');
+  const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
 
   assert.match(declarations, /aspectRatios\?: Array<AspectRatio \| AspectRatioOption>/);
   assert.match(declarations, /defaultAspectRatio\?: AspectRatio/);
@@ -129,6 +130,9 @@ test('web player keeps chat paging automatic and exposes customizable aspect mod
   assert.match(webStyles, /cinecrew-player__controls\.is-recording/);
   assert.match(recording, /new MediaRecorder|MediaRecorder/);
   assert.match(recording, /canvas\.captureStream/);
-  assert.match(youtube, /controls: 0/);
-  assert.match(youtube, /pointerEvents: 'none'/);
+  assert.match(youtube, /controls: 1/);
+  assert.match(youtube, /pointerEvents: 'auto'/);
+  assert.match(webEntry, /!isYouTube && !buffering/);
+  assert.match(webEntry, /createYouTubeScreenRecordingStream/);
+  assert.match(nativeEntry, /visible=\{!props\.isYouTube/);
 });
