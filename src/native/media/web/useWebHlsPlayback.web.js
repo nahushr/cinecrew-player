@@ -41,6 +41,7 @@ export function useWebHlsPlayback({ activeUrl, isLive, videoRef, pausedRef, onEr
         onErrorRef.current?.({ message, httpStatus, err: data });
       });
       hls.loadSource(activeUrl);
+      video.crossOrigin = 'anonymous';
       hls.attachMedia(video);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = activeUrl;

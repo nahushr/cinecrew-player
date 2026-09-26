@@ -39,6 +39,9 @@ export const WebVideoPlayer = forwardRef(({
   const playbackErrorRef = useRef(onError);
   const onEndedRef = useRef(onEnded);
   const [activeUrl, setActiveUrl] = useState('');
+  const [corsMode, setCorsMode] = useState('anonymous');
+  const corsModeRef = useRef('anonymous');
+  corsModeRef.current = corsMode;
   pausedRef.current = paused;
   playbackRateRef.current = playbackRate;
   onPlaybackRouteRef.current = onPlaybackRoute;
@@ -126,6 +129,8 @@ export const WebVideoPlayer = forwardRef(({
       return undefined;
     }
     setActiveUrl(streamUrl);
+    setCorsMode('anonymous');
+    corsModeRef.current = 'anonymous';
     return undefined;
   }, [streamUrl]);
 
@@ -243,6 +248,7 @@ export const WebVideoPlayer = forwardRef(({
           muted={muted}
           playsInline
           controls={false}
+          crossOrigin={corsMode}
           style={videoStyle}
           onPlaying={() => {
             const video = videoRef.current;
@@ -278,6 +284,13 @@ export const WebVideoPlayer = forwardRef(({
               return;
             }
             if (video && video.readyState >= 2) {
+              return;
+            }
+            // If we were trying anonymous CORS and it failed, retry without.
+            // Playback will work; recording will fall back to screen capture.
+            if (corsModeRef.current === 'anonymous') {
+              setCorsMode(undefined);
+              corsModeRef.current = undefined;
               return;
             }
             playbackErrorRef.current?.({

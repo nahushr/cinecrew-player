@@ -48,11 +48,19 @@ function drawVideoFrame(context, canvas, video, aspectRatio) {
   context.drawImage(video, frame.x + (frame.width - drawWidth) / 2, frame.y + (frame.height - drawHeight) / 2, drawWidth, drawHeight);
 }
 
-/** Capture the visible media frame (not player chrome) and preserve its audio tracks. */
+/** Capture the visible media frame (not player chrome) and preserve its audio tracks.
+ *  Returns `null` when cross-origin restrictions prevent direct capture so the
+ *  caller can fall back to screen/tab capture via `createScreenRecordingStream`.
+ */
 export function createVideoRecordingStream(video, playerElement, getAspectRatio, additionalAudioStream) {
   const capture = video?.captureStream || video?.webkitCaptureStream;
-  if (!video || typeof capture !== 'function' || typeof MediaStream === 'undefined') {
+  if (!video || typeof MediaStream === 'undefined') {
     throw new Error('This browser does not support recording this media element.');
+  }
+
+  // captureStream may not exist on every browser / element combination.
+  if (typeof capture !== 'function') {
+    return null;
   }
 
   let sourceStream;
@@ -60,7 +68,8 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
     sourceStream = capture.call(video);
   } catch (error) {
     if (error?.name === 'SecurityError' || /cross.?origin|security/i.test(error?.message || '')) {
-      throw new Error('The browser cannot record this cross-origin video because its source does not grant capture access. Use a local or CORS-enabled source to record it.');
+      // Cross-origin media without CORS – let the caller fall back to screen capture.
+      return null;
     }
     throw error;
   }
@@ -113,6 +122,79 @@ export function createVideoRecordingStream(video, playerElement, getAspectRatio,
       canvasStream.getTracks().forEach((track) => track.stop());
       sourceStream.getTracks().forEach((track) => track.stop());
     },
+  };
+}
+
+/**
+ * YouTube owns a cross-origin iframe, so its media element is intentionally
+ * inaccessible to the embedding page. Recording therefore requires the
+ * browser's explicit tab/screen picker; the user must select the player tab
+ * and enable tab audio when the browser offers that option.
+ */
+export async function createYouTubeScreenRecordingStream() {
+  const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
+  if (typeof mediaDevices?.getDisplayMedia !== 'function') {
+    throw new Error('YouTube recording requires browser tab/screen capture, which is not available in this browser.');
+  }
+
+  let stream;
+  try {
+    stream = await mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch (error) {
+    if (error?.name === 'NotAllowedError' || error?.name === 'AbortError') {
+      throw new Error('YouTube recording was cancelled. Allow tab/screen capture and choose the player tab to record.');
+    }
+    throw error;
+  }
+
+  const videoTracks = stream.getVideoTracks?.() || [];
+  const audioTracks = stream.getAudioTracks?.() || [];
+  if (!videoTracks.length || !audioTracks.length) {
+    stream.getTracks?.().forEach((track) => track.stop());
+    throw new Error('The selected capture has no video or tab audio. Choose a browser tab and enable Share tab audio.');
+  }
+
+  return {
+    stream,
+    cleanup: () => stream.getTracks?.().forEach((track) => track.stop()),
+  };
+}
+
+/**
+ * Generalised screen / tab capture that works for any source type.
+ * Uses `preferCurrentTab` (Chrome 109+) to automatically select the
+ * current tab, making the user experience smoother.
+ */
+export async function createScreenRecordingStream() {
+  const mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
+  if (typeof mediaDevices?.getDisplayMedia !== 'function') {
+    throw new Error('Recording requires browser tab/screen capture, which is not available in this browser.');
+  }
+
+  let stream;
+  try {
+    stream = await mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+      preferCurrentTab: true,
+    });
+  } catch (error) {
+    if (error?.name === 'NotAllowedError' || error?.name === 'AbortError') {
+      throw new Error('Recording was cancelled. Allow tab/screen capture and choose the player tab to record.');
+    }
+    throw error;
+  }
+
+  const videoTracks = stream.getVideoTracks?.() || [];
+  const audioTracks = stream.getAudioTracks?.() || [];
+  if (!videoTracks.length || !audioTracks.length) {
+    stream.getTracks?.().forEach((track) => track.stop());
+    throw new Error('The selected capture has no video or tab audio. Choose a browser tab and enable Share tab audio.');
+  }
+
+  return {
+    stream,
+    cleanup: () => stream.getTracks?.().forEach((track) => track.stop()),
   };
 }
 
