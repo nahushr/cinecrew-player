@@ -21,6 +21,7 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
     onPlaying,
     onLoad,
     onRecordingCreated,
+    onRecordingState,
     onSnapshot,
     ...otherProps
   } = props;
@@ -40,7 +41,10 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
 
     return {
       setNativeProps,
-      startRecording: (path) => dispatchCommand('startRecording', [path]),
+      startRecording: (path) => {
+        lastRecordingRef.current = null;
+        dispatchCommand('startRecording', [path]);
+      },
       stopRecording: () => dispatchCommand('stopRecording', []),
       stopPlayer: () => dispatchCommand('stopPlayer', []),
       snapshot: (path) => dispatchCommand('snapshot', [path]),
@@ -69,13 +73,14 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
   const handleRecordingState = useCallback(
     (event) => {
       const { isRecording, recordPath } = event.nativeEvent;
+      onRecordingState?.(event.nativeEvent);
       if (lastRecordingRef.current === recordPath) return;
       if (!isRecording && recordPath) {
         lastRecordingRef.current = recordPath;
         onRecordingCreated?.(recordPath);
       }
     },
-    [onRecordingCreated],
+    [onRecordingCreated, onRecordingState],
   );
   const handleSnapshot = useCallback(
     (event) => {

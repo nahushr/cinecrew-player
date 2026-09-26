@@ -26,6 +26,7 @@ import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
 import {
   USER_AGENT,
+  ASPECT_OPTIONS,
   calculateScreenAspectRatio,
   isSafariOrIOS,
   getWebPoint,
@@ -222,9 +223,9 @@ function PlatformMediaSurface(props) {
     volume, playbackRate, aspectRatio, title, posterUrl, isLive, isAudioOnly,
     selectedAudioTrack, handleTracksChanged, handleProgress, handleNativePlaying,
     handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
-    handleSeekByAction, handlePlaybackRoute, exoFallback, useExoForAndroidLocalMedia,
+    handleSeekByAction, handlePlaybackRoute, exoFallback,
     nativeSource, computedAspectRatio, handleNativeLoadStart,
-    handleNativeOpen, handleNativeBuffering,
+    handleNativeOpen, handleNativeBuffering, onRecordingCreated, recording,
   } = props;
   if (isElectron()) {
     return (
@@ -283,7 +284,7 @@ function PlatformMediaSurface(props) {
       />
     );
   }
-  if (VLC_AVAILABLE && !useExoForAndroidLocalMedia) {
+  if (VLC_AVAILABLE) {
     return (
       <VLCBoundary key={`vlcb-${playerStreamUrl}`} fallback={exoFallback}>
         <VLCPlayer
@@ -313,6 +314,8 @@ function PlatformMediaSurface(props) {
           onVLCBuffering={handleNativeBuffering}
           onError={handleWebError}
           onVLCError={handleWebError}
+          onRecordingCreated={onRecordingCreated}
+          onRecordingState={recording?.onNativeRecordingState}
         />
       </VLCBoundary>
     );
@@ -495,11 +498,20 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
   );
 }
 
-function FullscreenGestureLayer({ isAudioOnly, panResponder, handlers }) {
+function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecording, panResponder, handlers }) {
   if (isAudioOnly) return null;
   if (!isWeb() && panResponder) {
+    // Keep the full-screen gesture responder out of the hit-test tree while
+    // controls are visible. PanResponder can otherwise claim a touch before
+    // nested TouchableOpacity controls receive it on Android.
+    if (isRecording || (showControls && !isLocked)) return null;
     return (
-      <View collapsable={false} style={[StyleSheet.absoluteFill, styles.gestureCatcher]} {...panResponder.panHandlers} />
+      <View
+        collapsable={false}
+        style={[StyleSheet.absoluteFill, styles.gestureCatcher]}
+        pointerEvents={showControls ? 'none' : 'auto'}
+        {...panResponder.panHandlers}
+      />
     );
   }
   return (
@@ -533,6 +545,7 @@ function FullscreenControlsPanel(props) {
         episodeLabel={props.episodeLabel}
         isLive={props.isLive}
         isScreenRecorderEnabled={props.isScreenRecorderEnabled}
+        canRecord={props.canRecord}
         recStatus={props.recStatus}
         isLoading={props.isLoading}
         showLiveChat={props.showLiveChat}
@@ -673,7 +686,7 @@ function FullscreenChatLayer(props) {
 }
 
 function FullscreenRecordingLayer(props) {
-  const recordingEligible = props.isLive;
+  const recordingEligible = props.canRecord;
   return (
     <>
       {!props.isAudioOnly && recordingEligible && (props.isScreenRecorderEnabled || props.recStatus !== 'idle') ? (
@@ -942,6 +955,7 @@ export const MediaPlayerView = ({
   const isAudioOnlyFeatureEnabled = controls.audioOnly ?? true;
   const isScreenRecorderEnabled = controls.recording ?? Boolean(integrations.recording);
   const recording = integrations.recording;
+  const canRecord = isLive || recording?.supportsOnDemand === true;
   const [currentUser, setCurrentUser] = useState(integrations.user || { id: '0', username: 'Viewer' });
 
   const badgeService = useMemo(() => ({
@@ -1491,7 +1505,7 @@ export const MediaPlayerView = ({
 
   const handleStartRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
-    if (!isScreenRecorderEnabled || !isLive || recStatusRef.current !== 'idle') return;
+    if (!isScreenRecorderEnabled || !canRecord || recStatusRef.current !== 'idle') return;
     try {
       await recording?.start?.({
         getVideoElement: () => {
@@ -1501,6 +1515,7 @@ export const MediaPlayerView = ({
         },
         streamUrl: playbackUrl || streamUrl,
         title,
+        player: playerApiRef?.current || null,
       });
       if (muted) {
         showRecNotice({
@@ -1511,7 +1526,7 @@ export const MediaPlayerView = ({
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not start recording.' });
     }
-  }, [isLive, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording]);
+  }, [canRecord, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, playerApiRef]);
 
   const handlePauseRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
@@ -1945,12 +1960,29 @@ export const MediaPlayerView = ({
       back: handleBackAction,
       getVideoElement: () => vlcRef.current?.getVideoElement?.() || null,
       getAudioTracks: () => audioTracks,
+      startNativeRecording: (path) => {
+        if (typeof vlcRef.current?.startRecording !== 'function') return false;
+        vlcRef.current.startRecording(path);
+        return true;
+      },
+      stopNativeRecording: () => {
+        if (typeof vlcRef.current?.stopRecording !== 'function') return false;
+        vlcRef.current.stopRecording();
+        return true;
+      },
     };
     Object.assign(playerApiRef.current, api);
     return () => {
       for (const key of Object.keys(api)) delete playerApiRef.current[key];
     };
-  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleBackAction, audioTracks]);
+  }, [playerApiRef, togglePlayPause, handleRestart, toggleMute, handleSelectAspectRatio, handleAudioSelect, handleSeekTo, handleSeekBy, handleBackAction, audioTracks, vlcRef]);
+
+  const handleNativeRecordingCreated = useCallback((path) => {
+    recording?.onNativeRecordingCreated?.(path);
+  }, [recording]);
+  const handleNativeRecordingState = useCallback((state) => {
+    recording?.onNativeRecordingState?.(state);
+  }, [recording]);
 
   const handleSpeedSelect = useCallback((speed) => invokeAction(
     'onPlaybackRateChange', () => {
@@ -2037,9 +2069,13 @@ export const MediaPlayerView = ({
     };
 
     return PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => !isSeekScrubGesture(evt),
+      onStartShouldSetPanResponder: (evt) => (
+        !(showControlsRef.current && !isLockedRef.current)
+        && !isSeekScrubGesture(evt)
+      ),
       onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (showControlsRef.current && !isLockedRef.current) return false;
         if (isSeekScrubGesture(evt)) return false;
         return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
       },
@@ -2432,13 +2468,6 @@ export const MediaPlayerView = ({
     mediaOptions: nativeMediaOptions,
   }), [playerStreamUrl, nativeMediaOptions]);
 
-  // Android DownloadManager / local storage can expose downloads as
-  // content:// or file:// URIs. Media3/Expo (ExoPlayer) can consume both provider URIs
-  // and local filesystem URIs directly with full hardware acceleration;
-  // this VLC build's native local-string path cannot, so route local media to ExoVideoFallback.
-  const useExoForAndroidLocalMedia = isAndroid()
-    && isLocalMediaUri(playerStreamUrl);
-
   if (!visible || !streamUrl) return null;
 
   const exoFallback = (
@@ -2487,13 +2516,15 @@ export const MediaPlayerView = ({
       handleSeekByAction={handleSeekByAction}
       handlePlaybackRoute={handlePlaybackRoute}
       exoFallback={exoFallback}
-      useExoForAndroidLocalMedia={useExoForAndroidLocalMedia}
       nativeSource={nativeSource}
       computedAspectRatio={computedAspectRatio}
       handleNativeLoadStart={handleNativeLoadStart}
       handleNativeOpen={handleNativeOpen}
       handleClose={handleClose}
       handleNativeBuffering={handleNativeBuffering}
+      onRecordingCreated={handleNativeRecordingCreated}
+      onRecordingState={handleNativeRecordingState}
+      recording={recording}
     />
   );
   const isValidPreviewRect = isUsableInlinePreviewRect(inlinePreviewRect);
@@ -2561,6 +2592,7 @@ export const MediaPlayerView = ({
     episodeLabel,
     isLive,
     isScreenRecorderEnabled,
+    canRecord,
     recStatus,
     isLoading,
     showLiveChat,
@@ -2658,6 +2690,9 @@ export const MediaPlayerView = ({
       />
       <FullscreenGestureLayer
         isAudioOnly={isAudioOnly}
+        showControls={showControls}
+        isLocked={isLocked}
+        isRecording={recStatus === 'recording' || recStatus === 'paused'}
         panResponder={panResponder}
         handlers={{
           onPointerDown: handleWebPointerDown,
@@ -2672,7 +2707,11 @@ export const MediaPlayerView = ({
 
       {/* Controls Layer */}
       <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
-        <FullscreenControlsLayer showControls={showControls} isLocked={isLocked} isAudioOnly={isAudioOnly}>
+        <FullscreenControlsLayer
+          showControls={showControls}
+          isLocked={isLocked}
+          isAudioOnly={isAudioOnly}
+        >
           <FullscreenControlsPanel {...fullscreenControlsProps} />
         </FullscreenControlsLayer>
       </View>
@@ -2707,7 +2746,7 @@ export const MediaPlayerView = ({
       />
       <FullscreenRecordingLayer
         isAudioOnly={isAudioOnly}
-        isLive={isLive}
+        canRecord={canRecord}
         isScreenRecorderEnabled={isScreenRecorderEnabled}
         recStatus={recStatus}
         recElapsedMs={recElapsedMs}

@@ -157,15 +157,16 @@ The items below are planned for more consistent, user-facing support across plat
 
 [![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
 
-[Try the Android demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20Android&dependencies=%40cinecrew%2Fcinecrew-player%2Cexpo-document-picker&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=android&supportedPlatforms=android) · [Try the iOS demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20iOS&dependencies=%40cinecrew%2Fcinecrew-player%2Cexpo-document-picker&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=ios&supportedPlatforms=ios)
+[Try the Android demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20Android&sdkVersion=57.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40*%2Creact-native-svg%40*%2Creact-native-safe-area-context%40*%2C%40react-native-community%2Fslider%40*%2Cexpo-document-picker%40~57.0.2%2Cexpo-file-system%40~57.0.7%2Cexpo-sharing%40~57.0.22&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=android&supportedPlatforms=android) · [Try the iOS demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20iOS&sdkVersion=57.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40*%2Creact-native-svg%40*%2Creact-native-safe-area-context%40*%2C%40react-native-community%2Fslider%40*%2Cexpo-document-picker%40~57.0.2%2Cexpo-file-system%40~57.0.7%2Cexpo-sharing%40~57.0.22&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2Fmain%2Fexamples%2Fsnack%2FApp.js&platform=ios&supportedPlatforms=ios)
 
 ## Demos
 
 - **[React + Vite web demo](examples/web-demo)** — try HLS, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
 - **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
-- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — both platform links load a native playground (`.ts`, `.mp4`, `.mkv`, and local-file upload), with full-player and inline-player modes. Snack runs in Expo Go, which cannot load this package's custom VLC module; MPEG-TS and MKV playback should be tested in a native development build. [Expo documents this Expo Go limitation](https://docs.expo.dev/faq/#what-can-i-do-or-cannot-do-with-expo-go).
+- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — component-based platform previews include HLS, MPEG-TS, MP4, MKV, MOV, M4V, 3GP, FLV, OGV, WebM, and local-file selection. Snack runs in Expo Go, so these links verify the shared UI and Expo fallback only; Expo Go cannot load the custom VLC native module and cannot validate VLC playback or native VLC recording. [Expo documents this limitation](https://docs.expo.dev/workflow/customizing/#using-libraries-with-custom-native-code-in-development-builds).
+- **[Native Android/iOS development-build demo](examples/native-demo)** — modular Expo project that uses the bundled VLC module for direct streams and local files, with a VLC recording adapter and system share/save flow. It is the correct target for codec and native recording validation; build it with `npx expo run:android` or `npx expo run:ios` after `npm install`.
 
-The React/Vite demo is self-contained and installs the released `@cinecrew/cinecrew-player` package, so its StackBlitz link works from the `examples/web-demo` subdirectory. Its MPEG-TS button uses a small same-origin H.264/AAC fixture to exercise the TS parser without relying on an external server's CORS configuration. The Expo Web demo uses this repository's package source (`file:../..`) so contributors can test unreleased changes locally. Snack loads the native example from this repository's `main` branch and installs `@cinecrew/cinecrew-player` from npm. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. The Expo native entry bundles VLC into the same installed package. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
+The React/Vite demo is self-contained and installs the released `@cinecrew/cinecrew-player` package, so its StackBlitz link works from the `examples/web-demo` subdirectory. Its MPEG-TS button uses a small same-origin H.264/AAC fixture to exercise the TS parser without relying on an external server's CORS configuration. The Expo Web demo uses this repository's package source (`file:../..`) so contributors can test unreleased changes locally. Snack loads the one-file native playground from this repository's `main` branch, uses the root `@cinecrew/cinecrew-player` import, and declares the package's required peers. Refresh/reopen the Snack link after pushing code to load the current `main` source. Snack remains an Expo Go preview—not a VLC test. The modular native development demo links the local package source, prebuilds the custom VLC module, and is used for actual Android/iOS VLC tests. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
 
 Run either demo:
 
@@ -496,7 +497,7 @@ const playerRef = React.useRef(null);
 
 Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
 
-The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported.
+The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported. Native VLC builds additionally expose `startNativeRecording(path)` and `stopNativeRecording()` to an app-owned recording adapter; both return `false` when VLC is not attached (such as in Expo Go).
 
 ## Integrations
 
@@ -519,10 +520,12 @@ Integrations are optional. The package has no CineCrew account, database, or wor
       loadListings: ({ channelId, limit }) => api.getEpg(channelId, limit),
     },
     recording: {
-      start: ({ getVideoElement, streamUrl, title }) => recorder.start({ getVideoElement, streamUrl, title }),
+      supportsOnDemand: true,
+      start: ({ getVideoElement, streamUrl, title, player }) => recorder.start({ getVideoElement, streamUrl, title, player }),
       pause: () => recorder.pause(),
       resume: () => recorder.resume(),
       stop: () => recorder.stop(),
+      onNativeRecordingCreated: (path) => recorder.onNativeRecordingCreated(path),
       isActive: () => recorder.isActive(),
       subscribe: (listener) => recorder.subscribe(listener),
     },
@@ -540,7 +543,7 @@ The EPG drawer uses `integrations.epg.loadListings`, which returns entries with 
 
 ### Web recording
 
-On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. Native React Native apps need an `integrations.recording` implementation backed by Android MediaProjection or iOS ReplayKit (with the platform's permission flow).
+On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. Native React Native apps provide an `integrations.recording` adapter; with the bundled VLC module, the player ref exposes native recording start/stop commands and the adapter receives the finalized path through `onNativeRecordingCreated`. Set `supportsOnDemand: true` when that adapter supports recording non-live media. Platform file locations and the destination/share flow remain app-owned.
 
 For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation.
 

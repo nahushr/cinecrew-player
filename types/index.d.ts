@@ -62,6 +62,10 @@ export interface PlayerApi {
   closePanel(): void;
   getVideoElement(): unknown | null;
   getAudioTracks(): AudioTrack[];
+  /** Start a native VLC recording to a platform-specific path. Returns false when VLC is unavailable. */
+  startNativeRecording?(path: string): boolean;
+  /** Stop an active native VLC recording. Returns false when VLC is unavailable. */
+  stopNativeRecording?(): boolean;
   enterFullscreen?(): void | Promise<void>;
   exitFullscreen?(): void | Promise<void>;
 }
@@ -193,10 +197,14 @@ export interface PlayerIntegrations {
   };
   recording?: {
     /** Starts host-managed recording for the active direct media source. */
-    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string }) => Promise<unknown>;
+    start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string; player?: PlayerApi | null }) => Promise<unknown>;
     pause?: () => Promise<unknown>;
     resume?: () => Promise<unknown>;
     stop?: () => Promise<{ filename?: string } | unknown>;
+    /** Allow the recording control on on-demand media, not only live sources. */
+    supportsOnDemand?: boolean;
+    /** Receives the completed local path emitted by the native VLC recorder. */
+    onNativeRecordingCreated?: (recordingPath: string) => void;
     isActive?: () => boolean;
     subscribe?: (listener: (state: { status: string; elapsedMs: number }) => void) => (() => void) | void;
   };

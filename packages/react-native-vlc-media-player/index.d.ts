@@ -178,6 +178,17 @@ export type VLCPlayerCallbackProps = {
   onRecordingCreated?: (recordingPath: string) => void;
 
   /**
+   * Called with native VLC recording request/state events.
+   */
+  onRecordingState?: (event: {
+    operation?: 'start' | 'stop';
+    requestAccepted?: boolean;
+    isRecording: boolean;
+    recordPath?: string | null;
+    error?: string | null;
+  }) => void;
+
+  /**
    * Called when a new snapshot is created
    *
    * @param event - Event properties

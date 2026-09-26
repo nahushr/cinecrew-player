@@ -21,8 +21,8 @@ function BackButton({ visible, palette, scale, onClose }) {
   );
 }
 
-function RecordingControls({ isLive, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette }) {
-  if (!isLive || !enabled || controls.recording === false) return null;
+function RecordingControls({ canRecord, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette }) {
+  if (!canRecord || !enabled || controls.recording === false) return null;
   if (status === 'idle') {
     return (
       <TouchableOpacity style={[styles.pill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
@@ -95,6 +95,7 @@ export const PlayerTopBar = ({
   episodeLabel,
   isLive,
   isScreenRecorderEnabled,
+  canRecord,
   recStatus,
   isLoading,
   showLiveChat,
@@ -145,7 +146,7 @@ export const PlayerTopBar = ({
         <PlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
 
         <View style={styles.topRightActions}>
-          <RecordingControls isLive={isLive} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
+          <RecordingControls canRecord={canRecord ?? isLive} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
           <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} />
           <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} />
         </View>

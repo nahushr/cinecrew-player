@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "CineCrew Player Native",
+    "slug": "cinecrew-player-native-demo",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "@cinecrew/cinecrew-player",
+      ["expo-build-properties", { "android": { "minSdkVersion": 26 } }],
+      "expo-document-picker",
+      "expo-sharing"
+    ],
+    "android": {
+      "package": "com.cinecrew.player.vlcdemo",
+      "permissions": ["INTERNET"]
+    },
+    "ios": {
+      "bundleIdentifier": "com.cinecrew.player.vlcdemo",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    }
+  }
+}

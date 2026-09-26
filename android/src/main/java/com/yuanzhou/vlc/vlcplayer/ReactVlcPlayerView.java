@@ -810,19 +810,27 @@ class ReactVlcPlayerView extends TextureView
   }
 
   public void startRecording(String recordingPath) {
-    if (mMediaPlayer == null) {
-      return;
+    boolean accepted = mMediaPlayer != null && recordingPath != null && mMediaPlayer.record(recordingPath);
+    WritableMap map = Arguments.createMap();
+    map.putString("operation", "start");
+    map.putBoolean("requestAccepted", accepted);
+    map.putBoolean("isRecording", accepted);
+    if (!accepted) {
+      map.putString("error", "VLC rejected the recording request for this media source.");
     }
-    if (recordingPath != null) {
-      mMediaPlayer.record(recordingPath);
-    }
+    eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
 
   public void stopRecording() {
-    if (mMediaPlayer == null) {
-      return;
+    boolean accepted = mMediaPlayer != null && mMediaPlayer.record(null);
+    WritableMap map = Arguments.createMap();
+    map.putString("operation", "stop");
+    map.putBoolean("requestAccepted", accepted);
+    map.putBoolean("isRecording", !accepted);
+    if (!accepted) {
+      map.putString("error", "VLC rejected the request to stop recording.");
     }
-    mMediaPlayer.record(null);
+    eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
 
   public void stopPlayer() {

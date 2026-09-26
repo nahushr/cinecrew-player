@@ -462,18 +462,30 @@ static NSString *const playbackRate = @"rate";
 
 - (void)startRecording:(NSString*)path
 {
-    [_player startRecordingAtPath:path];
+    BOOL accepted = _player != nil && path != nil && [_player startRecordingAtPath:path];
     if (self.onRecordingState) {
         self.onRecordingState(@{
             @"target": self.reactTag,
-            @"isRecording": @YES
+            @"operation": @"start",
+            @"requestAccepted": @(accepted),
+            @"isRecording": @(accepted),
+            @"error": accepted ? (id)[NSNull null] : @"VLC rejected the recording request for this media source."
         });
     }
 }
 
 - (void)stopRecording
 {
-    [_player stopRecording];
+    BOOL accepted = _player != nil && [_player stopRecording];
+    if (!accepted && self.onRecordingState) {
+        self.onRecordingState(@{
+            @"target": self.reactTag,
+            @"operation": @"stop",
+            @"requestAccepted": @NO,
+            @"isRecording": @YES,
+            @"error": @"VLC rejected the request to stop recording."
+        });
+    }
 }
 
 - (void)stopPlayer

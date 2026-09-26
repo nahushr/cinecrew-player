@@ -93,7 +93,7 @@ export function LiveRecordingOverlay({
 
   return (
     <View
-      pointerEvents="box-none"
+      pointerEvents="auto"
       style={[styles.wrap, { top: Math.max(topInset, 10) }]}
     >
       <View
@@ -202,7 +202,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 80,
+    zIndex: 1000,
+    ...(isWeb() || isElectron() ? {} : { elevation: 1000 }),
     alignItems: 'center',
     pointerEvents: 'box-none',
   },
