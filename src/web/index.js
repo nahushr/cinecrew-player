@@ -1957,7 +1957,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     error,
     buffering,
     audioOnly,
-    hasVideo: !audioOnly,
+    // Audio-only mode hides the video surface; it does not change whether the source has video.
+    hasVideo: true,
     activePanel,
     webPanel,
     renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
