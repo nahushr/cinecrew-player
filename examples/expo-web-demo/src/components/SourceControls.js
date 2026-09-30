@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { sampleSources } from '../samples.js';
 import { ActionButton } from './ActionButton';
@@ -37,6 +37,48 @@ function LocalFileControls({ active, fileInputRef, onChooseFile, onClearFile }) 
           <ActionButton onPress={onClearFile} style={styles.clearButton}>Clear video file</ActionButton>
         </>
       ) : <Text style={styles.fileHint}>Local video playback is independent from URL loading.</Text>}
+    </View>
+  );
+}
+
+function DrawerLayoutPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const options = [
+    { value: 'overlay', label: 'Overlay video' },
+    { value: 'resize', label: 'Resize video' },
+  ];
+  const selectedLabel = options.find((option) => option.value === value)?.label || options[0].label;
+
+  return (
+    <View style={styles.pickerRoot}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Drawer layout: ${selectedLabel}`}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((isOpen) => !isOpen)}
+        style={styles.pickerButton}
+      >
+        <Text style={styles.pickerText}>{selectedLabel}</Text>
+        <Text style={styles.pickerChevron}>⌄</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.pickerMenu}>
+          {options.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: option.value === value }}
+              onPress={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              style={[styles.pickerOption, option.value === value && styles.pickerOptionSelected]}
+            >
+              <Text style={styles.pickerText}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -100,12 +142,7 @@ export function SourceControls({
         <ToggleRow label="Use compact inline player" value={inline} onChange={onInlineChange} />
         <View style={styles.drawerRow}>
           <Text style={styles.toggleLabel}>Drawer layout</Text>
-          <ActionButton active={drawerMode === 'overlay'} onPress={() => onDrawerModeChange('overlay')}>
-            Overlay video
-          </ActionButton>
-          <ActionButton active={drawerMode === 'resize'} onPress={() => onDrawerModeChange('resize')}>
-            Resize video
-          </ActionButton>
+          <DrawerLayoutPicker value={drawerMode} onChange={onDrawerModeChange} />
         </View>
       </View>
 
@@ -116,7 +153,7 @@ export function SourceControls({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 10, marginBottom: 16 },
+  card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 8, marginBottom: 16 },
   narrowCard: { padding: 12 },
   sampleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2, marginBottom: 4 },
   urlRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
@@ -134,6 +171,13 @@ const styles = StyleSheet.create({
   checkmark: { color: '#07111e', fontSize: 13, lineHeight: 16, fontWeight: '800' },
   toggleLabel: { color: '#f3f7fc', fontSize: 15 },
   drawerRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 44 },
+  pickerRoot: { position: 'relative', zIndex: 2 },
+  pickerButton: { minHeight: 36, minWidth: 124, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', paddingHorizontal: 10, paddingVertical: 7 },
+  pickerText: { color: '#edf6ff', fontSize: 14 },
+  pickerChevron: { color: '#a9bbcf', fontSize: 16, lineHeight: 18 },
+  pickerMenu: { position: 'absolute', top: 40, left: 0, minWidth: 160, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', padding: 4, zIndex: 20, elevation: 8 },
+  pickerOption: { minHeight: 36, justifyContent: 'center', borderRadius: 5, paddingHorizontal: 9 },
+  pickerOptionSelected: { backgroundColor: '#12243a' },
   status: { color: '#a9bbcf', fontSize: 13, lineHeight: 19, marginTop: 1 },
   progress: { color: '#16c7d9', fontSize: 12, fontVariant: ['tabular-nums'], marginTop: -8 },
 });

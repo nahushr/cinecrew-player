@@ -84,7 +84,7 @@ export default function App() {
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding }]}
+        contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.pageHeader}>
