@@ -5,6 +5,9 @@
     "version": "1.0.0",
     "web": {
       "bundler": "metro"
+    },
+    "android": {
+      "package": "com.nahushr.cinecrewplayernativedemo"
     }
   }
 }
