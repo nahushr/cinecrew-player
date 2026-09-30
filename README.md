@@ -26,7 +26,7 @@
 |:---:|:---:|
 | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev) | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo?startScript=web) 
 | Android | iOS |
-| [![Open Expo Snack for Android](https://img.shields.io/badge/Expo%20Snack-Android-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/8pchr0-lU1eILnrM9ToN9?platform=android&preview=true) | [![Open Expo Snack for iOS](https://img.shields.io/badge/Expo%20Snack-iOS-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/8pchr0-lU1eILnrM9ToN9?platform=ios&preview=true) |
+| [![Open Expo Snack for Android](https://img.shields.io/badge/Expo%20Snack-Android-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/U-Ku7zn_81sE9J7s2rHDl?platform=android&preview=true) | [![Open Expo Snack for iOS](https://img.shields.io/badge/Expo%20Snack-iOS-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/U-Ku7zn_81sE9J7s2rHDl?platform=ios&preview=true) |
 
 <p align="center"><a href="#install">Install</a> · <a href="#feature-portfolio">Features</a> · <a href="#platform--playback-matrix">Platforms</a> · <a href="#props">API reference</a> · <a href="#roadmap">Roadmap</a></p>
 
