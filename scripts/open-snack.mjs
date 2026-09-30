@@ -2,15 +2,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { Snack } from 'snack-sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const demoDir = path.resolve(rootDir, 'examples/native-demo');
 
-export function getSnackUrl({ platform = 'web', supportedPlatforms = 'my-device,web,android,ios' } = {}) {
-  const filesObj = {};
+// Permanent saved Snack ID on Expo Snack servers
+export const SNACK_ID = 'lxG_JAc3-N-58QxG0Pxfg';
 
+export function getSavedSnackUrl({ platform = 'web', preview = true } = {}) {
+  const url = new URL(`https://snack.expo.dev/${SNACK_ID}`);
+  if (platform) url.searchParams.set('platform', platform);
+  if (preview) url.searchParams.set('preview', 'true');
+  return url.toString();
+}
+
+export async function saveSnackAsync() {
+  const files = {};
   function walk(dir, rel = '') {
     for (const item of fs.readdirSync(dir)) {
       if (
@@ -19,11 +29,7 @@ export function getSnackUrl({ platform = 'web', supportedPlatforms = 'my-device,
         item === 'package-lock.json' ||
         item === 'README.md' ||
         item === 'metro.config.js' ||
-        item === 'tsconfig.json' ||
-        item === 'dist' ||
-        item === 'dist-web' ||
-        item === 'dist-android' ||
-        item === 'dist-ios'
+        item === 'tsconfig.json'
       ) {
         continue;
       }
@@ -32,9 +38,9 @@ export function getSnackUrl({ platform = 'web', supportedPlatforms = 'my-device,
       if (fs.statSync(full).isDirectory()) {
         walk(full, r);
       } else {
-        filesObj[r] = {
+        files[r] = {
           type: 'CODE',
-          url: `https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/native-demo/${r}`,
+          contents: fs.readFileSync(full, 'utf8'),
         };
       }
     }
@@ -42,29 +48,24 @@ export function getSnackUrl({ platform = 'web', supportedPlatforms = 'my-device,
 
   walk(demoDir);
 
-  const dependencies = [
-    '@cinecrew/cinecrew-player@latest',
-    '@mediabunny/ac3@^1.59.0',
-    'dashjs@^5.2.1',
-    'flv.js@^1.6.2',
-    'hls.js@^1.7.3',
-    'mediabunny@^1.59.0',
-    'react-native-safe-area-context@~5.7.0',
-  ].join(',');
+  const snack = new Snack({
+    name: 'CineCrew Player Demo',
+    description: 'Cross-platform video player playground for React Native & Expo',
+    sdkVersion: '54.0.0',
+    files,
+    dependencies: {
+      '@cinecrew/cinecrew-player': { version: '^0.1.29' },
+      '@mediabunny/ac3': { version: '^1.59.0' },
+      dashjs: { version: '^5.2.1' },
+      'flv.js': { version: '^1.6.2' },
+      'hls.js': { version: '^1.7.3' },
+      mediabunny: { version: '^1.59.0' },
+      'react-native-safe-area-context': { version: '~5.6.0' },
+    },
+  });
 
-  const url = new URL('https://snack.expo.dev/');
-  url.searchParams.set('name', 'CineCrew Player Demo');
-  url.searchParams.set('description', 'Cross-platform video player playground for React Native & Expo');
-  url.searchParams.set('sdkVersion', '57.0.0');
-  url.searchParams.set('dependencies', dependencies);
-  url.searchParams.set('files', JSON.stringify(filesObj));
-  url.searchParams.set('preview', 'true');
-  url.searchParams.set('platform', platform);
-  if (supportedPlatforms) {
-    url.searchParams.set('supportedPlatforms', supportedPlatforms);
-  }
-
-  return url.toString();
+  const res = await snack.saveAsync();
+  return { id: res.id, url: `https://snack.expo.dev/${res.id}` };
 }
 
 function openInBrowser(url) {
@@ -87,20 +88,31 @@ const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === path.re
 
 if (isDirectRun) {
   const shouldOpen = !process.argv.includes('--no-open');
+  const shouldSave = process.argv.includes('--save');
   const targetPlatform = process.argv.includes('--android')
     ? 'android'
     : process.argv.includes('--ios')
     ? 'ios'
     : 'web';
 
-  const snackUrl = getSnackUrl({ platform: targetPlatform });
-  console.log('\n================ EXPO SNACK ONE-CLICK LAUNCHER ================');
-  console.log('Project:', 'examples/native-demo');
-  console.log('Target Platform:', targetPlatform);
-  console.log('Snack URL:\n' + snackUrl);
-  console.log('===============================================================\n');
+  (async () => {
+    let snackUrl = getSavedSnackUrl({ platform: targetPlatform });
+    if (shouldSave) {
+      console.log('Uploading updated demo files to Expo Snack...');
+      const saved = await saveSnackAsync();
+      snackUrl = `${saved.url}?platform=${targetPlatform}&preview=true`;
+      console.log('Saved new Snack ID:', saved.id);
+    }
 
-  if (shouldOpen) {
-    openInBrowser(snackUrl);
-  }
+    console.log('\n================ EXPO SNACK ONE-CLICK LAUNCHER ================');
+    console.log('Project: examples/native-demo');
+    console.log('Snack ID:', SNACK_ID);
+    console.log('Target Platform:', targetPlatform);
+    console.log('Snack URL:\n' + snackUrl);
+    console.log('===============================================================\n');
+
+    if (shouldOpen) {
+      openInBrowser(snackUrl);
+    }
+  })();
 }
