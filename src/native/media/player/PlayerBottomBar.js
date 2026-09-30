@@ -1,6 +1,5 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { isWeb, isElectron } from '../../../utils/runtimePlatform';
 import { ASPECT_OPTIONS, PLAYBACK_SPEEDS, formatTime } from './playerConstants';
 import { PlayerIcon, usePlayerColors } from '../../customization';
 

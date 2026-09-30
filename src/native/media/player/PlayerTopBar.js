@@ -56,12 +56,26 @@ function LiveServiceControls({ isLive, controls, showLiveChat, drawerTab, showCh
   return <>{renderServiceButton('liveChat', 'chat', showChat, 'comment-text-multiple')}{renderServiceButton('epg', 'epg', showEpg, 'television-guide')}{renderServiceButton('diagnostics', 'diagnostics', showDiagnostics, 'pulse')}</>;
 }
 
+function SessionActionButton({ visible, compact, onPress, icon, color, accessibilityLabel }) {
+  if (!visible) return null;
+  return (
+    <TouchableOpacity
+      style={[styles.pill, compact && styles.compactPill]}
+      onPress={(event) => { event.stopPropagation(); onPress(); }}
+      hitSlop={12}
+      accessibilityLabel={accessibilityLabel}
+    >
+      <PlayerIcon name={icon} size={compact ? 18 : 20} color={color} />
+    </TouchableOpacity>
+  );
+}
+
 function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, onLock, palette, compact }) {
   return (
     <>
-      {!isLive && controls.restart !== false ? <TouchableOpacity style={[styles.pill, compact && styles.compactPill]} onPress={(event) => { event.stopPropagation(); onRestart(); }} hitSlop={12}><PlayerIcon name="restart" size={compact ? 18 : 20} color={palette.controlColor} /></TouchableOpacity> : null}
-      {controls.mute !== false ? <TouchableOpacity style={[styles.pill, compact && styles.compactPill]} onPress={(event) => { event.stopPropagation(); onMute(); }} hitSlop={12}><PlayerIcon name={muted ? 'mute' : 'unmute'} size={compact ? 18 : 20} color={muted ? palette.errorColor : palette.controlColor} /></TouchableOpacity> : null}
-      {controls.lock !== false ? <TouchableOpacity style={[styles.pill, compact && styles.compactPill]} onPress={(event) => { event.stopPropagation(); onLock(); }} hitSlop={12}><PlayerIcon name="lock-open-variant" size={compact ? 18 : 20} color={palette.controlColor} /></TouchableOpacity> : null}
+      <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" />
+      <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} />
+      <SessionActionButton visible={controls.lock !== false} compact={compact} onPress={onLock} icon="lock-open-variant" color={palette.controlColor} accessibilityLabel="Lock player controls" />
     </>
   );
 }

@@ -176,8 +176,7 @@ async function createWindow() {
     },
   });
 
-  if (app.isPackaged) await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
-  else await mainWindow.loadURL('http://127.0.0.1:5180');
+  await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 
   if (!app.isPackaged) {
     mainWindow.webContents.on('console-message', (details) => {
