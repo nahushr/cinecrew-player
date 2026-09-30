@@ -10,7 +10,7 @@ const rootDir = path.resolve(__dirname, '..');
 const demoDir = path.resolve(rootDir, 'examples/native-demo');
 
 // Permanent saved Snack ID on Expo Snack servers
-export const SNACK_ID = 'lxG_JAc3-N-58QxG0Pxfg';
+export const SNACK_ID = 'h52VJ4_8y_WkWk2kpMjNy';
 
 export function getSavedSnackUrl({ platform = 'web', preview = true } = {}) {
   const url = new URL(`https://snack.expo.dev/${SNACK_ID}`);
@@ -48,20 +48,21 @@ export async function saveSnackAsync() {
 
   walk(demoDir);
 
+  const pkg = JSON.parse(fs.readFileSync(path.join(demoDir, 'package.json'), 'utf8'));
+  const dependencies = {};
+  for (const [name, version] of Object.entries(pkg.dependencies || {})) {
+    if (name === 'expo' || name === 'react' || name === 'react-dom' || name === 'react-native' || name === 'react-native-web') {
+      continue;
+    }
+    dependencies[name] = { version };
+  }
+
   const snack = new Snack({
     name: 'CineCrew Player Demo',
     description: 'Cross-platform video player playground for React Native & Expo',
     sdkVersion: '54.0.0',
     files,
-    dependencies: {
-      '@cinecrew/cinecrew-player': { version: '^0.1.29' },
-      '@mediabunny/ac3': { version: '^1.59.0' },
-      dashjs: { version: '^5.2.1' },
-      'flv.js': { version: '^1.6.2' },
-      'hls.js': { version: '^1.7.3' },
-      mediabunny: { version: '^1.59.0' },
-      'react-native-safe-area-context': { version: '~5.6.0' },
-    },
+    dependencies,
   });
 
   const res = await snack.saveAsync();

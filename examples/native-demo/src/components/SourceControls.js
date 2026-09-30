@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { sampleSources } from '../samples.js';
-import { ActionButton } from './ActionButton';
+import { ActionButton } from './ActionButton.js';
 
 function ToggleRow({ label, value, onChange }) {
   return (
