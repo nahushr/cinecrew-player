@@ -25,4 +25,4 @@ npm run ios      # Run on iOS
 - **Multi-format Playback:** HLS (.m3u8), MPEG-DASH (.mpd), MP4, WebM, MKV, MPEG-TS (.ts), FLV, and OGV.
 - **Custom URL Input & Local File Picker:** Play any custom stream or local video.
 - **Interactive Player Controls:** Play/pause, seek bar, audio track switching, aspect ratio, audio-only mode, and diagnostics overlay.
-- **Service Integrations:** Live chat drawer (overlay/resize modes) and electronic program guide (EPG).
+- **Service Integrations:** Live chat drawer and EPG; overlay opens from the right, resize places video beside the drawer, and modal opens as a web dialog or native/Electron bottom sheet.

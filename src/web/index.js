@@ -733,15 +733,25 @@ function WebPlayerLayout(props) {
   }
   let panelNode = null;
   if (props.activePanel && props.webPanel) {
-    panelNode = h('aside', {
-      className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}`,
+    const panel = h('aside', {
+      className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}${props.drawerMode === 'modal' ? ' is-modal' : ''}`,
       style: { color: props.theme.controlColor, ...props.drawerStyle },
+      role: props.drawerMode === 'modal' ? 'dialog' : undefined,
+      'aria-modal': props.drawerMode === 'modal' ? 'true' : undefined,
       'aria-label': getDrawerLabel(props.activePanel),
+      onClick: props.drawerMode === 'modal' ? (event) => event.stopPropagation() : undefined,
     }, props.webPanel);
+    panelNode = props.drawerMode === 'modal'
+      ? h('div', {
+        className: 'cinecrew-player__modal-backdrop',
+        role: 'presentation',
+        onClick: props.onClosePanel,
+      }, panel)
+      : panel;
   }
   return h('div', {
     ref: props.playerRef,
-    className: `cinecrew-player${props.audioOnly ? ' cinecrew-player--audio-mode' : ''}${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''} ${props.className}`.trim(),
+    className: `cinecrew-player${props.audioOnly ? ' cinecrew-player--audio-mode' : ''}${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''}${props.drawerMode === 'modal' && props.activePanel ? ' cinecrew-player--drawer-modal' : ''} ${props.className}`.trim(),
     style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '64%' },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
@@ -1987,6 +1997,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     // Audio-only mode hides the video surface; it does not change whether the source has video.
     hasVideo: true,
     activePanel,
+    onClosePanel: () => setActivePanel(null),
     webPanel,
     renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
     onSwitchToVideo: () => setAudioOnlyMode(false),

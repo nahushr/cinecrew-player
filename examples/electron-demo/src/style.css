@@ -22,3 +22,19 @@ body {
 * {
   box-sizing: border-box;
 }
+
+html.cinecrew-electron-overlay,
+html.cinecrew-electron-overlay body,
+html.cinecrew-electron-overlay #root {
+  background: transparent !important;
+}
+
+#cinecrew-electron-vlc-stage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  background: #000;
+}

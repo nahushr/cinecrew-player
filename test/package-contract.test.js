@@ -63,6 +63,32 @@ test('published package metadata and export targets are complete', () => {
   assert.doesNotMatch(readme, /proxyUrlAvailable|webPlaybackError|WEB_NO_PROXY/);
 });
 
+test('drawer modes map to right overlay, resized video, and platform modal layouts', () => {
+  const nativeDrawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
+  const nativePlayer = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const webPlayer = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
+
+  assert.match(declarations, /PlayerDrawerMode = 'overlay' \| 'resize' \| 'modal'/);
+  assert.match(nativeDrawer, /drawerMode === 'modal' && !isWeb\(\)/);
+  assert.match(nativeDrawer, /drawerMode === 'modal' && isWeb\(\)/);
+  assert.match(nativeDrawer, /drawerMode === 'resize' && !popupMode/);
+  assert.match(nativeDrawer, /drawerLandscape: \{[\s\S]*?right: 0/);
+  assert.match(nativeDrawer, /bottomModalDrawer: \{/);
+  assert.match(nativePlayer, /drawerMode === 'resize' && showLiveChat/);
+  assert.match(webPlayer, /cinecrew-player__modal-backdrop/);
+  assert.match(webPlayer, /aria-modal/);
+  assert.match(webStyles, /\.cinecrew-player__panel\.is-modal/);
+
+  for (const demoFile of [
+    'examples/web-demo/src/components/SourceControls.jsx',
+    'examples/expo-web-demo/src/components/SourceControls.js',
+    'examples/native-demo/src/components/SourceControls.js',
+  ]) {
+    assert.match(readFileSync(path.join(root, demoFile), 'utf8'), /value: 'modal'|value="modal"/);
+  }
+});
+
 test('native VLC implementation is bundled inside the single player package', () => {
   assert.ok(manifest.files.includes('android/'));
   assert.ok(manifest.files.includes('packages/react-native-vlc-media-player/ios/RCTVLCPlayer/'));

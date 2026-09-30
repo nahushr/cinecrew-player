@@ -41,7 +41,7 @@ export interface PlayerControls {
   seek?: boolean;
 }
 
-export type PlayerDrawerMode = 'overlay' | 'resize';
+export type PlayerDrawerMode = 'overlay' | 'resize' | 'modal';
 
 export interface PlayerApi {
   play(): void;

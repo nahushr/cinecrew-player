@@ -61,6 +61,7 @@ export function SourceControls({
             <select aria-label="Drawer layout" value={drawerMode} onChange={(event) => onDrawerModeChange(event.target.value)}>
               <option value="overlay">Overlay video</option>
               <option value="resize">Resize video</option>
+              <option value="modal">Modal</option>
             </select>
           </label>
         </div>

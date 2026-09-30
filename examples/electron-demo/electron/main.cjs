@@ -2,15 +2,45 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 
 let mainWindow;
+let controlsWindow;
 let vlcPlayer;
 let playerWindowId;
 let progressTimer;
 let playerModulePromise;
 
 const sendPlayerEvent = (type, values = {}) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('cinecrew:vlc:event', { type, ...values });
+  const target = controlsWindow && !controlsWindow.isDestroyed() ? controlsWindow : mainWindow;
+  if (!target || target.isDestroyed()) return;
+  target.webContents.send('cinecrew:vlc:event', { type, ...values });
 };
+
+function normalizeContainerRect(rect = {}) {
+  const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return {
+    x: numberOr(rect.x, 0),
+    y: numberOr(rect.y, 0),
+    width: Math.max(1, numberOr(rect.width, 1)),
+    height: Math.max(1, numberOr(rect.height, 1)),
+  };
+}
+
+async function setHostStageBounds(rect) {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+  const bounds = normalizeContainerRect(rect);
+  const css = `position:fixed;left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px;overflow:hidden;background:#000;`;
+  await mainWindow.webContents.executeJavaScript(`(() => {
+    const stage = document.getElementById('cinecrew-electron-vlc-stage');
+    if (!stage) return false;
+    stage.style.cssText = ${JSON.stringify(css)};
+    const rect = stage.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  })()`);
+}
+
+function syncControlsWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed() || !controlsWindow || controlsWindow.isDestroyed()) return;
+  controlsWindow.setBounds(mainWindow.getContentBounds());
+}
 
 function resolveVlcDir() {
   if (process.env.CINECREW_VLC_DIR) return process.env.CINECREW_VLC_DIR;
@@ -72,24 +102,25 @@ async function loadVlcModule() {
 }
 
 async function mountPlayer(event) {
-  if (vlcPlayer && playerWindowId === event.sender.id && !vlcPlayer.destroyed) {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The LibVLC surface host is not ready.');
+  await setHostStageBounds(event.args?.containerRect);
+  if (vlcPlayer && playerWindowId === mainWindow.webContents.id && !vlcPlayer.destroyed) {
     await vlcPlayer.embed();
+    vlcPlayer.notifyLayoutChange();
     return { ok: true };
   }
   if (vlcPlayer) await unmountPlayer();
 
   const { VlcPlayer } = await loadVlcModule();
-  const hostWindow = BrowserWindow.fromWebContents(event.sender);
-  if (!hostWindow) throw new Error('Could not find the Electron window for the VLC renderer.');
   vlcPlayer = new VlcPlayer({
-    window: hostWindow,
+    window: mainWindow,
     container: '#cinecrew-electron-vlc-stage',
     vlcDir: resolveVlcDir(),
     controls: false,
     pageFullscreenButton: false,
     hardwareAcceleration: process.platform === 'darwin' ? 'videotoolbox' : 'd3d11va',
   });
-  playerWindowId = event.sender.id;
+  playerWindowId = mainWindow.webContents.id;
   await vlcPlayer.embed();
   bindPlayerEvents();
   return { ok: true };
@@ -107,7 +138,7 @@ async function unmountPlayer() {
 }
 
 function registerIpc() {
-  ipcMain.handle('cinecrew:vlc:mount', mountPlayer);
+  ipcMain.handle('cinecrew:vlc:mount', (event, payload = {}) => mountPlayer({ sender: event.sender, args: payload }));
   ipcMain.handle('cinecrew:vlc:unmount', unmountPlayer);
   ipcMain.handle('cinecrew:vlc:load', async (_event, payload = {}) => {
     if (!vlcPlayer?.isEmbedded()) throw new Error('LibVLC is not mounted yet.');
@@ -157,7 +188,11 @@ function registerIpc() {
     if (vlcPlayer?.isEmbedded()) vlcPlayer.setTime(Math.max(0, Number(time) || 0));
     return { ok: true };
   });
-  ipcMain.on('cinecrew:vlc:layout', () => vlcPlayer?.notifyLayoutChange());
+  ipcMain.on('cinecrew:vlc:layout', (_event, rect) => {
+    void setHostStageBounds(rect).then(() => vlcPlayer?.notifyLayoutChange()).catch((error) => {
+      sendPlayerEvent('error', { message: error?.message || 'Could not update the LibVLC video layout.' });
+    });
+  });
 }
 
 async function createWindow() {
@@ -167,6 +202,7 @@ async function createWindow() {
     minWidth: 760,
     minHeight: 560,
     backgroundColor: '#07111e',
+    show: false,
     title: 'CineCrew Player · Electron LibVLC Demo',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -176,18 +212,73 @@ async function createWindow() {
     },
   });
 
-  await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
+    query: { electronSurfaceHost: '1' },
+  });
+
+  controlsWindow = new BrowserWindow({
+    ...mainWindow.getContentBounds(),
+    parent: mainWindow,
+    modal: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false,
+    focusable: true,
+    ...(process.platform === 'darwin' ? { acceptFirstMouse: true } : {}),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      additionalArguments: ['--cinecrew-electron-overlay'],
+    },
+  });
+  await controlsWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
+    query: { electronOverlay: '1' },
+  });
+  syncControlsWindowBounds();
+  mainWindow.show();
+  controlsWindow.showInactive();
+
+  const syncOverlay = () => setTimeout(syncControlsWindowBounds, 0);
+  for (const eventName of ['move', 'resize', 'enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize']) {
+    mainWindow.on(eventName, syncOverlay);
+  }
+  mainWindow.on('focus', () => {
+    if (controlsWindow && !controlsWindow.isDestroyed() && !controlsWindow.isVisible()) {
+      controlsWindow.showInactive();
+    }
+    syncControlsWindowBounds();
+  });
+  mainWindow.on('minimize', () => controlsWindow?.hide());
+  mainWindow.on('restore', () => {
+    syncControlsWindowBounds();
+    controlsWindow?.showInactive();
+  });
 
   if (!app.isPackaged) {
-    mainWindow.webContents.on('console-message', (details) => {
-      console.error('[renderer console]', details);
+    mainWindow.webContents.on('console-message', (_event, _level, message) => {
+      console.error('[renderer console]', message);
     });
     mainWindow.webContents.on('render-process-gone', (_event, details) => {
       console.error('[renderer] process exited:', details.reason, details.exitCode);
     });
   }
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  controlsWindow.on('closed', () => { controlsWindow = null; });
+  mainWindow.on('closed', () => {
+    controlsWindow?.close();
+    controlsWindow = null;
+    mainWindow = null;
+  });
 }
 
 app.whenReady().then(async () => {

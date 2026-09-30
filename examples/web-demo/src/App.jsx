@@ -113,7 +113,7 @@ export default function App() {
         />
       </section>
 
-      <p className="footnote">The chat drawer contains 15 sample messages; the demo requests 5 per page to exercise automatic loading when you scroll to the top. Production defaults to 50. Choose overlay or resized-video drawer layout above. Audio-track selection is demonstrated with Test 1 and Test 2.</p>
+      <p className="footnote">The chat drawer contains 15 sample messages; the demo requests 5 per page to exercise automatic loading when you scroll to the top. Production defaults to 50. Overlay opens from the right, resize places video beside the drawer, and modal opens centered. Audio-track selection is demonstrated with Test 1 and Test 2.</p>
       <ToastViewport toast={toast} onDismiss={() => setToast(null)} />
     </main>
   );

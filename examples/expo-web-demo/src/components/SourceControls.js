@@ -46,6 +46,7 @@ function DrawerLayoutPicker({ value, onChange }) {
   const options = [
     { value: 'overlay', label: 'Overlay video' },
     { value: 'resize', label: 'Resize video' },
+    { value: 'modal', label: 'Modal' },
   ];
   const selectedLabel = options.find((option) => option.value === value)?.label || options[0].label;
 

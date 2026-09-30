@@ -13,6 +13,10 @@ export default function App() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const isElectronDemo = Platform.OS === 'web' && Boolean(window.cinecrewRuntime?.isElectron);
+  const isElectronOverlay = isElectronDemo && (
+    window.cinecrewRuntime?.isElectronOverlay === true
+    || new URLSearchParams(window.location.search).has('electronOverlay')
+  );
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
@@ -122,7 +126,10 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.screen} edges={['top', 'right', 'bottom', 'left']}>
+      <SafeAreaView
+        style={[styles.screen, isElectronOverlay && styles.electronOverlayScreen]}
+        edges={['top', 'right', 'bottom', 'left']}
+      >
       <ScrollView
         ref={scrollViewRef}
         style={styles.scroll}
@@ -159,7 +166,11 @@ export default function App() {
         />
 
         <View
-          style={[styles.playerCard, isLandscape && styles.landscapePlayerCard]}
+          style={[
+            styles.playerCard,
+            isLandscape && styles.landscapePlayerCard,
+            isElectronOverlay && styles.electronOverlayPlayerCard,
+          ]}
           accessibilityLabel="Video player"
           onLayout={handlePlayerCardLayout}
         >
@@ -179,7 +190,7 @@ export default function App() {
 
         <Text style={styles.footnote}>
           The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
-          Choose overlay or resized-video drawer layout above. Audio-track selection is demonstrated
+          Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
           with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
         </Text>
       </ScrollView>
@@ -191,6 +202,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
+  electronOverlayScreen: { backgroundColor: 'transparent' },
   scroll: { flex: 1, minHeight: 0 },
   content: { width: '100%', maxWidth: 1060, alignSelf: 'center', paddingTop: 32, paddingBottom: 56 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 },
@@ -199,6 +211,7 @@ const styles = StyleSheet.create({
   platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
   playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
+  electronOverlayPlayerCard: { backgroundColor: 'transparent' },
   landscapePlayerCard: { minHeight: 0 },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

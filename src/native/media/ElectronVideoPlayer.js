@@ -1,7 +1,25 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { isElectronOverlay } from '../../utils/runtimePlatform';
 
 const PLAYER_STAGE_ID = 'cinecrew-electron-vlc-stage';
+
+function getStageBounds(stage) {
+  if (!stage?.getBoundingClientRect) return { x: 0, y: 0, width: 1, height: 1 };
+  const rect = stage.getBoundingClientRect();
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function getPlayerBounds(stage, getContainerBounds) {
+  const bounds = getContainerBounds?.();
+  if (bounds && bounds.width > 1 && bounds.height > 1) return bounds;
+  return getStageBounds(stage);
+}
 
 async function unmountBundledVlc(ipc) {
   try {
@@ -24,6 +42,7 @@ function getElectronIpcRenderer() {
 
 export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   streamUrl,
+  getContainerBounds,
   paused,
   muted,
   volume = 100,
@@ -48,6 +67,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   const sourceRef = useRef('');
   const tracksRef = useRef([]);
   const stageRef = useRef(null);
+  const isOverlayWindow = isElectronOverlay();
 
   latestPropsRef.current = {
     onProgress,
@@ -140,7 +160,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       if (layoutFrame !== null) return;
       layoutFrame = requestAnimationFrame(() => {
         layoutFrame = null;
-        ipc.send('cinecrew:vlc:layout');
+        ipc.send('cinecrew:vlc:layout', getPlayerBounds(stageRef.current, getContainerBounds));
       });
     };
 
@@ -148,6 +168,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     ipc.on('cinecrew:vlc:event', handleNativeEvent);
     const mountPromise = ipc.invoke('cinecrew:vlc:mount', {
       container: `#${PLAYER_STAGE_ID}`,
+      containerRect: getPlayerBounds(stageRef.current, getContainerBounds),
     }).then((result) => {
       if (!result?.ok) throw new Error(result?.error || 'Could not initialize CineCrew’s bundled VLC player.');
       if (disposed) void unmountBundledVlc(ipc);
@@ -282,17 +303,18 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       nativeID={PLAYER_STAGE_ID}
       collapsable={false}
       pointerEvents="none"
-      style={styles.stage}
+      style={[styles.stage, isOverlayWindow && styles.transparentStage]}
     />
   );
 });
 
 const styles = StyleSheet.create({
   stage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000',
     overflow: 'hidden',
+  },
+  transparentStage: {
+    backgroundColor: 'transparent',
   },
 });

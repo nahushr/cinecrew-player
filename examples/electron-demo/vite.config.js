@@ -7,10 +7,11 @@ import react from '@vitejs/plugin-react';
 
 const demoDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(demoDir, '../..');
-const useWorkspacePlayer = process.env.CINECREW_USE_WORKSPACE === '1';
-
 export default defineConfig({
   root: demoDir,
+  // React Native libraries (including the player's icon sets) expect Metro's
+  // development flag to exist as a compile-time global.
+  define: { __DEV__: 'false' },
   // The packaged app loads its renderer from file:// rather than an HTTP host.
   // Relative asset URLs keep Vite's bundles resolvable inside the DMG.
   base: './',
@@ -22,9 +23,8 @@ export default defineConfig({
         if (!/\.js(?:\?.*)?$/.test(id)) return null;
         const sharedDemoSource = !id.includes('/node_modules/')
           && (id.startsWith(repoRoot) || id.includes('/examples/native-demo/'));
-        const playerPackageSource = id.includes('/node_modules/@cinecrew/cinecrew-player/');
         const iconSource = /\/node_modules\/(?:@expo\/vector-icons|react-native-vector-icons)\//.test(id);
-        if (!sharedDemoSource && !playerPackageSource && !iconSource) return null;
+        if (!sharedDemoSource && !iconSource) return null;
         const result = await transformAsync(code, {
           filename: id,
           babelrc: false,
@@ -45,10 +45,6 @@ export default defineConfig({
         replacement: path.join(demoDir, 'src/shims/expo-font.js'),
       },
       {
-        find: /^@expo\/vector-icons$/,
-        replacement: path.join(demoDir, 'src/shims/vector-icons.jsx'),
-      },
-      {
         find: /^@react-native-community\/slider$/,
         replacement: path.join(demoDir, 'src/shims/slider.jsx'),
       },
@@ -66,9 +62,7 @@ export default defineConfig({
       },
       {
         find: /^@cinecrew\/cinecrew-player$/,
-        replacement: useWorkspacePlayer
-          ? path.join(repoRoot, 'src/native/index.js')
-          : '@cinecrew/cinecrew-player/native',
+        replacement: path.join(repoRoot, 'src/native/index.js'),
       },
       {
         find: /^react-native$/,

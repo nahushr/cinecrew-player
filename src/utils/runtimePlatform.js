@@ -6,6 +6,12 @@ export function isElectron() {
   return Boolean(window.cinecrewRuntime?.isElectron || window.process?.versions?.electron);
 }
 
+export function isElectronOverlay() {
+  if (!isElectron()) return false;
+  return window.cinecrewRuntime?.isElectronOverlay === true
+    || new URLSearchParams(window.location.search).has('electronOverlay');
+}
+
 export function isWeb() {
   return Platform.OS === 'web' && !isElectron();
 }

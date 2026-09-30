@@ -132,7 +132,7 @@ export default function App() {
 
         <Text style={styles.footnote}>
           The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
-          Choose overlay or resized-video drawer layout above. Audio-track selection is demonstrated
+          Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
           with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
         </Text>
       </ScrollView>

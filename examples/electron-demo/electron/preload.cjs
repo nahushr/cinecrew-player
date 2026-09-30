@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const { pathToFileURL } = require('url');
 
+const isOverlayWindow = process.argv.includes('--cinecrew-electron-overlay');
+
 const invokeChannels = new Set([
   'cinecrew:vlc:mount',
   'cinecrew:vlc:unmount',
@@ -18,7 +20,10 @@ const invokeChannels = new Set([
 const sendChannels = new Set(['cinecrew:vlc:layout']);
 const listeners = new Map();
 
-contextBridge.exposeInMainWorld('cinecrewRuntime', { isElectron: true });
+contextBridge.exposeInMainWorld('cinecrewRuntime', {
+  isElectron: true,
+  isElectronOverlay: isOverlayWindow,
+});
 contextBridge.exposeInMainWorld('cinecrewVlc', {
   invoke(channel, payload) {
     if (!invokeChannels.has(channel)) return Promise.reject(new Error(`Unsupported VLC request: ${channel}`));

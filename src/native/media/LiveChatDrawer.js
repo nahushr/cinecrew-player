@@ -239,7 +239,7 @@ export const LiveChatDrawer = ({
   username,
   visible,
   onClose,
-  isLandscape = true,
+  drawerMode = 'overlay',
   initialTab = 'chat',
   streamUrl = '',
   serverUrl = '',
@@ -257,17 +257,22 @@ export const LiveChatDrawer = ({
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
-  const chatAvailable = isLive && isLiveCommentsEnabled && typeof integrations.liveChat?.loadMessages === 'function';
-  const epgAvailable = isLive && isEpgEnabled && typeof integrations.epg?.loadListings === 'function';
+  const chatTabEnabled = isLiveCommentsEnabled !== false;
+  const epgTabEnabled = isEpgEnabled === true;
+  const chatAvailable = chatTabEnabled && typeof integrations.liveChat?.loadMessages === 'function';
+  const epgAvailable = epgTabEnabled && typeof integrations.epg?.loadListings === 'function';
   const canShowDiagnostics = diagnosticsEnabled !== false;
 
   const pickPanel = (tab) => {
-    if (tab === 'chat' && chatAvailable) return 'chat';
-    if (tab === 'epg' && epgAvailable) return 'epg';
+    // Keep the requested panel selected even if its data integration is absent;
+    // the drawer shows a panel-specific setup message instead of silently
+    // routing Chat or EPG clicks to Diagnostics.
+    if (tab === 'chat' && chatTabEnabled) return 'chat';
+    if (tab === 'epg' && epgTabEnabled) return 'epg';
     if (tab === 'diagnostics' && canShowDiagnostics) return 'diagnostics';
-    if (chatAvailable) return 'chat';
-    if (epgAvailable) return 'epg';
-    return 'diagnostics';
+    if (chatTabEnabled) return 'chat';
+    if (epgTabEnabled) return 'epg';
+    return canShowDiagnostics ? 'diagnostics' : tab || 'diagnostics';
   };
 
   const [activeTab, setActiveTab] = useState(() => pickPanel(initialTab));
@@ -620,18 +625,26 @@ export const LiveChatDrawer = ({
   };
 
   const health = getHealthStatus();
+  const bottomModal = drawerMode === 'modal' && !isWeb() && !popupMode;
+  const centeredModal = popupMode || (drawerMode === 'modal' && isWeb());
+  const resizeWidth = windowWidth < 640 ? '48%' : '36%';
 
   const drawerContent = (
     <KeyboardAvoidingView
       behavior={isIOS() ? 'padding' : undefined}
       style={[
         styles.drawerContainer,
-        isLandscape ? styles.drawerLandscape : styles.drawerPortrait,
-        popupMode && styles.popupDrawer,
-        popupMode && {
+        drawerMode === 'resize' && !popupMode ? styles.drawerResize : styles.drawerLandscape,
+        drawerMode === 'resize' && !popupMode && {
+          width: resizeWidth,
+          maxWidth: resizeWidth,
+        },
+        centeredModal && styles.popupDrawer,
+        centeredModal && {
           width: Math.min(Math.max(windowWidth - 32, 280), 520),
           height: Math.min(Math.max(windowHeight - 32, 280), 680),
         },
+        bottomModal && styles.bottomModalDrawer,
         drawerStyle,
       ]}
     >
@@ -679,6 +692,11 @@ export const LiveChatDrawer = ({
           handleSelectEmoji={handleSelectEmoji}
           colors={colors}
         />
+      ) : activeTab === 'chat' ? (
+        <View style={styles.epgStatusWrap}>
+          <PlayerIcon name="comment-text-outline" size={28} color="rgba(255,255,255,0.45)" />
+          <Text style={styles.epgStatusText}>Live chat is enabled, but no chat integration was provided.</Text>
+        </View>
       ) : null}
 
       {activeTab === 'epg' && epgAvailable && (
@@ -736,6 +754,13 @@ export const LiveChatDrawer = ({
           })()}
         </>
       )}
+
+      {activeTab === 'epg' && !epgAvailable ? (
+        <View style={styles.epgStatusWrap}>
+          <PlayerIcon name="television-off" size={28} color="rgba(255,255,255,0.45)" />
+          <Text style={styles.epgStatusText}>Programme guide is enabled, but no EPG integration was provided.</Text>
+        </View>
+      ) : null}
 
       {/* --- Tab 2: Provider Health & Stream Diagnostics HUD --- */}
       {activeTab === 'diagnostics' && (
@@ -852,23 +877,23 @@ export const LiveChatDrawer = ({
     </KeyboardAvoidingView>
   );
 
-  if (!popupMode) return drawerContent;
+  if (!centeredModal && !bottomModal) return drawerContent;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={bottomModal ? 'slide' : 'fade'}
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.popupBackdrop}>
+      <View style={[styles.popupBackdrop, bottomModal && styles.bottomModalBackdrop]}>
         <TouchableOpacity
           style={StyleSheet.absoluteFillObject}
           activeOpacity={1}
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close live chat"
+          accessibilityLabel="Close player panel"
         />
         {drawerContent}
       </View>
@@ -896,18 +921,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     width: 350,
-    maxWidth: '44%',
+    maxWidth: '92%',
   },
-  drawerPortrait: {
+  drawerResize: {
+    top: 0,
     bottom: 0,
-    left: 0,
     right: 0,
-    height: '62%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderLeftWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    width: '36%',
+    maxWidth: '36%',
   },
   popupBackdrop: {
     flex: 1,
@@ -915,6 +936,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     backgroundColor: 'rgba(4, 8, 16, 0.66)',
+  },
+  bottomModalBackdrop: {
+    alignItems: 'stretch',
+    justifyContent: 'flex-end',
+    padding: 0,
+  },
+  bottomModalDrawer: {
+    position: 'relative',
+    top: undefined,
+    right: undefined,
+    bottom: undefined,
+    left: undefined,
+    alignSelf: 'stretch',
+    width: '100%',
+    maxWidth: '100%',
+    height: '72%',
+    maxHeight: '78%',
+    borderLeftWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   popupDrawer: {
     position: 'relative',

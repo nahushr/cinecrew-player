@@ -19,7 +19,7 @@ import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { LiveRecordingNotice, LiveRecordingOverlay } from './media/LiveRecordingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerIcon } from './customization';
-import { isWeb, isElectron } from '../utils/runtimePlatform';
+import { isWeb, isElectron, isElectronOverlay } from '../utils/runtimePlatform';
 import { getFontSize, getFontWeight } from '../utils/layoutUtils';
 import { isLocalMediaUri } from '../utils/mediaUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
@@ -225,7 +225,7 @@ function PlatformMediaSurface(props) {
     handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
     handleSeekByAction, handlePlaybackRoute, exoFallback,
     nativeSource, computedAspectRatio, handleNativeLoadStart,
-    handleNativeOpen, handleNativeBuffering, onRecordingCreated, recording,
+    handleNativeOpen, handleNativeBuffering, onRecordingCreated, recording, getPlayerHostBounds,
   } = props;
   if (isElectron()) {
     return (
@@ -233,6 +233,7 @@ function PlatformMediaSurface(props) {
         key={`electron-vlc-${playerStreamUrl}`}
         ref={vlcRef}
         streamUrl={playerStreamUrl}
+        getContainerBounds={getPlayerHostBounds}
         paused={!isPlaying}
         muted={muted || videoOnlyMode}
         volume={muted || videoOnlyMode ? 0 : volume}
@@ -481,7 +482,7 @@ function InlinePreviewFrame({
   );
 }
 
-function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
+function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, transparent = false }) {
   return (
     <View
       collapsable={false}
@@ -489,6 +490,7 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
       style={[
         styles.videoContainer,
         styles.videoWrapFullscreen,
+        transparent && { backgroundColor: 'transparent' },
         zoomScale !== 1 && { transform: [{ scale: zoomScale }] },
         isAudioOnly && { opacity: 0 },
       ]}
@@ -498,8 +500,9 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
   );
 }
 
-function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecording, panResponder, handlers }) {
+function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecording, panResponder, handlers, managedByParent }) {
   if (isAudioOnly) return null;
+  if (managedByParent) return null;
   if (!isWeb() && !isElectron() && panResponder) {
     // Keep the full-screen gesture responder out of the hit-test tree while
     // controls are visible. PanResponder can otherwise claim a touch before
@@ -528,11 +531,6 @@ function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecordi
       onTouchEnd={handlers.onTouchEnd}
     />
   );
-}
-
-function FullscreenControlsLayer({ showControls, isLocked, isAudioOnly, children }) {
-  if (!showControls || isLocked || isAudioOnly) return null;
-  return <View style={styles.controlsShell} pointerEvents="box-none">{children}</View>;
 }
 
 function FullscreenControlsPanel(props) {
@@ -688,6 +686,7 @@ function FullscreenChatLayer(props) {
       onClose={props.onClose}
       isLandscape={props.isLandscape}
       initialTab={props.drawerTab}
+      drawerMode={props.drawerMode}
       streamUrl={props.playbackUrl || props.streamUrl || ''}
       serverUrl={props.playbackUrl || props.streamUrl || ''}
       isLive={props.isLive}
@@ -818,6 +817,7 @@ export const MediaPlayerView = ({
   onNextEpisode,
   liveChatNonce = 0,
   messagePageSize = 50,
+  drawerMode = 'overlay',
   drawerStyle,
   aspectRatios,
   defaultAspectRatio = DEFAULT_ASPECT_RATIO,
@@ -863,6 +863,7 @@ export const MediaPlayerView = ({
   insetsRef.current = insets;
   const vlcRef = useRef(null);
   const playerRef = useRef(null);
+  const mediaFrameRef = useRef(null);
   const invokeAction = useCallback((name, fallback, payload) => {
     let callback = actions?.[name];
     if (name === 'onAspectRatioChange') callback = callback || onAspectRatioChange;
@@ -878,6 +879,11 @@ export const MediaPlayerView = ({
     playerRef.current = node;
     onPlayerHostRef?.(node);
   }, [onPlayerHostRef]);
+  const getPlayerHostBounds = useCallback(() => {
+    const rect = (mediaFrameRef.current || playerRef.current)?.getBoundingClientRect?.();
+    if (!rect) return null;
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+  }, []);
 
   const [showSpeedPicker, setShowSpeedPicker] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(() => clampNumber(initialPlaybackRate, 0.25, 4, 1));
@@ -2504,12 +2510,16 @@ export const MediaPlayerView = ({
   const nativeSource = useMemo(() => ({
     uri: playerStreamUrl,
     initType: 1,
-    hwDecoderEnabled: 1,
-    hwDecoderForced: 1,
+    hwDecoderEnabled: 0,
+    // Avoid Android's MediaCodec output path on this player surface; its
+    // resolution-switch buffer errors leave translucent stale tiles behind.
+    hwDecoderForced: 0,
     // Keep this source object stable while Android audio mode is toggled so
     // VLC does not release and reopen the active stream.
     mediaOptions: nativeMediaOptions,
   }), [playerStreamUrl, nativeMediaOptions]);
+
+  const transparentElectronOverlay = isElectronOverlay();
 
   if (!visible || !streamUrl) return null;
 
@@ -2568,6 +2578,7 @@ export const MediaPlayerView = ({
       onRecordingCreated={handleNativeRecordingCreated}
       onRecordingState={handleNativeRecordingState}
       recording={recording}
+      getPlayerHostBounds={getPlayerHostBounds}
     />
   );
   const isValidPreviewRect = isUsableInlinePreviewRect(inlinePreviewRect);
@@ -2581,8 +2592,9 @@ export const MediaPlayerView = ({
         username={currentUser.username}
         visible={showLiveChat}
         onClose={() => setShowLiveChat(false)}
-        isLandscape={windowWidth >= windowHeight}
-        initialTab="chat"
+        isLandscape={drawerMode !== 'modal' || windowWidth >= windowHeight}
+        initialTab={drawerTab}
+        drawerMode={drawerMode}
         streamUrl={playbackUrl || streamUrl || ''}
         serverUrl={playbackUrl || streamUrl || ''}
         isLive={isLive}
@@ -2715,61 +2727,104 @@ export const MediaPlayerView = ({
     handleVideoOnlyAction,
   };
 
+  const nativeGestureHandlers = null;
+  const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat;
+  const mediaFrameStyle = resizeDrawerOpen
+    ? { right: 'auto', width: windowWidth < 640 ? '52%' : '64%' }
+    : null;
+
   const fullscreenContent = (
     <View
       ref={handlePlayerHostRef}
       collapsable={false}
       style={[
         styles.fullscreenPlayerContainer,
+        transparentElectronOverlay && { backgroundColor: 'transparent' },
         !isWeb() && !isFullscreen && styles.boundedInlinePlayerContent,
       ]}
+      {...(nativeGestureHandlers || {})}
     >
       <StatusBar hidden={isFullscreen ? !showControls : false} translucent={isFullscreen} backgroundColor="transparent" barStyle="light-content" />
 
-      <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} />
-      <FullscreenVisualFeedback
-        isAudioOnly={isAudioOnly}
-        isWebPlatform={isWeb()}
-        brightness={brightness}
-        zoomBadgeText={zoomBadgeText}
-        seekRipple={seekRipple}
-      />
-      <FullscreenGestureLayer
-        isAudioOnly={isAudioOnly}
-        showControls={showControls}
-        isLocked={isLocked}
-        isRecording={recStatus === 'recording' || recStatus === 'paused'}
-        panResponder={panResponder}
-        handlers={{
-          onPointerDown: handleWebPointerDown,
-          onPointerMove: handleWebPointerMove,
-          onPointerUp: handleWebPointerUp,
-          onMouseDown: handleWebMouseDown,
-          onTouchStart: handleWebTouchStart,
-          onTouchMove: handleWebTouchMove,
-          onTouchEnd: handleWebTouchEnd,
-        }}
-      />
-
-      {/* Controls Layer */}
-      <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
-        <FullscreenControlsLayer
+      <View
+        ref={mediaFrameRef}
+        collapsable={false}
+        style={[styles.mediaFrame, mediaFrameStyle]}
+      >
+        <FullscreenVideoLayer
+          videoPlayer={videoPlayer}
+          zoomScale={zoomScale}
+          isAudioOnly={isAudioOnly}
+          transparent={transparentElectronOverlay}
+        />
+        <FullscreenVisualFeedback
+          isAudioOnly={isAudioOnly}
+          isWebPlatform={isWeb()}
+          brightness={brightness}
+          zoomBadgeText={zoomBadgeText}
+          seekRipple={seekRipple}
+        />
+        <FullscreenGestureLayer
+          isAudioOnly={isAudioOnly}
           showControls={showControls}
           isLocked={isLocked}
+          isRecording={recStatus === 'recording' || recStatus === 'paused'}
+          panResponder={panResponder}
+          managedByParent={!isWeb() && !isElectron() && !!panResponder}
+          handlers={{
+            onPointerDown: handleWebPointerDown,
+            onPointerMove: handleWebPointerMove,
+            onPointerUp: handleWebPointerUp,
+            onMouseDown: handleWebMouseDown,
+            onTouchStart: handleWebTouchStart,
+            onTouchMove: handleWebTouchMove,
+            onTouchEnd: handleWebTouchEnd,
+          }}
+        />
+
+        {/* Do not leave an empty elevated native view over VLC's TextureView.
+            Android can retain translucent composition tiles after the controls
+            are hidden if the elevated overlay remains mounted. */}
+        {showControls && !isLocked && !isAudioOnly ? (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
+            <View style={styles.controlsShell} pointerEvents="box-none">
+              <FullscreenControlsPanel {...fullscreenControlsProps} />
+            </View>
+          </View>
+        ) : null}
+
+        <FullscreenStatusLayer
           isAudioOnly={isAudioOnly}
-        >
-          <FullscreenControlsPanel {...fullscreenControlsProps} />
-        </FullscreenControlsLayer>
+          audioOnlyProps={{ posterUrl, title, episodeLabel, isPlaying, windowWidth, windowHeight, usesAudioProxy: audioOnlyUsesProxy, onToggleAudioOnly: toggleAudioOnly }}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          scale={scale}
+          handleClose={handleClose}
+        />
+        <FullscreenRecordingLayer
+          isAudioOnly={isAudioOnly}
+          canRecord={canRecord}
+          isScreenRecorderEnabled={isScreenRecorderEnabled}
+          recStatus={recStatus}
+          recElapsedMs={recElapsedMs}
+          colors={colors}
+          insets={insets}
+          handlePauseRecording={handlePauseRecording}
+          handleResumeRecording={handleResumeRecording}
+          handleStopRecording={handleStopRecording}
+          recNotice={recNotice}
+          onDismissNotice={() => setRecNotice(null)}
+        />
+        <FullscreenSessionLayer
+          locked={isLocked}
+          controlsVisible={showControls}
+          isAudioOnly={isAudioOnly}
+          insets={insets}
+          scale={scale}
+          onToggleLock={toggleLock}
+        />
       </View>
 
-      <FullscreenStatusLayer
-        isAudioOnly={isAudioOnly}
-        audioOnlyProps={{ posterUrl, title, episodeLabel, isPlaying, windowWidth, windowHeight, usesAudioProxy: audioOnlyUsesProxy, onToggleAudioOnly: toggleAudioOnly }}
-        isLoading={isLoading}
-        errorMessage={errorMessage}
-        scale={scale}
-        handleClose={handleClose}
-      />
       <FullscreenChatLayer
         visible={showLiveChat}
         isAudioOnly={isAudioOnly}
@@ -2777,8 +2832,9 @@ export const MediaPlayerView = ({
         title={title}
         currentUser={currentUser}
         onClose={() => setShowLiveChat(false)}
-        isLandscape={windowWidth >= windowHeight}
+        isLandscape={drawerMode !== 'modal' || windowWidth >= windowHeight}
         drawerTab={drawerTab}
+        drawerMode={drawerMode}
         playbackUrl={playbackUrl}
         streamUrl={streamUrl}
         isLive={isLive}
@@ -2789,28 +2845,6 @@ export const MediaPlayerView = ({
         colors={colors}
         messagePageSize={messagePageSize}
         drawerStyle={drawerStyle}
-      />
-      <FullscreenRecordingLayer
-        isAudioOnly={isAudioOnly}
-        canRecord={canRecord}
-        isScreenRecorderEnabled={isScreenRecorderEnabled}
-        recStatus={recStatus}
-        recElapsedMs={recElapsedMs}
-        colors={colors}
-        insets={insets}
-        handlePauseRecording={handlePauseRecording}
-        handleResumeRecording={handleResumeRecording}
-        handleStopRecording={handleStopRecording}
-        recNotice={recNotice}
-        onDismissNotice={() => setRecNotice(null)}
-      />
-      <FullscreenSessionLayer
-        locked={isLocked}
-        controlsVisible={showControls}
-        isAudioOnly={isAudioOnly}
-        insets={insets}
-        scale={scale}
-        onToggleLock={toggleLock}
       />
     </View>
   );
@@ -2838,6 +2872,7 @@ export const MediaPlayerView = ({
         collapsable={false}
         style={[
           styles.inlinePlayerContainer,
+          transparentElectronOverlay && { backgroundColor: 'transparent' },
           style,
         ]}
       >
@@ -2890,6 +2925,10 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#000',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  mediaFrame: {
+    ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
   inlinePlayerContainer: {
@@ -3161,9 +3200,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   gestureCatcher: {
-    backgroundColor: 'rgba(0, 0, 0, 0.01)',
+    // Keep the touch layer visually transparent and unelevated. Elevating an
+    // otherwise transparent React Native view over VLC's Android surface can
+    // leave rectangular composition artifacts when playback controls hide.
+    backgroundColor: 'transparent',
     zIndex: 50,
-    elevation: 50,
     ...(isWeb()
       ? {
           touchAction: 'none',

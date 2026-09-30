@@ -352,7 +352,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `features` | feature flags | `{}` | Optional player features, including web stream diagnostics with `{ diagnostics: true }`. |
 | `actions` | `PlayerActions` | `{}` | Observe built-in actions. The player performs its core action first, then invokes the callback with the resulting action payload. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
-| `drawerMode` | `'overlay' \| 'resize'` | `'overlay'` | Web/Electron drawer behavior: overlay the video or resize it to make room for chat, EPG, and diagnostics. |
+| `drawerMode` | `'overlay' \| 'resize' \| 'modal'` | `'overlay'` | `overlay` opens a right-side drawer over video; `resize` places the drawer beside a reduced video; `modal` opens a centered modal on web/Expo Web and a bottom drawer on Android/Electron. |
 | `drawerStyle` | `React.CSSProperties` / React Native `ViewStyle` | — | Platform-specific style overrides for the chat, EPG, and diagnostics drawer. |
 | `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older messages load automatically when the list is scrolled to the top. |
 | `theme` | `PlayerTheme` | built-in theme | Customize player colors, borders, and shape. |
@@ -547,7 +547,7 @@ Integrations are optional. The package has no CineCrew account, database, or wor
 
 On web and Electron, the player supplies the chat drawer UI—including the composer and searchable, grouped emoji picker—when `integrations.liveChat.loadMessages` is provided. `sendMessage` connects the built-in composer to your chat service; omit it to show a read-only chat. Messages may include `id`, `username`, `comment` (or `message`), and `timestamp` (or `createdAt`). The drawer requests the newest page with `offset: 0`, then automatically requests older pages with the same `limit` and increasing `offset` as the viewer scrolls to the top. Return each page in chronological order (oldest first); return `{ messages, hasMore }` when your service can report whether older pages exist. Otherwise, a full page implies there may be more. Live chat polls for new messages at `pollIntervalMs` (defaults to five seconds); new messages scroll into view at the bottom.
 
-The EPG drawer uses `integrations.epg.loadListings`, which returns entries with `startMs` and `endMs` epoch-millisecond timestamps. Both drawers default to a semi-transparent right-side overlay, so video size does not change. Set `drawerMode="resize"` to reserve space and shrink the video; customize the drawer with `drawerStyle`. You may supply `renderLiveChat` / `renderEpg` or integration render callbacks to replace the built-in drawer contents. The native player renders its platform-native chat and EPG UI from the same adapters.
+The EPG drawer uses `integrations.epg.loadListings`, which returns entries with `startMs` and `endMs` epoch-millisecond timestamps. Drawers default to a semi-transparent right-side overlay, so video size does not change. Set `drawerMode="resize"` to place the right-side drawer beside a proportionally reduced video. Set `drawerMode="modal"` for a centered modal on web/Expo Web or a bottom sheet on Android/Electron. Customize the drawer with `drawerStyle`. You may supply `renderLiveChat` / `renderEpg` or integration render callbacks to replace the built-in drawer contents. The native player renders its platform-native chat and EPG UI from the same adapters.
 
 ### Web recording
 
