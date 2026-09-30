@@ -128,6 +128,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
       - name: Check out main
         uses: actions/checkout@v6
@@ -141,9 +142,10 @@ jobs:
           registry-url: https://registry.npmjs.org
           scope: '@cinecrew'
 
+      - name: Set up npm trusted publishing support
+        run: npm install --global 'npm@^11.5.1'
+
       - name: Install package dependencies and increment patch version
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           npm ci
@@ -154,21 +156,20 @@ jobs:
 
       - name: Publish public npm package
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
           package="@cinecrew/cinecrew-player@$VERSION"
           registry_cache="$RUNNER_TEMP/npm-release-cache"
           wait_for_npm_version() {
-            for attempt in $(seq 1 36); do
+            for attempt in $(seq 1 12); do
               if npm view "$package" version --prefer-online --cache="$registry_cache" \
                 --registry=https://registry.npmjs.org >/dev/null 2>&1; then
                 echo "$package is visible on npm."
                 return 0
               fi
-              echo "Waiting for npm to index $package ($attempt/36)."
-              sleep 10
+              echo "Waiting for npm to index $package ($attempt/12)."
+              sleep 5
             done
             return 1
           }
@@ -177,8 +178,20 @@ jobs:
             --registry=https://registry.npmjs.org >/dev/null 2>&1; then
             echo "$package is already on npm; skipping this registry to make retries safe."
           else
-            if ! npm publish --access public --registry=https://registry.npmjs.org; then
-              echo "Publish returned an error; checking whether npm accepted the version already."
+            publish_status=0
+            npm publish --access public --registry=https://registry.npmjs.org || publish_status=$?
+            if [ "$publish_status" -ne 0 ]; then
+              echo "npm publish returned $publish_status; checking briefly in case npm accepted it before the client failed."
+              for attempt in $(seq 1 3); do
+                if npm view "$package" version --prefer-online --cache="$registry_cache" \
+                  --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+                  echo "$package is visible on npm despite the publish response."
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "::error::npm publish failed. Confirm the npm Trusted Publisher is configured for nahushr/cinecrew-player and publish-main.yml."
+              exit "$publish_status"
             fi
             wait_for_npm_version || {
               echo "::error::Timed out waiting for $package to appear on npm."
