@@ -167,6 +167,14 @@ function createOgvRecordingAudioRoute() {
   }
 }
 
+function syncPlaybackOptions(player, options) {
+  if (!player) return;
+  player.muted = Boolean(options.muted || options.videoOnly);
+  const volume = Number(options.volume);
+  player.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0));
+  player.playbackRate = Number(options.playbackRate) || 1;
+}
+
 /**
  * Use ogv.js for Ogg/Theora media on web, while keeping the returned media-like
  * player in videoRef so the shared controls, progress, and recording logic work.
@@ -219,6 +227,9 @@ export function useWebOgvPlayback({
     };
     const handleWaiting = () => onBufferingRef?.current?.(true);
     const handleReady = () => {
+      // OGV creates its audio feeder asynchronously while loading the source.
+      // Reapply mute/volume after that setup and before autoplay begins.
+      syncPlaybackOptions(player, playbackOptionsRef.current);
       onBufferingRef?.current?.(false);
       onProgressRef?.current?.();
       onPlaybackRouteRef?.current?.(activeUrl);
@@ -272,9 +283,7 @@ export function useWebOgvPlayback({
           window.addEventListener('resize', handleResize);
         }
         const options = playbackOptionsRef.current;
-        player.muted = Boolean(options.muted || options.videoOnly);
-        player.volume = Math.max(0, Math.min(1, Number(options.volume) || 0));
-        player.playbackRate = Number(options.playbackRate) || 1;
+        syncPlaybackOptions(player, options);
         player.preload = 'auto';
 
         player.addEventListener('waiting', handleWaiting);
@@ -320,9 +329,7 @@ export function useWebOgvPlayback({
     if (!useOgv) return;
     const player = videoRef.current;
     if (!player) return;
-    player.muted = Boolean(muted || videoOnly);
-    player.volume = Math.max(0, Math.min(1, Number(volume) || 0));
-    player.playbackRate = Number(playbackRate) || 1;
+    syncPlaybackOptions(player, { muted, volume, playbackRate, videoOnly });
     if (paused) player.pause();
     else void attemptVideoPlayback(player, player, pausedRef);
   }, [activeUrl, useOgv, videoRef, pausedRef, paused, muted, volume, playbackRate, videoOnly]);

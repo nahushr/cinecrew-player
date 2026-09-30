@@ -478,6 +478,11 @@ function WebPlayerSurface({
     onErrorRef,
     onBufferingRef: bufferingRef,
     resourceBase: ogvResourceBase,
+    paused,
+    muted,
+    volume,
+    playbackRate,
+    videoOnly,
   });
   if (!streamUrl) return h('div', { className: 'cinecrew-player__empty' });
   const resizedVideoStyle = getDrawerResizedVideoStyle(drawerResize, videoStyle);
