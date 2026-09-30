@@ -12,7 +12,7 @@
     "snack:ios": "node ../../scripts/open-snack.mjs --ios"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "^0.1.30",
+    "@cinecrew/cinecrew-player": "^0.1.29",
     "@expo/vector-icons": "^15.0.2",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "^5.1.2",
