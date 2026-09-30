@@ -159,13 +159,13 @@ jobs:
           package="@cinecrew/cinecrew-player@$VERSION"
           registry_cache="$RUNNER_TEMP/npm-release-cache"
           wait_for_npm_version() {
-            for attempt in $(seq 1 12); do
+            for attempt in $(seq 1 60); do
               if npm view "$package" version --prefer-online --cache="$registry_cache" \
                 --registry=https://registry.npmjs.org >/dev/null 2>&1; then
                 echo "$package is visible on npm."
                 return 0
               fi
-              echo "Waiting for npm to index $package ($attempt/12)."
+              echo "Waiting for npm to index $package ($attempt/60)."
               sleep 5
             done
             return 1
@@ -178,15 +178,10 @@ jobs:
             publish_status=0
             npm publish --access public --registry=https://registry.npmjs.org || publish_status=$?
             if [ "$publish_status" -ne 0 ]; then
-              echo "npm publish returned $publish_status; checking briefly in case npm accepted it before the client failed."
-              for attempt in $(seq 1 3); do
-                if npm view "$package" version --prefer-online --cache="$registry_cache" \
-                  --registry=https://registry.npmjs.org >/dev/null 2>&1; then
-                  echo "$package is visible on npm despite the publish response."
-                  exit 0
-                fi
-                sleep 2
-              done
+              echo "npm publish returned $publish_status; waiting to see whether npm accepted and is indexing $package."
+              if wait_for_npm_version; then
+                exit 0
+              fi
               echo "::error::npm publish failed. Confirm NPM_TOKEN has package publish access and satisfies the account's 2FA requirements."
               exit "$publish_status"
             fi
