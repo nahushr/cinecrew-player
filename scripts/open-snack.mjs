@@ -10,7 +10,7 @@ const rootDir = path.resolve(__dirname, '..');
 const demoDir = path.resolve(rootDir, 'examples/native-demo');
 
 // Permanent saved Snack ID on Expo Snack servers
-export const SNACK_ID = 'h52VJ4_8y_WkWk2kpMjNy';
+export const SNACK_ID = 'poOvF7mPAfDv3UTxY4OrB';
 
 export function getSavedSnackUrl({ platform = 'web', preview = true } = {}) {
   const url = new URL(`https://snack.expo.dev/${SNACK_ID}`);
