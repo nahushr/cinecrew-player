@@ -1,29 +1,35 @@
 {
   "name": "cinecrew-player-native-demo",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "expo/AppEntry",
   "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "doctor": "npx expo-doctor"
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "snack": "node ../../scripts/open-snack.mjs",
+    "snack:android": "node ../../scripts/open-snack.mjs --android",
+    "snack:ios": "node ../../scripts/open-snack.mjs --ios"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "file:../..",
+    "@cinecrew/cinecrew-player": "latest",
+    "@mediabunny/ac3": "^1.59.0",
+    "dashjs": "^5.2.1",
     "expo": "~57.0.25",
-    "expo-build-properties": "~57.0.22",
-    "expo-dev-client": "~57.0.19",
-    "expo-document-picker": "~57.0.2",
-    "expo-file-system": "~57.0.7",
-    "expo-sharing": "~57.0.22",
-    "expo-system-ui": "~57.0.4",
+    "flv.js": "^1.6.2",
+    "hls.js": "^1.7.3",
+    "mediabunny": "^1.59.0",
     "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-safe-area-context": "~5.7.0"
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.4",
+    "typescript": "^6.0.3"
   },
   "overrides": {
-    "xcode": {
-      "uuid": "^11.1.1"
-    }
+    "uuid": "11.1.1"
   }
 }

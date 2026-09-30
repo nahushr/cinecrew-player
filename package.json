@@ -92,7 +92,10 @@
   "scripts": {
     "test": "node --test",
     "check:types": "tsc --noEmit --skipLibCheck --strict types/index.d.ts",
-    "prepack": "node scripts/generate-web-inline-styles.mjs && npm run check:types"
+    "prepack": "node scripts/generate-web-inline-styles.mjs && npm run check:types",
+    "snack": "node scripts/open-snack.mjs",
+    "snack:android": "node scripts/open-snack.mjs --android",
+    "snack:ios": "node scripts/open-snack.mjs --ios"
   },
   "devDependencies": {
     "@expo/config-plugins": "^57.0.9",

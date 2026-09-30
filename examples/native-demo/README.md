@@ -1,24 +1,28 @@
-# CineCrew Player · Native VLC demo
+# CineCrew Player · Native & Expo Demo
 
-This modular Expo app exercises the React Native player with its bundled VLC engine on Android and iOS. It is separate from the Expo Snack preview because Snack runs in Expo Go, and Expo Go cannot load this package's custom VLC native code.
+Cross-platform video player playground for React Native and Expo (supporting Web, Android, and iOS).
 
-## Run on a device or emulator
+## 🚀 One-Click Expo Snack
 
-From this directory:
+You can open this entire demo in Expo Snack with all files and dependencies pre-loaded in **one click**:
+
+- Run from root: `npm run snack`
+- Or click the [Expo Snack badge in README.md](../../README.md#demos)
+
+## 💻 Running Locally
+
+To run this demo on your machine:
 
 ```sh
 npm install
-npm run android
-# or
-npm run ios
+npm run web      # Run on Expo Web
+npm run android  # Run on Android
+npm run ios      # Run on iOS
 ```
 
-These commands build and install a custom development client containing VLC. Start Metro separately with `npm start` when you need to reload JavaScript. A normal Expo Go launch is not a native VLC test.
+## Features Demonstrated
 
-The sample picker includes HLS, MPEG-TS, MP4, MKV, MOV, M4V, 3GP, FLV, OGV, and WebM, plus a direct URL field and local-file picker. The remote sample URLs need a network connection. A container's extension alone cannot guarantee playback: the sample also has to use codecs VLC can decode, and the URL/file must be reachable.
-
-## Recording and saving
-
-Start playback first, tap **REC**, then stop from the recording bar. VLC writes the recording into the app cache; the app waits for the file to finish and opens the operating system share sheet. Choose a Files/Downloads destination there. The file is not copied to a public Downloads folder automatically. A successfully saved recording should be non-empty and probe as playable media.
-
-The Snack links in the repository README are useful for checking the shared UI and Expo fallback, but not for validating VLC codecs, native recording, or system file sharing. Use this custom development build for those checks. iOS device/simulator execution additionally requires an available iOS simulator runtime or a connected iPhone and signing setup.
+- **Multi-format Playback:** HLS (.m3u8), MPEG-DASH (.mpd), MP4, WebM, MKV, MPEG-TS (.ts), FLV, and OGV.
+- **Custom URL Input & Local File Picker:** Play any custom stream or local video.
+- **Interactive Player Controls:** Play/pause, seek bar, audio track switching, aspect ratio, audio-only mode, and diagnostics overlay.
+- **Service Integrations:** Live chat drawer (overlay/resize modes) and electronic program guide (EPG).
