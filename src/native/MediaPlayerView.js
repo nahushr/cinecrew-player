@@ -544,6 +544,7 @@ function FullscreenControlsPanel(props) {
         title={props.title}
         episodeLabel={props.episodeLabel}
         isLive={props.isLive}
+        isFullscreen={props.isFullscreen}
         isScreenRecorderEnabled={props.isScreenRecorderEnabled}
         canRecord={props.canRecord}
         recStatus={props.recStatus}
@@ -1463,11 +1464,17 @@ export const MediaPlayerView = ({
     onClose();
   }, [clearAudioOnlyFallbackTimer, exitFullscreen, saveCurrentProgress, onCwRefresh, onClose, integrations, mediaId, recording]);
 
-  const handleBackAction = useCallback(() => invokeAction(
-    'onBack',
-    undefined,
-    { title, streamUrl, mediaId },
-  ), [invokeAction, title, streamUrl, mediaId]);
+  const handleBackAction = useCallback(() => {
+    if (isFullscreen) {
+      toggleFullscreen();
+      return;
+    }
+    invokeAction(
+      'onBack',
+      undefined,
+      { title, streamUrl, mediaId },
+    );
+  }, [isFullscreen, toggleFullscreen, invokeAction, title, streamUrl, mediaId]);
 
   useEffect(() => {
     if (!visible || isWeb()) return undefined;
@@ -2678,7 +2685,7 @@ export const MediaPlayerView = ({
       collapsable={false}
         style={[styles.fullscreenPlayerContainer, style]}
     >
-      <StatusBar hidden={!showControls} translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar hidden={isFullscreen ? !showControls : false} translucent={isFullscreen} backgroundColor="transparent" barStyle="light-content" />
 
       <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} />
       <FullscreenVisualFeedback
@@ -2770,18 +2777,33 @@ export const MediaPlayerView = ({
   );
 
   if (!isWeb()) {
+    if (isFullscreen) {
+      return (
+        <Modal
+          visible={visible}
+          animationType="none"
+          transparent={false}
+          statusBarTranslucent={true}
+          hardwareAccelerated={true}
+          onRequestClose={handleBackAction}
+          supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+        >
+          {fullscreenContent}
+        </Modal>
+      );
+    }
+
     return (
-      <Modal
-        visible={visible}
-        animationType="none"
-        transparent={false}
-        statusBarTranslucent={true}
-        hardwareAccelerated={true}
-        onRequestClose={handleBackAction}
-        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      <View
+        ref={handlePlayerHostRef}
+        collapsable={false}
+        style={[
+          styles.inlinePlayerContainer,
+          style,
+        ]}
       >
         {fullscreenContent}
-      </Modal>
+      </View>
     );
   }
 
@@ -2830,6 +2852,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     position: 'relative',
     overflow: 'hidden',
+  },
+  inlinePlayerContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    minHeight: 220,
+    backgroundColor: '#000',
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
   },
   inlineVideoStage: {
     width: '100%',

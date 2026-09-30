@@ -75,6 +75,7 @@ export function PlayerViewport({
       onBuffering={(buffering) => onStatus(buffering ? 'Buffering…' : 'Ready')}
       onPlaying={() => onStatus('Playing')}
       onError={reportPlaybackError}
+      style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 14 }}
     />
   );
 }

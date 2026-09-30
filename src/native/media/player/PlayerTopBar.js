@@ -22,7 +22,7 @@ function BackButton({ visible, palette, scale, onClose }) {
 }
 
 function RecordingControls({ canRecord, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette }) {
-  if (!canRecord || !enabled || controls.recording === false) return null;
+  if (controls.recording === false || enabled === false) return null;
   if (status === 'idle') {
     return (
       <TouchableOpacity style={[styles.pill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
@@ -45,7 +45,7 @@ function RecordingControls({ canRecord, enabled, status, loading, controls, onSt
 
 function LiveServiceControls({ isLive, controls, showLiveChat, drawerTab, showChat, showEpg, showDiagnostics, onToggle, palette }) {
   const renderServiceButton = (name, tab, enabled, activeName) => {
-    if (!isLive || !enabled || controls[name] === false) return null;
+    if (!enabled || controls[name] === false) return null;
     const active = showLiveChat && drawerTab === tab;
     return (
       <TouchableOpacity key={tab} style={[styles.pill, active && { backgroundColor: palette.surfaceColor, borderColor: palette.accentColor, borderWidth: 1 }]} onPress={(event) => { event.stopPropagation(); onToggle(tab); }} hitSlop={12}>
@@ -114,6 +114,7 @@ export const PlayerTopBar = ({
   onToggleMute,
   onToggleLock,
   controls = {},
+  isFullscreen = false,
 }) => {
   const { width, height } = useWindowDimensions();
   const palette = usePlayerColors();
@@ -135,8 +136,8 @@ export const PlayerTopBar = ({
         styles.topBar,
         isPortrait && styles.portraitTopBar,
         {
-          paddingTop: Math.max(insets?.top || 0, 24),
-          paddingHorizontal: Math.max(insets?.left || 0, insets?.right || 0, 20),
+          paddingTop: isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
+          paddingHorizontal: isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
         },
       ]}
       pointerEvents="box-none"
@@ -146,7 +147,7 @@ export const PlayerTopBar = ({
         <PlayerTitle isPortrait={isPortrait} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
 
         <View style={styles.topRightActions}>
-          <RecordingControls canRecord={canRecord ?? isLive} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
+          <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} />
           <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} />
           <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} />
         </View>
@@ -155,6 +156,7 @@ export const PlayerTopBar = ({
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   topBar: {

@@ -94,7 +94,7 @@ export default function App() {
             <Text style={styles.eyebrow}>PLAYGROUND</Text>
             <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
           </View>
-          <View style={styles.platformTag}><Text style={styles.platformTagText}>Expo Demo</Text></View>
+          <View style={styles.platformTag}><Text style={styles.platformTagText}>Android Demo</Text></View>
         </View>
 
         <SourceControls
@@ -151,6 +151,6 @@ const styles = StyleSheet.create({
   title: { color: '#f3f7fc', fontWeight: '800', marginTop: 2 },
   platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
-  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10 },
+  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

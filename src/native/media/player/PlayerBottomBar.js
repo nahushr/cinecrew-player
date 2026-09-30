@@ -148,8 +148,8 @@ export const PlayerBottomBar = ({
       style={[
         styles.bottomContainer,
         {
-          paddingBottom: Math.max(insets?.bottom || 0, 16),
-          paddingHorizontal: Math.max(insets?.left || 0, insets?.right || 0, 20),
+          paddingBottom: isFullscreen ? Math.max(insets?.bottom || 0, 16) : 6,
+          paddingHorizontal: isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
         },
       ]}
       pointerEvents="box-none"
@@ -168,10 +168,10 @@ export const PlayerBottomBar = ({
           <SpeedControl enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} />
 
           {/* Audio Tracks Picker */}
-          <AudioTracksControl enabled={controls.audioTracks !== false && !isLive && (!isWeb() || isElectron())} open={showAudioPicker} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onToggle={onToggleAudioPicker} onSelect={onSelectAudioTrack} />
+          <AudioTracksControl enabled={controls.audioTracks !== false && !isLive} open={showAudioPicker} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onToggle={onToggleAudioPicker} onSelect={onSelectAudioTrack} />
 
-          {/* Fullscreen Button - comes after playback speed (web only) */}
-          <FullscreenControl enabled={isWeb() && controls.fullscreen !== false} isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
+          {/* Fullscreen Button - available across platforms */}
+          <FullscreenControl enabled={controls.fullscreen !== false} isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
         </View>
       </View>
     </View>
