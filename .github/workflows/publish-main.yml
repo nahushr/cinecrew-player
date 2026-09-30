@@ -203,4 +203,14 @@ jobs:
           git add package.json package-lock.json
           git add examples/web-demo/package.json examples/web-demo/package-lock.json
           git commit -m "chore(release): sync package version $VERSION [skip ci]"
-          git push origin HEAD:main
+          for attempt in $(seq 1 5); do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Retrying release commit push after refreshing main ($attempt/5)."
+            sleep 2
+          done
+          echo "::error::Could not push the release version and React demo lockfile to main."
+          exit 1
