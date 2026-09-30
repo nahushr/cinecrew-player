@@ -128,7 +128,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write
     steps:
       - name: Check out main
         uses: actions/checkout@v6
@@ -151,11 +150,9 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
         id: release
 
-      - name: Set up npm trusted publishing support
-        run: npm install --global 'npm@^11.5.1'
-
       - name: Publish public npm package
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
@@ -190,7 +187,7 @@ jobs:
                 fi
                 sleep 2
               done
-              echo "::error::npm publish failed. Confirm the npm Trusted Publisher is configured for nahushr/cinecrew-player and publish-main.yml."
+              echo "::error::npm publish failed. Confirm NPM_TOKEN has package publish access and satisfies the account's 2FA requirements."
               exit "$publish_status"
             fi
             wait_for_npm_version || {
