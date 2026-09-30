@@ -155,34 +155,11 @@ The items below are planned for more consistent, user-facing support across plat
 | [ ] | 🎧 Broader client-side audio demuxing across codecs and stream types |
 | [ ] | 🪟 Consistent picture-in-picture controls across platforms |
 
-[![Open React demo in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev)
-
-[Try the Android demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20Android%20README%2086808a5&sdkVersion=54.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40%5E15.0.3%2Creact-native-svg%4015.12.1%2Creact-native-safe-area-context%40~5.6.0%2C%40react-native-community%2Fslider%405.0.1%2Cexpo-document-picker%40~14.0.8%2Cexpo-file-system%40~19.0.24%2Cexpo-sharing%40~14.0.8&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2F86808a5%2Fexamples%2Fsnack%2FApp.js&platform=android&supportedPlatforms=android) · [Try the iOS demo in Expo Snack](https://snack.expo.dev/?name=CineCrew%20Player%20iOS%20README%2086808a5&sdkVersion=54.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40%5E15.0.3%2Creact-native-svg%4015.12.1%2Creact-native-safe-area-context%40~5.6.0%2C%40react-native-community%2Fslider%405.0.1%2Cexpo-document-picker%40~14.0.8%2Cexpo-file-system%40~19.0.24%2Cexpo-sharing%40~14.0.8&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2F86808a5%2Fexamples%2Fsnack%2FApp.js&platform=ios&supportedPlatforms=ios)
-
 ## Demos
 
-- **[React + Vite web demo](examples/web-demo)** — try HLS, MPEG-TS, MP4, MKV, or a local video file. Switch between the full player (all controls and demo chat/EPG/recording adapters enabled) and the compact inline player. [Open a fresh StackBlitz copy](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev).
-- **[Expo / React Native Web demo](examples/expo-web-demo)** — the same source tests and controls in an Expo app rendered for the web.
-- **[Android and iOS Expo Snack demos](examples/snack/App.js)** — component-based platform previews include HLS, MPEG-TS, MP4, MKV, MOV, M4V, 3GP, FLV, OGV, WebM, and local-file selection. Snack runs in Expo Go, so these links verify the shared UI and Expo fallback only; Expo Go cannot load the custom VLC native module and cannot validate VLC playback or native VLC recording. [Expo documents this limitation](https://docs.expo.dev/workflow/customizing/#using-libraries-with-custom-native-code-in-development-builds).
-- **[Native Android/iOS development-build demo](examples/native-demo)** — modular Expo project that uses the bundled VLC module for direct streams and local files, with a VLC recording adapter and system share/save flow. It is the correct target for codec and native recording validation; build it with `npx expo run:android` or `npx expo run:ios` after `npm install`.
+[![StackBlitz · React + Vite](https://img.shields.io/badge/StackBlitz-React%20%2B%20Vite-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev) [![Expo Snack · React Native Web](https://img.shields.io/badge/Expo%20Snack-React%20Native%20Web-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/?name=CineCrew%20Player%20Web%20README%2086808a5&sdkVersion=54.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40%5E15.0.3%2Creact-native-svg%4015.12.1%2Creact-native-safe-area-context%40~5.6.0%2C%40react-native-community%2Fslider%405.0.1%2Cexpo-document-picker%40~14.0.8%2Cexpo-file-system%40~19.0.24%2Cexpo-sharing%40~14.0.8&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2F86808a5%2Fexamples%2Fsnack%2FApp.js&platform=web&supportedPlatforms=web)
 
-The React/Vite demo is self-contained and installs the released `@cinecrew/cinecrew-player` package, so its StackBlitz link works from the `examples/web-demo` subdirectory. Its MPEG-TS button uses a small same-origin H.264/AAC fixture to exercise the TS parser without relying on an external server's CORS configuration. The Expo Web demo uses this repository's package source (`file:../..`) so contributors can test unreleased changes locally. Snack imports the one-file native playground from a commit-pinned GitHub URL, uses the root `@cinecrew/cinecrew-player` package (not a `/native` pseudo-package), and declares its Expo SDK 54 dependencies. The revision suffix in both Snack names forces each README link to create a fresh project rather than reopening stale Snack source; update the pinned source revision and names whenever `examples/snack/App.js` changes. Snack remains an Expo Go preview—not a VLC test. The modular native development demo links the local package source, prebuilds the custom VLC module, and is used for actual Android/iOS VLC tests. The React DOM entry resolves to the browser renderer; it does not evaluate React Native or VLC code. External media hosts must allow browser CORS requests; format/codec support also depends on the browser. MKV playback is generally more reliable through the native VLC adapter than a browser video element.
-
-Run either demo:
-
-```sh
-cd examples/web-demo
-npm install
-npm run dev
-```
-
-```sh
-cd examples/expo-web-demo
-npm install
-npm run web
-```
-
-> The player has no built-in YouTube playback or embed mode. Pass a direct playable media URL or local URI; page/share URLs (including YouTube watch pages) must be resolved by your app to a direct media source before playback. The player does not rewrite protocols, proxy media, or impose host-specific CORS rules.
+[![Expo Snack · Android](https://img.shields.io/badge/Expo%20Snack-Android-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/?name=CineCrew%20Player%20Android%20README%2086808a5&sdkVersion=54.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40%5E15.0.3%2Creact-native-svg%4015.12.1%2Creact-native-safe-area-context%40~5.6.0%2C%40react-native-community%2Fslider%405.0.1%2Cexpo-document-picker%40~14.0.8%2Cexpo-file-system%40~19.0.24%2Cexpo-sharing%40~14.0.8&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2F86808a5%2Fexamples%2Fsnack%2FApp.js&platform=android&supportedPlatforms=android) [![Expo Snack · iOS](https://img.shields.io/badge/Expo%20Snack-iOS-4630EB?logo=expo&logoColor=white)](https://snack.expo.dev/?name=CineCrew%20Player%20iOS%20README%2086808a5&sdkVersion=54.0.0&dependencies=%40cinecrew%2Fcinecrew-player%40*%2C%40expo%2Fvector-icons%40%5E15.0.3%2Creact-native-svg%4015.12.1%2Creact-native-safe-area-context%40~5.6.0%2C%40react-native-community%2Fslider%405.0.1%2Cexpo-document-picker%40~14.0.8%2Cexpo-file-system%40~19.0.24%2Cexpo-sharing%40~14.0.8&sourceUrl=https%3A%2F%2Fraw.githubusercontent.com%2Fnahushr%2Fcinecrew-player%2F86808a5%2Fexamples%2Fsnack%2FApp.js&platform=ios&supportedPlatforms=ios)
 
 ## Install
 
