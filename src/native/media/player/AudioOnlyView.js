@@ -12,6 +12,10 @@ function shouldDisplayEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
 }
 
 function AudioArtwork({ posterUrl, isLandscape, isCompact, palette }) {
+  let iconSize = 54;
+  if (isLandscape) iconSize = 36;
+  if (isCompact) iconSize = 32;
+
   if (posterUrl) {
     return (
       <View style={[styles.audioOnlyPosterWrap, isLandscape && styles.audioOnlyPosterWrapLandscape, isCompact && styles.audioOnlyPosterWrapCompact]}>
@@ -21,7 +25,7 @@ function AudioArtwork({ posterUrl, isLandscape, isCompact, palette }) {
   }
   return (
     <View style={[styles.audioOnlyIconWrap, isLandscape && styles.audioOnlyIconWrapLandscape, isCompact && styles.audioOnlyIconWrapCompact]}>
-      <PlayerIcon name="headphones" size={isCompact ? 32 : isLandscape ? 36 : 54} color={palette.accentColor} />
+      <PlayerIcon name="headphones" size={iconSize} color={palette.accentColor} />
     </View>
   );
 }
@@ -49,11 +53,9 @@ function SoundWave({ isPlaying, isLandscape, isCompact, accentColor }) {
 }
 
 function AudioOnlyBadge({ usesAudioProxy, palette, isLandscape, isCompact }) {
-  const message = isCompact
-    ? 'Audio mode · video hidden'
-    : usesAudioProxy
-    ? 'Battery Saver Audio Mode • Screen can be locked'
-    : 'Audio Mode • Video hidden • Screen can be locked';
+  let message = 'Audio Mode • Video hidden • Screen can be locked';
+  if (usesAudioProxy) message = 'Battery Saver Audio Mode • Screen can be locked';
+  if (isCompact) message = 'Audio mode · video hidden';
   return (
     <View style={[styles.audioOnlyBadge, isLandscape && styles.audioOnlyBadgeLandscape, isCompact && styles.audioOnlyBadgeCompact, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}>
       <PlayerIcon name="lightning-bolt" size={14} color={palette.accentColor} />
