@@ -7,7 +7,7 @@
     "build": "expo export --platform web"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "file:../..",
+    "@cinecrew/cinecrew-player": "latest",
     "@mediabunny/ac3": "^1.59.0",
     "dashjs": "^5.2.1",
     "expo": "~57.0.25",
