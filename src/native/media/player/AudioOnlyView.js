@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { isAndroid, isIOS, isWeb } from '../../../utils/runtimePlatform';
 import { cleanPlayerTitle } from '../../../utils/mediaUtils';
@@ -11,22 +11,22 @@ function shouldDisplayEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
   return Boolean(episode && title !== episode && !title.includes(episode));
 }
 
-function AudioArtwork({ posterUrl, isLandscape, palette }) {
+function AudioArtwork({ posterUrl, isLandscape, isCompact, palette }) {
   if (posterUrl) {
     return (
-      <View style={[styles.audioOnlyPosterWrap, isLandscape && styles.audioOnlyPosterWrapLandscape]}>
+      <View style={[styles.audioOnlyPosterWrap, isLandscape && styles.audioOnlyPosterWrapLandscape, isCompact && styles.audioOnlyPosterWrapCompact]}>
         <Image source={{ uri: posterUrl }} style={styles.audioOnlyPoster} resizeMode="cover" />
       </View>
     );
   }
   return (
-    <View style={[styles.audioOnlyIconWrap, isLandscape && styles.audioOnlyIconWrapLandscape]}>
-      <PlayerIcon name="headphones" size={isLandscape ? 36 : 54} color={palette.accentColor} />
+    <View style={[styles.audioOnlyIconWrap, isLandscape && styles.audioOnlyIconWrapLandscape, isCompact && styles.audioOnlyIconWrapCompact]}>
+      <PlayerIcon name="headphones" size={isCompact ? 32 : isLandscape ? 36 : 54} color={palette.accentColor} />
     </View>
   );
 }
 
-function SoundWave({ isPlaying, isLandscape, accentColor }) {
+function SoundWave({ isPlaying, isLandscape, isCompact, accentColor }) {
   const animationBars = [
     ['short-left', styles.soundWaveBarAnim1],
     ['medium-left', styles.soundWaveBarAnim2],
@@ -37,25 +37,27 @@ function SoundWave({ isPlaying, isLandscape, accentColor }) {
     ['short-right', styles.soundWaveBarAnim4],
   ];
   return (
-    <View style={[styles.soundWaveRow, isLandscape && styles.soundWaveRowLandscape]}>
+    <View style={[styles.soundWaveRow, isLandscape && styles.soundWaveRowLandscape, isCompact && styles.soundWaveRowCompact]}>
       {animationBars.map(([key, animationStyle]) => (
         <View
           key={key}
-          style={[styles.soundWaveBar, { backgroundColor: accentColor }, isPlaying ? animationStyle : styles.soundWaveBarStatic]}
+          style={[styles.soundWaveBar, { backgroundColor: accentColor }, isPlaying ? animationStyle : styles.soundWaveBarStatic, isCompact && styles.soundWaveBarCompact]}
         />
       ))}
     </View>
   );
 }
 
-function AudioOnlyBadge({ usesAudioProxy, palette, isLandscape }) {
-  const message = usesAudioProxy
+function AudioOnlyBadge({ usesAudioProxy, palette, isLandscape, isCompact }) {
+  const message = isCompact
+    ? 'Audio mode · video hidden'
+    : usesAudioProxy
     ? 'Battery Saver Audio Mode • Screen can be locked'
     : 'Audio Mode • Video hidden • Screen can be locked';
   return (
-    <View style={[styles.audioOnlyBadge, isLandscape && styles.audioOnlyBadgeLandscape, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}>
+    <View style={[styles.audioOnlyBadge, isLandscape && styles.audioOnlyBadgeLandscape, isCompact && styles.audioOnlyBadgeCompact, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}>
       <PlayerIcon name="lightning-bolt" size={14} color={palette.accentColor} />
-      <Text style={[styles.audioOnlyBadgeText, { color: palette.accentColor }]}>{message}</Text>
+      <Text style={[styles.audioOnlyBadgeText, isCompact && styles.audioOnlyBadgeTextCompact, { color: palette.accentColor }]} numberOfLines={1}>{message}</Text>
     </View>
   );
 }
@@ -71,7 +73,11 @@ export const AudioOnlyView = ({
   onToggleAudioOnly,
 }) => {
   const palette = usePlayerColors();
-  const isLandscape = windowWidth >= windowHeight;
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const frameWidth = viewport.width || windowWidth;
+  const frameHeight = viewport.height || windowHeight;
+  const isLandscape = frameWidth >= frameHeight;
+  const isCompact = Math.min(frameWidth, frameHeight) < 360;
   const isMobile = isAndroid() || isIOS() || Math.min(windowWidth, windowHeight) < 600;
 
   const displayTitle = useMemo(() => {
@@ -84,14 +90,29 @@ export const AudioOnlyView = ({
   );
 
   return (
-    <View style={styles.audioOnlyContainer} pointerEvents="auto">
+    <View
+      style={styles.audioOnlyContainer}
+      pointerEvents="auto"
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setViewport((current) => current.width === width && current.height === height ? current : { width, height });
+      }}
+    >
 
-      <View style={[styles.audioOnlyCard, isLandscape && styles.audioOnlyCardLandscape, { borderColor: palette.accentColor }]} pointerEvents="auto">
-        <AudioArtwork posterUrl={posterUrl} isLandscape={isLandscape} palette={palette} />
+      <View
+        style={[
+          styles.audioOnlyCard,
+          isLandscape && styles.audioOnlyCardLandscape,
+          isCompact && styles.audioOnlyCardCompact,
+          { borderColor: palette.accentColor, maxWidth: Math.max(0, Math.min(440, frameWidth - 24)) },
+        ]}
+        pointerEvents="auto"
+      >
+        <AudioArtwork posterUrl={posterUrl} isLandscape={isLandscape} isCompact={isCompact} palette={palette} />
 
-        <SoundWave isPlaying={isPlaying} isLandscape={isLandscape} accentColor={palette.accentColor} />
+        <SoundWave isPlaying={isPlaying} isLandscape={isLandscape} isCompact={isCompact} accentColor={palette.accentColor} />
 
-        <Text style={[styles.audioOnlyTitle, isLandscape && styles.audioOnlyTitleLandscape, { color: palette.controlColor }]} numberOfLines={2}>
+        <Text style={[styles.audioOnlyTitle, isLandscape && styles.audioOnlyTitleLandscape, isCompact && styles.audioOnlyTitleCompact, { color: palette.controlColor }]} numberOfLines={2}>
           {displayTitle}
         </Text>
 
@@ -101,10 +122,10 @@ export const AudioOnlyView = ({
           </Text>
         ) : null}
 
-        <AudioOnlyBadge usesAudioProxy={usesAudioProxy} palette={palette} isLandscape={isLandscape} />
+        <AudioOnlyBadge usesAudioProxy={usesAudioProxy} palette={palette} isLandscape={isLandscape} isCompact={isCompact} />
 
         <TouchableOpacity
-          style={[styles.audioOnlyReturnBtn, isLandscape && styles.audioOnlyReturnBtnLandscape, { backgroundColor: palette.backgroundColor, borderColor: palette.accentColor }]}
+          style={[styles.audioOnlyReturnBtn, isLandscape && styles.audioOnlyReturnBtnLandscape, isCompact && styles.audioOnlyReturnBtnCompact, { backgroundColor: palette.backgroundColor, borderColor: palette.accentColor }]}
           onPress={(e) => {
             e.stopPropagation();
             onToggleAudioOnly();
@@ -113,7 +134,7 @@ export const AudioOnlyView = ({
           activeOpacity={0.8}
         >
           <PlayerIcon name="video-outline" size={18} color={palette.accentColor} />
-          <Text style={[styles.audioOnlyReturnText, { color: palette.accentColor }]}>Switch to Video</Text>
+          <Text style={[styles.audioOnlyReturnText, isCompact && styles.audioOnlyReturnTextCompact, { color: palette.accentColor }]}>Switch to Video</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -140,6 +161,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 18,
+    width: '100%',
+    flexShrink: 1,
     maxWidth: 440,
     maxHeight: '92%',
     borderRadius: 20,
@@ -157,6 +180,12 @@ const styles = StyleSheet.create({
   audioOnlyCardLandscape: {
     paddingVertical: 12,
     paddingHorizontal: 20,
+  },
+  audioOnlyCardCompact: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    maxHeight: '96%',
+    borderRadius: 14,
   },
   audioOnlyPosterWrap: {
     width: 100,
@@ -179,6 +208,12 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     marginBottom: 8,
   },
+  audioOnlyPosterWrapCompact: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginBottom: 4,
+  },
   audioOnlyPoster: {
     width: '100%',
     height: '100%',
@@ -200,6 +235,12 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginBottom: 8,
   },
+  audioOnlyIconWrapCompact: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginBottom: 4,
+  },
   soundWaveRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -211,6 +252,10 @@ const styles = StyleSheet.create({
   soundWaveRowLandscape: {
     height: 18,
     marginBottom: 6,
+  },
+  soundWaveRowCompact: {
+    height: 14,
+    marginBottom: 4,
   },
   soundWaveBar: {
     width: 4,
@@ -236,6 +281,9 @@ const styles = StyleSheet.create({
   soundWaveBarAnim5: {
     height: 10,
   },
+  soundWaveBarCompact: {
+    transform: [{ scaleY: 0.55 }],
+  },
   audioOnlyTitle: {
     color: '#FFF',
     fontSize: 16,
@@ -246,6 +294,11 @@ const styles = StyleSheet.create({
   audioOnlyTitleLandscape: {
     fontSize: 14.5,
     marginBottom: 2,
+  },
+  audioOnlyTitleCompact: {
+    fontSize: 12,
+    marginBottom: 2,
+    maxWidth: '100%',
   },
   audioOnlyEpisodeText: {
     color: 'rgba(255, 255, 255, 0.7)',
@@ -272,10 +325,22 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     paddingHorizontal: 8,
   },
+  audioOnlyBadgeCompact: {
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    maxWidth: '100%',
+  },
   audioOnlyBadgeText: {
     color: '#FFD60A',
     fontSize: 11,
     fontWeight: '600',
+  },
+  audioOnlyBadgeTextCompact: {
+    fontSize: 9,
+    flexShrink: 1,
   },
   audioOnlyReturnBtn: {
     flexDirection: 'row',
@@ -292,9 +357,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 5,
   },
+  audioOnlyReturnBtnCompact: {
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   audioOnlyReturnText: {
     color: '#00E5FF',
     fontSize: 12.5,
     fontWeight: '700',
+  },
+  audioOnlyReturnTextCompact: {
+    fontSize: 10,
   },
 });
