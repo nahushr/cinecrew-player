@@ -15,3 +15,5 @@ npm-debug.log*
 /bin/
 /.scannerwork/
 /.sonar/cache/
+**/local.properties
+*.apk

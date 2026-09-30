@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport.js';
 import { SourceControls } from './src/components/SourceControls.js';
@@ -81,7 +82,8 @@ export default function App() {
   const horizontalPadding = width < 600 ? 12 : 20;
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaProvider style={styles.screen}>
+      <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 }]}
@@ -135,7 +137,8 @@ export default function App() {
         </Text>
       </ScrollView>
       <ToastViewport toast={toast} onDismiss={() => setToast(null)} viewportWidth={width} />
-    </View>
+      </View>
+    </SafeAreaProvider>
   );
 }
 

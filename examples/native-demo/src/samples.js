@@ -109,13 +109,13 @@ export function asPlayerSource(item) {
           : undefined);
 
   let uri = item.url;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  if (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     if (uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
       uri = uri.replace('https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/', '/');
     }
   }
 
-  if (typeof window !== 'undefined' && uri.startsWith('/')) {
+  if (typeof window !== 'undefined' && window.location && uri.startsWith('/')) {
     uri = new URL(uri, window.location.href).href;
   }
 

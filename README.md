@@ -22,9 +22,11 @@
 
 ## Demos
 
-| React + Vite | React Native Web (Expo) | Android (Native LibVLC) |
+| React + Vite | React Native Web (Expo) | Android Demo (Native LibVLC) |
 |:---:|:---:|:---:|
 | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev) | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo?startScript=web) | [![Download Android APK](https://img.shields.io/badge/Download-Android%20APK-3DDC84?logo=android&logoColor=white)](https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk) |
+
+> 📱 **Android Native Demo:** Download [`cinecrew-player-demo.apk`](https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk) directly to test native LibVLC playback (HLS, RTSP, RTMP, FLV, MPEG-TS, MKV, AC3 audio) on your Android device, emulator, or [Appetize.io](https://appetize.io).
 
 <p align="center"><a href="#install">Install</a> · <a href="#feature-portfolio">Features</a> · <a href="#platform--playback-matrix">Platforms</a> · <a href="#props">API reference</a> · <a href="#roadmap">Roadmap</a></p>
 

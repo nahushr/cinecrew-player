@@ -70,6 +70,48 @@ jobs:
         working-directory: examples/expo-web-demo
         run: npx expo export --platform ios --output-dir dist-ios
 
+  android-build:
+    name: Build Android native demo APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install package dependencies
+        run: npm ci
+
+      - name: Install native demo dependencies
+        run: npm ci --prefix examples/native-demo
+
+      - name: Build Android Release APK
+        working-directory: examples/native-demo/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Stage Android APK artifact
+        run: |
+          mkdir -p artifacts
+          cp examples/native-demo/android/app/build/outputs/apk/release/app-release.apk artifacts/cinecrew-player-demo.apk
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinecrew-player-demo.apk
+          path: artifacts/cinecrew-player-demo.apk
+          if-no-files-found: error
+
   quality-gates:
     name: Sonar, Snyk, and Checkstyle
     needs: platform-build
@@ -78,7 +120,7 @@ jobs:
 
   publish:
     name: Publish one player package to npm and GitHub Packages
-    needs: [platform-build, quality-gates]
+    needs: [platform-build, quality-gates, android-build]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -214,3 +256,24 @@ jobs:
           done
           echo "::error::Could not push the release version and React demo lockfile to main."
           exit 1
+
+      - name: Download Android APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cinecrew-player-demo.apk
+          path: artifacts
+
+      - name: Publish GitHub Release with APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" artifacts/cinecrew-player-demo.apk --clobber
+          else
+            gh release create "v$VERSION" artifacts/cinecrew-player-demo.apk \
+              --title "v$VERSION" \
+              --notes "CineCrew Player v$VERSION release with native Android LibVLC player demo APK" \
+              --latest
+          fi
