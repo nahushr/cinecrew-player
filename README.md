@@ -22,8 +22,6 @@
 
 ## Demos
 
-## Demos
-
 | React + Vite | React Native Web (Expo) |
 |:---:|:---:|
 | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev) [![Open in GitHub Codespaces](https://img.shields.io/badge/GitHub%20Codespaces-Open-181717?logo=github&logoColor=white)](https://codespaces.new/nahushr/cinecrew-player?quickstart=1) | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo?startScript=web) [![Open in GitHub Codespaces](https://img.shields.io/badge/GitHub%20Codespaces-Open-181717?logo=github&logoColor=white)](https://codespaces.new/nahushr/cinecrew-player?quickstart=1) |
