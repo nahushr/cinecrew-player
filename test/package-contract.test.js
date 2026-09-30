@@ -194,3 +194,16 @@ test('back action is app-owned and the Vite demo shows its callback in a snackba
   assert.match(demoActions, /onBack:[\s\S]*?notify\('Back'/);
   assert.match(declarations, /User-owned navigation event\. The player does not close or navigate on its own\./);
 });
+
+test('web audio-only artwork and spacing scale to the player container', () => {
+  const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
+  const audioPoster = webStyles.match(/\.cinecrew-player__audio-poster\s*\{([^}]*)\}/)?.[1] || '';
+  const audioPlaceholder = webStyles.match(/\.cinecrew-player__audio-placeholder\s*\{([^}]*)\}/)?.[1] || '';
+
+  assert.match(webStyles, /container-type:\s*size;[\s\S]*container-name:\s*cinecrew-player/);
+  assert.match(audioPoster, /width:\s*min\(160px,\s*30cqh,\s*28cqw\)/);
+  assert.match(audioPlaceholder, /width:\s*min\(160px,\s*30cqh,\s*28cqw\)/);
+  assert.match(webStyles, /@container cinecrew-player \(max-width: 360px\)/);
+  assert.match(webStyles, /-webkit-line-clamp:\s*2/);
+  assert.doesNotMatch(`${audioPoster}${audioPlaceholder}`, /\d+vw/);
+});
