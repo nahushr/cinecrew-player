@@ -273,7 +273,7 @@
 .cinecrew-player__audio-card {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 6;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -288,7 +288,9 @@
 }
 
 .cinecrew-player--audio-mode .cinecrew-player__controls {
-  opacity: 1;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .cinecrew-player__audio-poster {

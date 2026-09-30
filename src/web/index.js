@@ -305,7 +305,7 @@ function WebBottomControls(props) {
     h('div', { className: 'cinecrew-player__bottom-actions' },
       h('div', { className: 'cinecrew-player__bottom-left-actions' },
         inlinePreview && title ? h('span', { className: 'cinecrew-player__inline-title', title }, title) : null,
-        renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(true), options: { active: audioOnly }, overrides, icons, theme }),
+        renderControlButton({ name: 'audioOnly', label: audioOnlyLabel, callback: () => setAudioOnlyMode(!audioOnly), options: { active: audioOnly }, overrides, icons, theme }),
         aspect),
       h('div', { className: 'cinecrew-player__bottom-right-actions' },
         audioTracks,
