@@ -142,9 +142,6 @@ jobs:
           registry-url: https://registry.npmjs.org
           scope: '@cinecrew'
 
-      - name: Set up npm trusted publishing support
-        run: npm install --global 'npm@^11.5.1'
-
       - name: Install package dependencies and increment patch version
         run: |
           set -euo pipefail
@@ -153,6 +150,9 @@ jobs:
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
         id: release
+
+      - name: Set up npm trusted publishing support
+        run: npm install --global 'npm@^11.5.1'
 
       - name: Publish public npm package
         env:
