@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import '@cinecrew/cinecrew-player/styles.css';
-import { asPlayerSource, sampleSources } from '../web-demo/src/samples.js';
+import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport';
 import { SourceControls } from './src/components/SourceControls';
 import { ToastViewport } from './src/components/ToastViewport';
-import { useDemoIntegrations } from '../web-demo/src/hooks/useDemoIntegrations.js';
-import { useDemoPlayerActions } from '../web-demo/src/hooks/useDemoPlayerActions.js';
-import { getPlayerErrorMessage } from '../web-demo/src/utils/playerErrorMessage.js';
+import { useDemoIntegrations } from './src/hooks/useDemoIntegrations.js';
+import { useDemoPlayerActions } from './src/hooks/useDemoPlayerActions.js';
+import { getPlayerErrorMessage } from './src/utils/playerErrorMessage.js';
 
 export default function App() {
   const { width } = useWindowDimensions();
@@ -143,12 +143,12 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
   scroll: { flex: 1 },
-  content: { width: '100%', maxWidth: 1100, alignSelf: 'center', paddingTop: 28, paddingBottom: 56, gap: 16 },
-  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 12 },
+  content: { width: '100%', maxWidth: 1060, alignSelf: 'center', paddingTop: 32, paddingBottom: 56 },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 },
   eyebrow: { color: '#16c7d9', fontSize: 11, fontWeight: '800', letterSpacing: 2.3 },
   title: { color: '#f3f7fc', fontWeight: '800', marginTop: 2 },
   platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
-  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12 },
-  footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20, marginTop: -4 },
+  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10 },
+  footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

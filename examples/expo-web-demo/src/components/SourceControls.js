@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { sampleSources } from '../../../web-demo/src/samples.js';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { sampleSources } from '../samples.js';
 import { ActionButton } from './ActionButton';
 
 function ToggleRow({ label, value, onChange }) {
@@ -59,8 +59,8 @@ export function SourceControls({
   viewportWidth,
 }) {
   return (
-    <View style={styles.card}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleList}>
+    <View style={[styles.card, viewportWidth < 600 && styles.narrowCard]}>
+      <View style={styles.sampleList}>
         {sampleSources.map((sample) => (
           <ActionButton
             key={sample.id}
@@ -70,7 +70,7 @@ export function SourceControls({
             {sample.label}
           </ActionButton>
         ))}
-      </ScrollView>
+      </View>
 
       <View style={[styles.urlRow, viewportWidth < 600 && styles.narrowRow]}>
         <TextInput
@@ -116,18 +116,19 @@ export function SourceControls({
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 10 },
-  sampleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2 },
+  card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 10, marginBottom: 16 },
+  narrowCard: { padding: 12 },
+  sampleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2, marginBottom: 4 },
   urlRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   narrowRow: { alignItems: 'stretch' },
   fullWidth: { width: '100%' },
   input: { flexGrow: 1, flexBasis: 240, minWidth: 200, minHeight: 44, borderWidth: 1, borderColor: '#29415d', borderRadius: 10, backgroundColor: '#07111e', color: '#f3f7fc', paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
-  fileRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingTop: 4 },
+  fileRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingTop: 12 },
   selectedFile: { color: '#f3f7fc', maxWidth: 300, flexShrink: 1 },
   fileHint: { color: '#a9bbcf', fontSize: 13, flexShrink: 1 },
   clearButton: { borderColor: '#754b5e', backgroundColor: '#321e2b' },
   options: { gap: 2 },
-  toggle: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4 },
+  toggle: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4, marginTop: 14 },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: '#68809b', alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: '#16c7d9', borderColor: '#16c7d9' },
   checkmark: { color: '#07111e', fontSize: 13, lineHeight: 16, fontWeight: '800' },
