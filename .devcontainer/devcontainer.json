@@ -1,0 +1,24 @@
+{
+  "name": "CineCrew Expo Web Demo",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "workspaceFolder": "/workspaces/cinecrew-player/examples/expo-web-demo",
+  "postCreateCommand": "npm install",
+  "postStartCommand": "npm run web",
+  "forwardPorts": [8081],
+  "portsAttributes": {
+    "8081": {
+      "label": "Expo Web Preview",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "expo.vscode-expo-tools"
+      ]
+    }
+  }
+}
