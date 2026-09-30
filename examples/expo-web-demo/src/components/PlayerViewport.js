@@ -1,5 +1,5 @@
 import React from 'react';
-import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player/react-native-web';
+import CineCrewPlayer, { InlineLivePlayer } from '@cinecrew/cinecrew-player';
 
 const demoAudioTracks = [
   { id: 'test-1', name: 'Test 1' },

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import '@cinecrew/cinecrew-player/styles.css';
 import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport';
 import { SourceControls } from './src/components/SourceControls';
