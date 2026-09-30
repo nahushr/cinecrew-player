@@ -59,7 +59,9 @@ class ReactVlcPlayerView extends TextureView
   private boolean isHostPaused = false;
   private boolean playInBackground = false;
   private boolean repeatEnabled = false;
-  private int preVolume = 100;
+  // Keep the requested volume separate from the mute state. React may apply
+  // the `volume` and `muted` props in either order during the same update.
+  private int mVolume = 100;
   private boolean autoAspectRatio = false;
   private boolean acceptInvalidCertificates = false;
 
@@ -74,6 +76,11 @@ class ReactVlcPlayerView extends TextureView
 
   public ReactVlcPlayerView(ThemedReactContext context) {
     super(context);
+    // VLC updates this SurfaceTexture independently of the React Native view
+    // tree. Do not let Android optimize it as an opaque child: after inline
+    // controls are removed that optimization can retain stale dirty regions
+    // as translucent rectangles over later video frames.
+    setOpaque(false);
     this.eventEmitter = new VideoEventEmitter(context);
     this.themedReactContext = context;
     audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
@@ -650,8 +657,9 @@ class ReactVlcPlayerView extends TextureView
    * @param volumeModifier
    */
   public void setVolumeModifier(int volumeModifier) {
+    mVolume = Math.max(0, Math.min(100, volumeModifier));
     if (mMediaPlayer != null) {
-      mMediaPlayer.setVolume(volumeModifier);
+      mMediaPlayer.setVolume(mMuted ? 0 : mVolume);
     }
   }
 
@@ -663,12 +671,7 @@ class ReactVlcPlayerView extends TextureView
   public void setMutedModifier(boolean muted) {
     mMuted = muted;
     if (mMediaPlayer != null) {
-      if (muted) {
-        this.preVolume = mMediaPlayer.getVolume();
-        mMediaPlayer.setVolume(0);
-      } else {
-        mMediaPlayer.setVolume(this.preVolume);
-      }
+      mMediaPlayer.setVolume(muted ? 0 : mVolume);
     }
   }
 

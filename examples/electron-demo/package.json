@@ -8,14 +8,15 @@
     "dev": "npm run build && electron .",
     "build": "vite build",
     "start": "electron .",
+    "postinstall": "patch-package --error-on-fail && electron-rebuild -f -w electron-vlc-player",
     "stage:vlc:mac": "node scripts/stage-vlc.mjs mac",
     "stage:vlc:win": "node scripts/stage-vlc.mjs win",
     "dist:mac": "npm run stage:vlc:mac && npm run build && electron-builder --mac dmg",
     "dist:win": "npm run stage:vlc:win && npm run build && electron-builder --win nsis"
   },
   "dependencies": {
-    "@mediabunny/ac3": "^1.59.0",
     "@expo/vector-icons": "~14.0.4",
+    "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "4.5.5",
     "dashjs": "^5.2.1",
     "electron-vlc-player": "^1.0.2",
@@ -37,6 +38,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
+    "patch-package": "^8.0.1",
     "vite": "^8.3.1"
   },
   "build": {

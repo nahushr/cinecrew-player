@@ -15,7 +15,7 @@ const invokeChannels = new Set([
   'cinecrew:vlc:set-aspect-ratio',
   'cinecrew:vlc:seek',
   'cinecrew:vlc:seek-to',
-  'cinecrew:vlc:unmount',
+  'cinecrew:window:set-fullscreen',
 ]);
 const sendChannels = new Set(['cinecrew:vlc:layout']);
 const listeners = new Map();

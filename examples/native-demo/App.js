@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport.js';
@@ -33,7 +33,12 @@ export default function App() {
   const revealLandscapePlayer = useCallback(() => {
     if (!isLandscape) return;
     requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollTo({ y: playerCardTopRef.current, animated: false });
+      const pageScroller = scrollViewRef.current;
+      if (typeof pageScroller?.scrollToOffset === 'function') {
+        pageScroller.scrollToOffset({ offset: playerCardTopRef.current, animated: false });
+      } else {
+        pageScroller?.scrollTo({ y: playerCardTopRef.current, animated: false });
+      }
     });
   }, [isLandscape]);
 
@@ -123,30 +128,19 @@ export default function App() {
 
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
-
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView
-        style={[styles.screen, isElectronOverlay && styles.electronOverlayScreen]}
-        edges={['top', 'right', 'bottom', 'left']}
-      >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 }]}
-        keyboardShouldPersistTaps="handled"
-        onContentSizeChange={revealLandscapePlayer}
-      >
-        <View style={styles.pageHeader}>
-          <View>
-            <Text style={styles.eyebrow}>PLAYGROUND</Text>
-            <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
-          </View>
-          <View style={styles.platformTag}>
-            <Text style={styles.platformTagText}>{isElectronDemo ? 'Electron · LibVLC' : Platform.OS === 'ios' ? 'iOS Demo' : 'Android Demo'}</Text>
-          </View>
+  const pageContent = (
+    <>
+      <View nativeID="cinecrew-electron-demo-header" style={styles.pageHeader}>
+        <View>
+          <Text style={styles.eyebrow}>PLAYGROUND</Text>
+          <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
         </View>
+        <View style={styles.platformTag}>
+          <Text style={styles.platformTagText}>{isElectronDemo ? 'Electron · LibVLC' : Platform.OS === 'ios' ? 'iOS Demo' : 'Android Demo'}</Text>
+        </View>
+      </View>
 
+      <View nativeID="cinecrew-electron-demo-source-controls">
         <SourceControls
           active={active}
           draftUrl={draftUrl}
@@ -164,36 +158,72 @@ export default function App() {
           status={status}
           viewportWidth={width}
         />
+      </View>
 
-        <View
-          style={[
-            styles.playerCard,
-            isLandscape && styles.landscapePlayerCard,
-            isElectronOverlay && styles.electronOverlayPlayerCard,
-          ]}
-          accessibilityLabel="Video player"
-          onLayout={handlePlayerCardLayout}
+      <View
+        style={[
+          styles.playerCard,
+          isLandscape && styles.landscapePlayerCard,
+          isElectronOverlay && styles.electronOverlayPlayerCard,
+        ]}
+        nativeID="cinecrew-electron-demo-player-card"
+        accessibilityLabel="Video player"
+        onLayout={handlePlayerCardLayout}
+      >
+        <PlayerViewport
+          active={active}
+          source={source}
+          drawerMode={drawerMode}
+          inline={inline}
+          selectedAudioTrack={selectedAudioTrack}
+          integrations={integrations}
+          actions={actions}
+          onProgressBarChange={setProgressTime}
+          onStatus={setStatus}
+          onPlaybackError={reportPlaybackError}
+        />
+      </View>
+
+      <Text nativeID="cinecrew-electron-demo-footnote" style={styles.footnote}>
+        The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
+        Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
+        with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
+      </Text>
+    </>
+  );
+  const pageContentStyle = [
+    styles.content,
+    { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 },
+  ];
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView
+        style={[styles.screen, isElectronOverlay && styles.electronOverlayScreen]}
+        edges={['top', 'right', 'bottom', 'left']}
+      >
+      {Platform.OS === 'web' ? (
+        <ScrollView
+          ref={scrollViewRef}
+          nativeID={isElectronOverlay ? 'cinecrew-electron-demo-scroll' : undefined}
+          style={styles.scroll}
+          contentContainerStyle={pageContentStyle}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={revealLandscapePlayer}
         >
-          <PlayerViewport
-            active={active}
-            source={source}
-            drawerMode={drawerMode}
-            inline={inline}
-            selectedAudioTrack={selectedAudioTrack}
-            integrations={integrations}
-            actions={actions}
-            onProgressBarChange={setProgressTime}
-            onStatus={setStatus}
-            onPlaybackError={reportPlaybackError}
-          />
-        </View>
-
-        <Text style={styles.footnote}>
-          The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
-          Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
-          with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
-        </Text>
-      </ScrollView>
+          {pageContent}
+        </ScrollView>
+      ) : (
+        <FlatList
+          ref={scrollViewRef}
+          style={styles.scroll}
+          contentContainerStyle={pageContentStyle}
+          data={[]}
+          ListHeaderComponent={pageContent}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={revealLandscapePlayer}
+        />
+      )}
       <ToastViewport toast={toast} onDismiss={() => setToast(null)} viewportWidth={width} />
       </SafeAreaView>
     </SafeAreaProvider>

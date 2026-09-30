@@ -48,7 +48,7 @@ function LocalFileControls({ active, fileInputRef, onChooseFile, onClearFile }) 
   );
 }
 
-function DrawerLayoutPicker({ value, onChange }) {
+function DrawerLayoutPicker({ value, onChange, onOpenChange }) {
   const [open, setOpen] = useState(false);
   const options = [
     { value: 'overlay', label: 'Overlay video' },
@@ -63,7 +63,11 @@ function DrawerLayoutPicker({ value, onChange }) {
         accessibilityRole="button"
         accessibilityLabel={`Drawer layout: ${selectedLabel}`}
         accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((isOpen) => !isOpen)}
+        onPress={() => {
+          const nextOpen = !open;
+          setOpen(nextOpen);
+          onOpenChange(nextOpen);
+        }}
         style={styles.pickerButton}
       >
         <Text style={styles.pickerText}>{selectedLabel}</Text>
@@ -79,6 +83,7 @@ function DrawerLayoutPicker({ value, onChange }) {
               onPress={() => {
                 onChange(option.value);
                 setOpen(false);
+                onOpenChange(false);
               }}
               style={[styles.pickerOption, option.value === value && styles.pickerOptionSelected]}
             >
@@ -108,8 +113,10 @@ export function SourceControls({
   status,
   viewportWidth,
 }) {
+  const [drawerLayoutOpen, setDrawerLayoutOpen] = useState(false);
+
   return (
-    <View style={[styles.card, viewportWidth < 600 && styles.narrowCard]}>
+    <View style={[styles.card, viewportWidth < 600 && styles.narrowCard, drawerLayoutOpen && styles.cardDropdownOpen]}>
       <View style={styles.sampleList}>
         {sampleSources.map((sample) => (
           <ActionButton
@@ -150,7 +157,7 @@ export function SourceControls({
         <ToggleRow label="Use compact inline player" value={inline} onChange={onInlineChange} />
         <View style={styles.drawerRow}>
           <Text style={styles.toggleLabel}>Drawer layout</Text>
-          <DrawerLayoutPicker value={drawerMode} onChange={onDrawerModeChange} />
+          <DrawerLayoutPicker value={drawerMode} onChange={onDrawerModeChange} onOpenChange={setDrawerLayoutOpen} />
         </View>
       </View>
 
@@ -164,6 +171,7 @@ export function SourceControls({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 8, marginBottom: 16 },
+  cardDropdownOpen: { position: 'relative', zIndex: 100, elevation: 24 },
   narrowCard: { padding: 12 },
   sampleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2, marginBottom: 4 },
   urlRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
@@ -174,18 +182,18 @@ const styles = StyleSheet.create({
   selectedFile: { color: '#f3f7fc', maxWidth: 300, flexShrink: 1 },
   fileHint: { color: '#a9bbcf', fontSize: 13, flexShrink: 1 },
   clearButton: { borderColor: '#754b5e', backgroundColor: '#321e2b' },
-  options: { gap: 2 },
+  options: { gap: 2, zIndex: 10, elevation: 10 },
   toggle: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4, marginTop: 14 },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: '#68809b', alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: '#16c7d9', borderColor: '#16c7d9' },
   checkmark: { color: '#07111e', fontSize: 13, lineHeight: 16, fontWeight: '800' },
   toggleLabel: { color: '#f3f7fc', fontSize: 15 },
-  drawerRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 44 },
-  pickerRoot: { position: 'relative', zIndex: 2 },
+  drawerRow: { position: 'relative', zIndex: 20, elevation: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 44 },
+  pickerRoot: { position: 'relative', zIndex: 30, elevation: 30 },
   pickerButton: { minHeight: 36, minWidth: 124, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', paddingHorizontal: 10, paddingVertical: 7 },
   pickerText: { color: '#edf6ff', fontSize: 14 },
   pickerChevron: { color: '#a9bbcf', fontSize: 16, lineHeight: 18 },
-  pickerMenu: { position: 'absolute', top: 40, left: 0, minWidth: 160, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', padding: 4, zIndex: 20, elevation: 8 },
+  pickerMenu: { position: 'absolute', top: 40, left: 0, minWidth: 160, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', padding: 4, zIndex: 40, elevation: 40 },
   pickerOption: { minHeight: 36, justifyContent: 'center', borderRadius: 5, paddingHorizontal: 9 },
   pickerOptionSelected: { backgroundColor: '#12243a' },
   status: { color: '#a9bbcf', fontSize: 13, lineHeight: 19, marginTop: 1 },

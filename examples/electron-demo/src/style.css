@@ -38,3 +38,42 @@ html.cinecrew-electron-overlay #root {
   overflow: hidden;
   background: #000;
 }
+
+/* The transparent controls window hosts the shared React Native player inside
+   the demo's scroll view. On fullscreen, let its fixed player surface escape
+   that scrolling/clipping context and remove the demo controls from view. */
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen,
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen body,
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #root {
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #cinecrew-electron-demo-scroll {
+  position: static !important;
+  overflow: visible !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  transform: none !important;
+}
+
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #cinecrew-electron-demo-header,
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #cinecrew-electron-demo-source-controls,
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #cinecrew-electron-demo-footnote {
+  display: none !important;
+}
+
+html.cinecrew-electron-overlay.cinecrew-electron-player-fullscreen #cinecrew-electron-demo-player-card {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  z-index: 2147483647 !important;
+}

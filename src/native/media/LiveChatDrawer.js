@@ -154,6 +154,7 @@ function LiveChatPanel({
       ) : (
         <FlatList
           ref={flatListRef}
+          nestedScrollEnabled
           data={messages}
           keyExtractor={(item, index) => chatMessageKey(item, index)}
           renderItem={renderMessageItem}
@@ -738,6 +739,7 @@ export const LiveChatDrawer = ({
             return (
               <FlatList
                 ref={epgListRef}
+                nestedScrollEnabled
                 style={styles.epgFlatList}
                 data={epgListings}
                 keyExtractor={(item, index) => `${String(item.id || 'epg')}-${index}`}

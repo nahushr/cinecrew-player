@@ -226,11 +226,11 @@ function PlatformMediaSurface(props) {
     handleSeekByAction, handlePlaybackRoute, exoFallback,
     nativeSource, computedAspectRatio, handleNativeLoadStart,
     handleNativeOpen, handleNativeBuffering, onRecordingCreated, recording, getPlayerHostBounds,
+    setIsFullscreen,
   } = props;
   if (isElectron()) {
     return (
       <ElectronVideoPlayer
-        key={`electron-vlc-${playerStreamUrl}`}
         ref={vlcRef}
         streamUrl={playerStreamUrl}
         getContainerBounds={getPlayerHostBounds}
@@ -253,6 +253,7 @@ function PlatformMediaSurface(props) {
         onError={handleWebError}
         onClose={props.handleClose}
         onPlaybackRoute={handlePlaybackRoute}
+        onFullscreenChange={setIsFullscreen}
       />
     );
   }
@@ -298,8 +299,8 @@ function PlatformMediaSurface(props) {
           audioTrack={selectedAudioTrack}
           autoplay={true}
           paused={!isPlaying}
-          muted={false}
-          volume={muted || videoOnlyMode ? 0 : volume}
+          muted={muted || videoOnlyMode}
+          volume={volume}
           playInBackground={isAudioOnly}
           playWhenInactive={isAudioOnly}
           source={nativeSource}
@@ -534,7 +535,7 @@ function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecordi
 }
 
 function FullscreenControlsPanel(props) {
-  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const frame = props.frameSize || { width: 0, height: 0 };
   const isPortrait = frame.width > 0 && frame.height > 0 && frame.height >= frame.width;
   // Android reports landscape phone widths in dp (often ~850–1000dp), so a
   // width threshold misses compact landscape layouts. Height is the limiting
@@ -545,10 +546,6 @@ function FullscreenControlsPanel(props) {
     <View
       style={styles.controlsPanel}
       pointerEvents="box-none"
-      onLayout={(event) => {
-        const { width, height } = event.nativeEvent.layout;
-        setFrame((previous) => previous.width === width && previous.height === height ? previous : { width, height });
-      }}
     >
       <PlayerTopBar
         insets={props.insets}
@@ -864,6 +861,15 @@ export const MediaPlayerView = ({
   const vlcRef = useRef(null);
   const playerRef = useRef(null);
   const mediaFrameRef = useRef(null);
+  const [mediaFrameSize, setMediaFrameSize] = useState({ width: 0, height: 0 });
+  const handleMediaFrameLayout = useCallback((event) => {
+    const { width, height } = event.nativeEvent.layout;
+    setMediaFrameSize((previous) => (
+      previous.width === width && previous.height === height
+        ? previous
+        : { width, height }
+    ));
+  }, []);
   const invokeAction = useCallback((name, fallback, payload) => {
     let callback = actions?.[name];
     if (name === 'onAspectRatioChange') callback = callback || onAspectRatioChange;
@@ -1032,6 +1038,14 @@ export const MediaPlayerView = ({
   const aspectOptions = useMemo(() => normalizeAspectOptions(aspectRatios), [aspectRatios]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  useEffect(() => {
+    if (!isElectron() || typeof document === 'undefined') return undefined;
+    const root = document.documentElement;
+    const className = 'cinecrew-electron-player-fullscreen';
+    root.classList.toggle(className, isFullscreen);
+    return () => root.classList.remove(className);
+  }, [isFullscreen]);
+
   const [audioTracks, setAudioTracks] = useState([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState(null);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -1104,11 +1118,15 @@ export const MediaPlayerView = ({
       } else {
         exitFullscreen();
       }
+    } else if (isElectron()) {
+      const next = !isFullscreen;
+      setIsFullscreen(next);
+      void vlcRef.current?.setFullscreen?.(next);
     } else {
       setIsFullscreen((prev) => !prev);
     }
     badgeService.emit('player.fullscreen', {}).catch(() => {});
-  }, [exitFullscreen]);
+  }, [exitFullscreen, isFullscreen, badgeService]);
 
   const computedAspectRatio = useMemo(() => {
     if (aspectRatio === 'FIT') {
@@ -2574,6 +2592,7 @@ export const MediaPlayerView = ({
       handleNativeLoadStart={handleNativeLoadStart}
       handleNativeOpen={handleNativeOpen}
       handleClose={handleClose}
+      setIsFullscreen={setIsFullscreen}
       handleNativeBuffering={handleNativeBuffering}
       onRecordingCreated={handleNativeRecordingCreated}
       onRecordingState={handleNativeRecordingState}
@@ -2727,7 +2746,9 @@ export const MediaPlayerView = ({
     handleVideoOnlyAction,
   };
 
-  const nativeGestureHandlers = null;
+  const nativeGestureHandlers = !isWeb() && !isElectron() && panResponder?.panHandlers
+    ? panResponder.panHandlers
+    : null;
   const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat;
   const mediaFrameStyle = resizeDrawerOpen
     ? { right: 'auto', width: windowWidth < 640 ? '52%' : '64%' }
@@ -2750,6 +2771,7 @@ export const MediaPlayerView = ({
         ref={mediaFrameRef}
         collapsable={false}
         style={[styles.mediaFrame, mediaFrameStyle]}
+        onLayout={handleMediaFrameLayout}
       >
         <FullscreenVideoLayer
           videoPlayer={videoPlayer}
@@ -2785,10 +2807,10 @@ export const MediaPlayerView = ({
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls
             are hidden if the elevated overlay remains mounted. */}
-        {showControls && !isLocked && !isAudioOnly ? (
+        {showControls && !isLocked && !isAudioOnly && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
           <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
             <View style={styles.controlsShell} pointerEvents="box-none">
-              <FullscreenControlsPanel {...fullscreenControlsProps} />
+              <FullscreenControlsPanel {...fullscreenControlsProps} frameSize={mediaFrameSize} />
             </View>
           </View>
         ) : null}
@@ -2848,6 +2870,22 @@ export const MediaPlayerView = ({
       />
     </View>
   );
+
+  if (isElectron()) {
+    return (
+      <View
+        ref={handlePlayerHostRef}
+        collapsable={false}
+        style={[
+          isFullscreen ? styles.electronFullscreenHost : styles.inlinePlayerContainer,
+          transparentElectronOverlay && { backgroundColor: 'transparent' },
+          style,
+        ]}
+      >
+        {fullscreenContent}
+      </View>
+    );
+  }
 
   if (!isWeb()) {
     if (isFullscreen) {
@@ -2938,6 +2976,19 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
+  },
+  electronFullscreenHost: {
+    position: 'fixed',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    borderRadius: 0,
+    backgroundColor: '#000',
+    zIndex: 100000,
+    overflow: 'hidden',
   },
   boundedInlinePlayerContent: {
     position: 'absolute',

@@ -59,6 +59,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   onEnded,
   onTracksChanged,
   onPlaybackRoute,
+  onFullscreenChange,
   onClose,
 }, ref) {
   const ipcRef = useRef(null);
@@ -78,6 +79,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     onEnded,
     onTracksChanged,
     onPlaybackRoute,
+    onFullscreenChange,
     onClose,
     paused,
     muted,
@@ -138,6 +140,9 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
         break;
       case 'route':
         callbacks.onPlaybackRoute?.(payload.url || '');
+        break;
+      case 'fullscreen':
+        callbacks.onFullscreenChange?.(!!payload.isFullscreen);
         break;
       case 'close':
         callbacks.onClose?.();
@@ -279,6 +284,9 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     },
     changeVideoAspectRatio(aspect) {
       return invokePlayer('cinecrew:vlc:set-aspect-ratio', aspect);
+    },
+    setFullscreen(fullscreen) {
+      return invokePlayer('cinecrew:window:set-fullscreen', !!fullscreen);
     },
     setAudioTrack(trackId) {
       return invokePlayer('cinecrew:vlc:set-audio-track', trackId);

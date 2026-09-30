@@ -46,7 +46,6 @@ export function PlayerViewport({
         style={{ width: '100%', alignItems: 'center' }}
       >
         <InlineLivePlayer
-          key={active.url}
           source={source}
           title={active.title}
           height={videoHeight}
@@ -66,7 +65,6 @@ export function PlayerViewport({
       style={{ width: '100%', alignItems: 'center' }}
     >
       <CineCrewPlayer
-        key={active.url}
         source={source}
         title={active.title}
         poster={active.poster}

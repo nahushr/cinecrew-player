@@ -9,8 +9,8 @@ export const sampleSources = [
   {
     id: 'dash',
     label: 'MPEG-DASH',
-    title: 'Envivio (MPEG-DASH Stream)',
-    url: 'https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd',
+    title: 'Big Buck Bunny (MPEG-DASH Stream)',
+    url: 'https://dash.akamaized.net/dash264/TestCases/1a/qualcomm/1/MultiRate.mpd',
     type: 'application/dash+xml',
   },
   {

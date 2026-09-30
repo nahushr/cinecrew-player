@@ -140,6 +140,12 @@ async function unmountPlayer() {
 function registerIpc() {
   ipcMain.handle('cinecrew:vlc:mount', (event, payload = {}) => mountPlayer({ sender: event.sender, args: payload }));
   ipcMain.handle('cinecrew:vlc:unmount', unmountPlayer);
+  ipcMain.handle('cinecrew:window:set-fullscreen', (_event, fullscreen) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+    const requested = Boolean(fullscreen);
+    if (mainWindow.isFullScreen() !== requested) mainWindow.setFullScreen(requested);
+    return { ok: true, isFullscreen: mainWindow.isFullScreen() };
+  });
   ipcMain.handle('cinecrew:vlc:load', async (_event, payload = {}) => {
     if (!vlcPlayer?.isEmbedded()) throw new Error('LibVLC is not mounted yet.');
     const source = String(payload.source || '').trim();
@@ -249,9 +255,17 @@ async function createWindow() {
   controlsWindow.showInactive();
 
   const syncOverlay = () => setTimeout(syncControlsWindowBounds, 0);
-  for (const eventName of ['move', 'resize', 'enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize']) {
+  for (const eventName of ['move', 'resize', 'maximize', 'unmaximize']) {
     mainWindow.on(eventName, syncOverlay);
   }
+  mainWindow.on('enter-full-screen', () => {
+    syncOverlay();
+    sendPlayerEvent('fullscreen', { isFullscreen: true });
+  });
+  mainWindow.on('leave-full-screen', () => {
+    syncOverlay();
+    sendPlayerEvent('fullscreen', { isFullscreen: false });
+  });
   mainWindow.on('focus', () => {
     if (controlsWindow && !controlsWindow.isDestroyed() && !controlsWindow.isVisible()) {
       controlsWindow.showInactive();
