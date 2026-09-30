@@ -12,12 +12,12 @@
     "snack:ios": "node ../../scripts/open-snack.mjs --ios"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "^0.1.29",
     "@expo/vector-icons": "^15.0.3",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "5.0.1",
     "dashjs": "^5.2.1",
     "expo": "~54.0.0",
+    "expo-video": "~3.0.16",
     "flv.js": "^1.6.2",
     "hls.js": "^1.7.3",
     "mediabunny": "^1.59.0",

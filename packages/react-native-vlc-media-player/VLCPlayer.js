@@ -1,9 +1,8 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import ReactNative from 'react-native';
 import PropTypes from 'prop-types';
-import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
-
-const { StyleSheet, requireNativeComponent, View, UIManager } = ReactNative;
+const { StyleSheet, requireNativeComponent, View, UIManager, Image } = ReactNative;
+const resolveAssetSource = Image?.resolveAssetSource || ((source) => source);
 
 const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
   const {
@@ -143,7 +142,10 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
     progressUpdateInterval: onProgress ? 250 : 0,
   };
 
-  return <NativeVLCPlayer ref={rootRef} {...nativeProps} />;
+  const NativeComponent = getNativeVLCPlayer();
+  if (!NativeComponent) return null;
+
+  return <NativeComponent ref={rootRef} {...nativeProps} />;
 });
 
 VLCPlayer.displayName = 'VLCPlayer';
@@ -201,7 +203,24 @@ VLCPlayer.propTypes = {
   ...View.propTypes,
 };
 
-const NativeVLCPlayer = requireNativeComponent('RCTVLCPlayer', VLCPlayer);
+let NativeVLCPlayer = null;
+function getNativeVLCPlayer() {
+  if (!NativeVLCPlayer) {
+    const hasConfig = Boolean(
+      UIManager?.hasViewManagerConfig?.('RCTVLCPlayer') ||
+      UIManager?.getViewManagerConfig?.('RCTVLCPlayer') ||
+      UIManager?.RCTVLCPlayer
+    );
+    if (hasConfig && typeof requireNativeComponent === 'function') {
+      try {
+        NativeVLCPlayer = requireNativeComponent('RCTVLCPlayer', VLCPlayer);
+      } catch {
+        NativeVLCPlayer = null;
+      }
+    }
+  }
+  return NativeVLCPlayer;
+}
 
 const styles = StyleSheet.create({
   base: {

@@ -37,7 +37,7 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
   assert.equal(manifest.dependencies['@expo/vector-icons'], '^15.0.2');
   assert.equal(manifest.dependencies['@react-native-community/slider'], '^5.1.2');
-  assert.equal(manifest.dependencies['expo-video'], '~55.0.21 || ~57.0.2');
+  assert.equal(manifest.dependencies['expo-video'], '>=2.0.0 || ~55.0.21 || ~57.0.2');
   assert.equal(manifest.dependencies['react-native-safe-area-context'], '^5.6.2');
   assert.equal(manifest.dependencies['react-native-svg'], '^15.15.3');
   const expoWebApp = readFileSync(path.join(root, 'examples/expo-web-demo/App.js'), 'utf8');
