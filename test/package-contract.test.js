@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { WEB_PLAYER_STYLES } from '../src/web/inlineStyles.generated.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -36,6 +37,13 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   assert.doesNotMatch(webEntry, /from ['"](?:react-native|react-native-webview|@expo\/vector-icons)['"]/);
+  assert.doesNotMatch(webEntry, /import ['"]\.\/styles\.css['"]/);
+  assert.match(webEntry, /installWebPlayerStyles\(\)/);
+  const generatedWebStyles = readFileSync(path.join(root, 'src/web/inlineStyles.generated.js'), 'utf8');
+  const sourceStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(generatedWebStyles, /export const WEB_PLAYER_STYLES/);
+  assert.equal(WEB_PLAYER_STYLES, sourceStyles);
+  assert.ok(existsSync(path.join(root, 'src/web/installStyles.js')));
   const demoSamples = readFileSync(path.join(root, 'examples/web-demo/src/samples.js'), 'utf8');
   assert.doesNotMatch(demoSamples, /youtube/i, 'the Vite demo no longer advertises YouTube as a playable sample');
   assert.equal(existsSync(path.join(root, 'src/native/media/YouTubeVideoPlayer.web.js')), false);

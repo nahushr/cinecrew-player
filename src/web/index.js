@@ -12,7 +12,9 @@ import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRe
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
-import './styles.css';
+import { installWebPlayerStyles } from './installStyles.js';
+
+installWebPlayerStyles();
 
 const h = React.createElement;
 const DEFAULT_THEME = {

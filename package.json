@@ -92,7 +92,7 @@
   "scripts": {
     "test": "node --test",
     "check:types": "tsc --noEmit --skipLibCheck --strict types/index.d.ts",
-    "prepack": "npm run check:types"
+    "prepack": "node scripts/generate-web-inline-styles.mjs && npm run check:types"
   },
   "devDependencies": {
     "@expo/config-plugins": "^57.0.9",
