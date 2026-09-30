@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "@cinecrew/cinecrew-player": "^0.1.29",
-    "@expo/vector-icons": "^15.0.2",
+    "@expo/vector-icons": "^15.0.3",
     "@mediabunny/ac3": "^1.59.0",
-    "@react-native-community/slider": "^5.1.2",
+    "@react-native-community/slider": "5.0.1",
     "dashjs": "^5.2.1",
     "expo": "~54.0.0",
     "flv.js": "^1.6.2",
@@ -25,7 +25,7 @@
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-svg": "^15.15.3",
+    "react-native-svg": "15.12.1",
     "react-native-web": "~0.19.13"
   },
   "devDependencies": {
