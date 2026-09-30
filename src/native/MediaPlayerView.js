@@ -500,7 +500,7 @@ function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly }) {
 
 function FullscreenGestureLayer({ isAudioOnly, showControls, isLocked, isRecording, panResponder, handlers }) {
   if (isAudioOnly) return null;
-  if (!isWeb() && panResponder) {
+  if (!isWeb() && !isElectron() && panResponder) {
     // Keep the full-screen gesture responder out of the hit-test tree while
     // controls are visible. PanResponder can otherwise claim a touch before
     // nested TouchableOpacity controls receive it on Android.
@@ -536,8 +536,22 @@ function FullscreenControlsLayer({ showControls, isLocked, isAudioOnly, children
 }
 
 function FullscreenControlsPanel(props) {
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const isPortrait = frame.width > 0 && frame.height > 0 && frame.height >= frame.width;
+  // Android reports landscape phone widths in dp (often ~850–1000dp), so a
+  // width threshold misses compact landscape layouts. Height is the limiting
+  // dimension and keeps the top/bottom controls and their popovers in-frame.
+  const compact = frame.height > 0 && frame.height < 520 && !isPortrait;
+
   return (
-    <>
+    <View
+      style={styles.controlsPanel}
+      pointerEvents="box-none"
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setFrame((previous) => previous.width === width && previous.height === height ? previous : { width, height });
+      }}
+    >
       <PlayerTopBar
         insets={props.insets}
         scale={props.scale}
@@ -556,6 +570,8 @@ function FullscreenControlsPanel(props) {
         diagnosticsOverlayEnabled={props.diagnosticsOverlayEnabled}
         muted={props.muted}
         controls={props.controls}
+        playerIsPortrait={isPortrait}
+        compact={compact}
         onClose={props.onClose}
         onStartRecording={(event) => props.handleRecordingAction('onRecordingStart', props.handleStartRecording, event)}
         onResumeRecording={(event) => props.handleRecordingAction('onRecordingResume', props.handleResumeRecording, event)}
@@ -567,6 +583,7 @@ function FullscreenControlsPanel(props) {
         onToggleLock={props.handleLockAction}
       />
       <CenterControls
+        compact={compact}
         visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
         isPlaying={props.isPlaying}
@@ -574,6 +591,7 @@ function FullscreenControlsPanel(props) {
         onTogglePlayPause={props.handlePlayPauseAction}
       />
       <PlayerBottomBar
+        compact={compact}
         isLive={props.isLive}
         insets={props.insets}
         scale={props.scale}
@@ -605,7 +623,7 @@ function FullscreenControlsPanel(props) {
         onSelectAudioTrack={props.handleAudioTrackAction}
         onToggleFullscreen={props.handleFullscreenAction}
       />
-    </>
+    </View>
   );
 }
 
@@ -710,13 +728,31 @@ function FullscreenRecordingLayer(props) {
 }
 
 function FullscreenSessionLayer({ locked, controlsVisible, isAudioOnly, insets, scale, onToggleLock }) {
+  const lockButtonRef = useRef(null);
+  const lockTopOffsetRef = useRef(0);
+  const [lockTopOffset, setLockTopOffset] = useState(0);
+  const alignLockButton = () => {
+    lockButtonRef.current?.measureInWindow?.((_x, windowY) => {
+      // The Android fullscreen Modal can extend above the app window after a
+      // rotation. Keep the locked-state affordance below the real status bar.
+      const baseWindowY = windowY - lockTopOffsetRef.current;
+      const safeTop = Math.max(insets?.top || 0, 24);
+      const nextOffset = Math.max(0, safeTop - baseWindowY);
+      if (Math.abs(nextOffset - lockTopOffsetRef.current) > 1) {
+        lockTopOffsetRef.current = nextOffset;
+        setLockTopOffset(nextOffset);
+      }
+    });
+  };
   if (!locked || !controlsVisible || isAudioOnly) return null;
   return locked && controlsVisible ? (
         <TouchableOpacity
+          ref={lockButtonRef}
           style={[styles.floatingLockBtn, {
-            top: Math.max(insets?.top || 0, 24),
+            top: Math.max(insets?.top || 0, 24) + lockTopOffset,
             right: Math.max(insets?.left || 0, insets?.right || 0, 20),
           }]}
+          onLayout={alignLockButton}
           onPress={(event) => {
             event.stopPropagation();
             onToggleLock();
@@ -950,6 +986,7 @@ export const MediaPlayerView = ({
 
   const [showLiveChat, setShowLiveChat] = useState(false);
   const [drawerTab, setDrawerTab] = useState('chat');
+  const isLive = mediaType === 'live' || mediaType === 'channel';
   const isLiveCommentsEnabled = controls.liveChat ?? Boolean(integrations.liveChat?.loadMessages && integrations.liveChat?.sendMessage);
   const isEpgEnabled = controls.epg ?? Boolean(integrations.epg?.loadListings);
   const diagnosticsOverlayEnabled = Boolean(features.diagnostics);
@@ -1193,7 +1230,6 @@ export const MediaPlayerView = ({
   const [showControls, setShowControls] = useState(true);
   const hideTimer = useRef(null);
 
-  const isLive = mediaType === 'live' || mediaType === 'channel';
   const isInlinePreview = !!inlinePreview;
   const progressBarVisible = showProgressBar !== false
     && controls.seek !== false
@@ -2063,7 +2099,7 @@ export const MediaPlayerView = ({
 
   // PanResponder for Mobile Pinch-to-Zoom & VLC-Style Vertical Swipe Gestures (Brightness / Volume)
   const panResponder = useMemo(() => {
-    if (isWeb()) return null;
+    if (isWeb() || isElectron()) return null;
 
     const isSeekScrubGesture = (evt) => {
       if (!showControlsRef.current) return false;
@@ -2683,7 +2719,10 @@ export const MediaPlayerView = ({
     <View
       ref={handlePlayerHostRef}
       collapsable={false}
-        style={[styles.fullscreenPlayerContainer, style]}
+      style={[
+        styles.fullscreenPlayerContainer,
+        !isWeb() && !isFullscreen && styles.boundedInlinePlayerContent,
+      ]}
     >
       <StatusBar hidden={isFullscreen ? !showControls : false} translucent={isFullscreen} backgroundColor="transparent" barStyle="light-content" />
 
@@ -2856,11 +2895,20 @@ const styles = StyleSheet.create({
   inlinePlayerContainer: {
     width: '100%',
     aspectRatio: 16 / 9,
-    minHeight: 220,
     backgroundColor: '#000',
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
+  },
+  boundedInlinePlayerContent: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: 'auto',
+    height: 'auto',
+    flex: 1,
   },
   inlineVideoStage: {
     width: '100%',
@@ -3038,9 +3086,15 @@ const styles = StyleSheet.create({
   },
   controlsShell: {
     flex: 1,
+    width: '100%',
     backgroundColor: 'transparent',
     zIndex: 65,
     elevation: 65,
+  },
+  controlsPanel: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   brightnessDimOverlay: {
     position: 'absolute',

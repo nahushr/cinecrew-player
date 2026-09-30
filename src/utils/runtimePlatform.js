@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 export function isElectron() {
   if (typeof window === 'undefined') return false;
   if (typeof navigator !== 'undefined' && /cursor/i.test(navigator.userAgent)) return false;
-  return Boolean(window.process?.versions?.electron);
+  return Boolean(window.cinecrewRuntime?.isElectron || window.process?.versions?.electron);
 }
 
 export function isWeb() {

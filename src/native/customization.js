@@ -1,13 +1,27 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 const PlayerCustomizationContext = createContext({ icons: {}, theme: {} });
 
 export function PlayerCustomizationProvider({ icons, theme, children }) {
+  const [iconsReady, setIconsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([MaterialCommunityIcons.loadFont(), MaterialIcons.loadFont()])
+      .then(() => {
+        if (mounted) setIconsReady(true);
+      })
+      .catch((error) => {
+        console.warn('[CineCrewPlayer] Could not load player icon fonts.', error);
+      });
+    return () => { mounted = false; };
+  }, []);
+
   return React.createElement(
     PlayerCustomizationContext.Provider,
-    { value: { icons: icons || {}, theme: theme || {} } },
+    { value: { icons: icons || {}, theme: theme || {}, iconsReady } },
     children,
   );
 }
@@ -39,6 +53,7 @@ export function PlayerIcon({ name, pack = 'community', size = 20, color = '#FFFF
   if (typeof custom === 'string' && !/^[a-z0-9-]+$/i.test(custom)) {
     return React.createElement(Text, { style: [{ fontSize: size, color }, style], accessibilityElementsHidden: true }, custom);
   }
+  if (!customization.iconsReady) return null;
   const IconSet = pack === 'material' ? MaterialIcons : MaterialCommunityIcons;
   const defaultIconNames = { mute: 'volume-off', unmute: 'volume-high' };
   return React.createElement(IconSet, { name: typeof custom === 'string' ? custom : (defaultIconNames[name] || name), size, color, style });

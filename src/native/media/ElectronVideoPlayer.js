@@ -12,7 +12,9 @@ async function unmountBundledVlc(ipc) {
 }
 
 function getElectronIpcRenderer() {
-  if (typeof window === 'undefined' || typeof window.require !== 'function') return null;
+  if (typeof window === 'undefined') return null;
+  if (window.cinecrewVlc) return window.cinecrewVlc;
+  if (typeof window.require !== 'function') return null;
   try {
     return window.require('electron')?.ipcRenderer || null;
   } catch {

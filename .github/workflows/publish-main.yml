@@ -72,11 +72,14 @@ jobs:
 
   android-build:
     name: Build Android native demo APK
+    needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+        with:
+          ref: main
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -89,9 +92,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-
-      - name: Install package dependencies
-        run: npm ci
 
       - name: Install native demo dependencies
         run: npm ci --prefix examples/native-demo
@@ -120,9 +120,11 @@ jobs:
 
   publish:
     name: Publish one player package to npm and GitHub Packages
-    needs: [platform-build, quality-gates, android-build]
+    needs: [platform-build, quality-gates]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     permissions:
       contents: write
       packages: write
@@ -217,22 +219,29 @@ jobs:
             npm publish --ignore-scripts --registry=https://npm.pkg.github.com
           fi
 
-      - name: Refresh the React demo lockfile to the latest npm package
+      - name: Refresh every demo lockfile to the newly published npm package
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          package='@cinecrew/cinecrew-player@latest'
-          for attempt in $(seq 1 12); do
-            if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
-              --cache="$RUNNER_TEMP/npm-release-cache" --prefix examples/web-demo \
-              @cinecrew/cinecrew-player \
-              --registry=https://registry.npmjs.org; then
-              exit 0
-            fi
-            echo "Retrying React demo lockfile update for $package ($attempt/12)."
-            sleep 10
+          for demo in examples/web-demo examples/expo-web-demo examples/native-demo examples/electron-demo; do
+            for attempt in $(seq 1 12); do
+              if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
+                --cache="$RUNNER_TEMP/npm-release-cache" --prefix "$demo" \
+                @cinecrew/cinecrew-player --registry=https://registry.npmjs.org; then
+                break
+              fi
+              echo "Retrying $demo lockfile update ($attempt/12)."
+              sleep 10
+            done
+            node - "$demo/package-lock.json" "$VERSION" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expected] = process.argv.slice(2);
+          const lock = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const actual = lock.packages?.['node_modules/@cinecrew/cinecrew-player']?.version;
+          if (actual !== expected) throw new Error(`${file} resolves ${actual}; expected ${expected}`);
+          NODE
           done
-          echo "::error::Could not resolve the published npm package for the React demo."
-          exit 1
 
       - name: Commit the released version for the next main build
         env:
@@ -244,6 +253,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add package.json package-lock.json
           git add examples/web-demo/package.json examples/web-demo/package-lock.json
+          git add examples/expo-web-demo/package.json examples/expo-web-demo/package-lock.json
+          git add examples/native-demo/package.json examples/native-demo/package-lock.json
+          git add examples/electron-demo/package.json examples/electron-demo/package-lock.json
           git commit -m "chore(release): sync package version $VERSION [skip ci]"
           for attempt in $(seq 1 5); do
             git fetch origin main
@@ -254,26 +266,121 @@ jobs:
             echo "Retrying release commit push after refreshing main ($attempt/5)."
             sleep 2
           done
-          echo "::error::Could not push the release version and React demo lockfile to main."
+          echo "::error::Could not push the release version and demo lockfiles to main."
           exit 1
 
+  macos-dmg:
+    name: Build Electron LibVLC DMG
+    needs: android-build
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the released demo setup
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install the Electron demo with the published npm package
+        run: npm ci --prefix examples/electron-demo
+
+      - name: Install VLC runtime
+        run: brew install --cask vlc
+
+      - name: Package the macOS DMG with LibVLC
+        run: npm run dist:mac --prefix examples/electron-demo
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinecrew-player-demo.dmg
+          path: examples/electron-demo/release/cinecrew-player-demo.dmg
+          if-no-files-found: error
+
+  windows-exe:
+    name: Build Electron LibVLC Windows installer
+    needs: macos-dmg
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the released demo setup
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install VLC runtime
+        run: choco install vlc --yes --no-progress
+
+      - name: Install the Electron demo with the published npm package
+        run: npm ci --prefix examples/electron-demo
+
+      - name: Package the Windows EXE with LibVLC
+        run: npm run dist:win --prefix examples/electron-demo
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinecrew-player-demo-setup.exe
+          path: examples/electron-demo/release/cinecrew-player-demo-setup.exe
+          if-no-files-found: error
+
+  release-assets:
+    name: Publish APK, DMG, and EXE release assets
+    needs: [publish, android-build, macos-dmg, windows-exe]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
       - name: Download Android APK artifact
         uses: actions/download-artifact@v4
         with:
           name: cinecrew-player-demo.apk
           path: artifacts
 
-      - name: Publish GitHub Release with APK
+      - name: Download macOS DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cinecrew-player-demo.dmg
+          path: artifacts
+
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cinecrew-player-demo-setup.exe
+          path: artifacts
+
+      - name: Publish GitHub Release with all platform artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.release.outputs.version }}
+          VERSION: ${{ needs.publish.outputs.version }}
         run: |
           set -euo pipefail
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" artifacts/cinecrew-player-demo.apk --clobber
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" \
+              artifacts/cinecrew-player-demo.apk \
+              artifacts/cinecrew-player-demo.dmg \
+              artifacts/cinecrew-player-demo-setup.exe \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
           else
-            gh release create "v$VERSION" artifacts/cinecrew-player-demo.apk \
+            gh release create "v$VERSION" \
+              artifacts/cinecrew-player-demo.apk \
+              artifacts/cinecrew-player-demo.dmg \
+              artifacts/cinecrew-player-demo-setup.exe \
+              --repo "$GITHUB_REPOSITORY" \
               --title "v$VERSION" \
-              --notes "CineCrew Player v$VERSION release with native Android LibVLC player demo APK" \
+              --notes "CineCrew Player v$VERSION release with Android APK and Electron LibVLC installers for macOS and Windows." \
               --latest
           fi

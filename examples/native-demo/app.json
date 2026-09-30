@@ -8,6 +8,9 @@
     },
     "android": {
       "package": "com.nahushr.cinecrewplayernativedemo"
+    },
+    "ios": {
+      "bundleIdentifier": "com.nahushr.cinecrewplayernativedemo"
     }
   }
 }

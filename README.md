@@ -22,11 +22,35 @@
 
 ## Demos
 
-| React + Vite | React Native Web (Expo) | Android Demo (Native LibVLC) |
-|:---:|:---:|:---:|
-| [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/web-demo?startScript=dev) | [![Open in StackBlitz](https://img.shields.io/badge/StackBlitz-Open-1269D3?logo=stackblitz&logoColor=white)](https://stackblitz.com/fork/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo?startScript=web) | [![Download Android APK](https://img.shields.io/badge/Download-Android%20APK-3DDC84?logo=android&logoColor=white)](https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk) |
+<table width="100%">
+  <thead>
+    <tr><th>Platform</th><th>Link</th><th>Installation instructions</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>React + Vite</td>
+      <td><a href="https://github.com/nahushr/cinecrew-player/codespaces">Open the existing Codespace</a></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>React Native Web (Expo)</td>
+      <td><a href="https://github.com/nahushr/cinecrew-player/codespaces">Open the existing Codespace</a></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>React Native (Android / iOS · LibVLC)</td>
+      <td><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk">Download latest Android APK</a></td>
+      <td><strong>iOS</strong>:<br><strong>Android</strong>: <a href="examples/native-demo/INSTALL.md#android-emulator-from-terminal">macOS and Windows terminal-only setup</a></td>
+    </tr>
+    <tr>
+      <td>Electron (macOS DMG / Windows EXE · LibVLC)</td>
+      <td><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.dmg">Download latest DMG</a><br><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo-setup.exe">Download latest Windows installer</a></td>
+      <td><strong>macOS</strong>: <a href="examples/native-demo/INSTALL.md#electron-macos">run or package from Terminal</a>.<br><strong>Windows</strong>:</td>
+    </tr>
+  </tbody>
+</table>
 
-> 📱 **Android Native Demo:** Download [`cinecrew-player-demo.apk`](https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk) directly to test native LibVLC playback (HLS, RTSP, RTMP, FLV, MPEG-TS, MKV, AC3 audio) on your Android device, emulator, or [Appetize.io](https://appetize.io).
+The Android APK, macOS DMG, and Windows installer are attached to each GitHub Release. The two web links open the repository’s Codespaces page; choose the existing demo Codespace rather than creating a new one.
 
 <p align="center"><a href="#install">Install</a> · <a href="#feature-portfolio">Features</a> · <a href="#platform--playback-matrix">Platforms</a> · <a href="#props">API reference</a> · <a href="#roadmap">Roadmap</a></p>
 
@@ -44,12 +68,14 @@
 flowchart LR
   A[Playable URL or local media] --> B{Optional app resolver}
   B --> C{Host platform}
-  C -->|React web / Electron / RN Web| D[Browser media element]
+  C -->|React web / RN Web| D[Browser media element]
   D --> E[Native formats · hls.js · patched MPEG-TS]
   C -->|React Native Android / iOS| F[VLC adapter]
   F --> G[Expo Video fallback where available]
+  C -->|Electron LibVLC demo| K[Packaged LibVLC runtime]
   E --> H[Shared player controls]
   G --> H
+  K --> H
   H --> I[Theme · icons · callbacks]
   H --> J[Optional app adapters: chat · EPG · recording]
 ```
@@ -110,20 +136,20 @@ flowchart LR
 | Host | Public entry | Rendering / engine path | Key considerations |
 |---|---|---|---|
 | 🌐 React in browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | DOM player; browser media, hls.js, patched mpegts.js | Browser codec support and origin CORS still apply |
-| 🖥️ Electron | `@cinecrew/cinecrew-player/electron` | Same web renderer inside Electron Chromium | Chromium’s codec and network rules still apply |
+| 🖥️ React DOM in Electron | `@cinecrew/cinecrew-player/electron` | React web renderer inside Chromium | Chromium’s codec and network rules still apply |
+| 🖥️ Electron LibVLC demo | Native player entry inside the Electron demo | Shared React Native Web UI with an Electron IPC bridge to `electron-vlc-player` and LibVLC | The demo packages its VLC runtime; see the macOS build steps below |
 | 🤖 React Native Android | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
 | 📱 React Native iOS | `@cinecrew/cinecrew-player/native` or `@cinecrew/cinecrew-player/react-native` | Native React Native surface with bundled VLC adapter; Expo Video fallback where available | Native dependencies must be compiled into the app |
 | 🧪 React Native Web / Expo Web | `@cinecrew/cinecrew-player/react-native-web` | Browser renderer from a React Native Web host | Uses web media paths, not native VLC |
 
-| Media / source | Web & Electron | React Native | What the app may need to provide |
+| Media / source | Web / Expo Web | React Native | Electron LibVLC demo |
 |---|---|---|---|
-| MP4 / browser-native media | ✅ Browser media element | ✅ Native engine | A directly playable URL or local URI |
-| HLS (`.m3u8`) | ✅ hls.js / native HLS where available | ✅ Native engine | Origin access, valid playlist/segments, compatible codecs |
-| MPEG-TS (`.ts`) | ✅ Bundled patched MPEG-TS client, when browser conditions permit | ✅ VLC path | Browser codecs and CORS; native module availability |
-| Ogg/Theora (`.ogv`) | ✅ `ogv.js` WebAssembly decoder | ✅ Native VLC path | Web uses the versioned ogv.js worker/WASM assets; provide `ogvResourceBase` to self-host them |
-| Hosted-video or share pages | ⚙️ Resolve to a direct media URL with `resolveSource` | ⚙️ Resolve to a direct media URL with `resolveSource` | A watch/share page is not a media stream |
-| Local files | ✅ Platform-supported local/blob URI | ✅ Platform-supported file URI | App obtains and passes the platform-readable URI |
-| Share pages / cloud-drive pages | ⚙️ Optional `resolveSource` | ⚙️ Optional `resolveSource` | Your app resolves authentication and obtains a playable media URL |
+| MP4 / browser-native media | ✅ Browser media element | ✅ Native engine | ✅ LibVLC |
+| HLS (`.m3u8`) | ✅ hls.js / native HLS where available | ✅ Native engine | ✅ LibVLC |
+| MPEG-TS (`.ts`) | ✅ Bundled patched MPEG-TS client, when browser conditions permit | ✅ VLC path | ✅ LibVLC |
+| Ogg/Theora (`.ogv`) | ✅ `ogv.js` WebAssembly decoder | ✅ Native VLC path | ✅ LibVLC |
+| Hosted-video or share pages | ⚙️ Resolve to a direct media URL with `resolveSource` | ⚙️ Resolve to a direct media URL with `resolveSource` | Pass a direct URL or a local file URL |
+| Local files | ✅ Platform-supported local/blob URI | ✅ Platform-supported file URI | ✅ Electron file URL from the native file picker |
 
 **Compatibility is not a promise that every URL plays everywhere.** A browser needs a compatible container/codec and any required CORS permission. Arbitrary web pages are not necessarily media files. For known browser-incompatible MPEG-TS audio such as AC3, use native playback when supported or handle the browser error in the consuming app.
 
@@ -134,6 +160,7 @@ flowchart LR
 | UI & API | React · React Native · TypeScript declarations |
 | Web playback | HTML video · hls.js · patched mpegts.js |
 | Native playback | VLC adapter bundled in `@cinecrew/cinecrew-player` · `expo-video` fallback |
+| Electron desktop demo | Electron · IPC preload · `electron-vlc-player` · packaged LibVLC runtime |
 | Native UI / utilities | React Native · Expo config plugins · safe-area context · SVG · community slider |
 | Optional media utilities | Mediabunny / AC3 parsing support in relevant web playback paths |
 | Packaging | Platform-specific entry points · npm exports · bundled styles · native autolinking |
@@ -180,7 +207,8 @@ The package has one public player API with a renderer selected for the host. The
 | Host app | Import | Renderer / playback |
 | --- | --- | --- |
 | React DOM in a browser | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react` | HTML video, hls.js, and patched mpegts.js. |
-| React DOM inside Electron (macOS `.dmg`, Windows `.exe`) | `@cinecrew/cinecrew-player/electron` | Same renderer as React web, using Electron's Chromium media stack. No WebView or custom Electron IPC bridge is needed. |
+| React DOM inside Electron | `@cinecrew/cinecrew-player/electron` | Same renderer as React web, using Electron's Chromium media stack. |
+| Electron LibVLC demo (macOS `.dmg`, Windows `.exe`) | Demo app using the native player entry | React Native Web player UI connected through a context-isolated preload bridge to LibVLC; the VLC runtime is packaged with the installer. |
 | React Native Android / iOS | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native` | React Native UI with the bundled VLC adapter and Expo video fallback. |
 | React Native Web / Expo Web | `@cinecrew/cinecrew-player` or `@cinecrew/cinecrew-player/react-native-web` | React DOM adapter hosted inside the React Native Web app; uses browser playback engines and does not load native VLC or WebView code. |
 
@@ -282,7 +310,8 @@ Pass a direct media URL or a platform-readable local file URI. Hosted-video watc
 | --- | --- | --- |
 | Web | Native `<video>`, hls.js, and the bundled patched mpegts.js client | MP4 and browser-native formats, HLS (`.m3u8`), and MPEG-TS (`.ts`) when the stream, codecs, and CORS policy permit it. |
 | React Native Android / iOS | VLC native module; `expo-video` fallback when VLC is unavailable | VLC supports a broader range of containers/codecs, including common AC3 streams. Native module availability depends on the app binary. |
-| Electron renderer | Chromium `<video>`, hls.js, and patched mpegts.js | Same browser codec/CORS constraints as React web; packages with the app's `.dmg` / `.exe`. |
+| React DOM in Electron | Chromium `<video>`, hls.js, and patched mpegts.js | Same browser codec/CORS constraints as React web. |
+| Electron LibVLC demo | `electron-vlc-player` with the VLC 3 runtime | Native LibVLC playback; VLC runtime is packaged into the macOS DMG and Windows installer. |
 
 Browser codec support varies. The web player reports an AC3 compatibility message only when its MPEG-TS probe identifies unsupported AC3 audio; native playback does not apply this browser-only restriction.
 

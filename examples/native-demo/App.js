@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport.js';
 import { SourceControls } from './src/components/SourceControls.js';
@@ -10,7 +10,9 @@ import { useDemoPlayerActions } from './src/hooks/useDemoPlayerActions.js';
 import { getPlayerErrorMessage } from './src/utils/playerErrorMessage.js';
 
 export default function App() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+  const isElectronDemo = Platform.OS === 'web' && Boolean(window.cinecrewRuntime?.isElectron);
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
@@ -21,6 +23,21 @@ export default function App() {
   const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
   const toastTimerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const scrollViewRef = useRef(null);
+  const playerCardTopRef = useRef(0);
+
+  const revealLandscapePlayer = useCallback(() => {
+    if (!isLandscape) return;
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ y: playerCardTopRef.current, animated: false });
+    });
+  }, [isLandscape]);
+
+  const handlePlayerCardLayout = useCallback((event) => {
+    playerCardTopRef.current = event.nativeEvent.layout.y;
+    if (!isLandscape) return;
+    revealLandscapePlayer();
+  }, [isLandscape, revealLandscapePlayer]);
 
   const notify = useCallback((title, message, variant = 'success') => {
     setToast({ title, message: String(message || ''), variant });
@@ -35,6 +52,22 @@ export default function App() {
   useEffect(() => {
     setProgressTime('00:00:00');
   }, [active.url]);
+
+  useEffect(() => {
+    if (!isLandscape) return undefined;
+
+    // Align the player card to the safe viewport in landscape. Scrolling to
+    // the end also scrolls the footnote into view and can clip the player at
+    // the top of the screen.
+    let secondFrame;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(revealLandscapePlayer);
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
+  }, [revealLandscapePlayer, isLandscape]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -67,10 +100,16 @@ export default function App() {
   const loadFile = useCallback((event) => {
     const file = event?.target?.files?.[0];
     if (!file) return;
+    if (isElectronDemo && typeof window.cinecrewVlc?.getFileUrl === 'function') {
+      const url = window.cinecrewVlc.getFileUrl(file);
+      setActive({ id: 'file', title: file.name, url });
+      setStatus(`Loaded local file: ${file.name}`);
+      return;
+    }
     const objectUrl = URL.createObjectURL(file);
     setActive({ id: 'file', title: file.name, url: objectUrl, objectUrl });
     setStatus(`Loaded local file: ${file.name}`);
-  }, []);
+  }, [isElectronDemo]);
 
   const clearFile = useCallback(() => {
     setActive({ id: 'cleared', title: '', url: '' });
@@ -82,19 +121,23 @@ export default function App() {
   const horizontalPadding = width < 600 ? 12 : 20;
 
   return (
-    <SafeAreaProvider style={styles.screen}>
-      <View style={styles.screen}>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.screen} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 }]}
         keyboardShouldPersistTaps="handled"
+        onContentSizeChange={revealLandscapePlayer}
       >
         <View style={styles.pageHeader}>
           <View>
             <Text style={styles.eyebrow}>PLAYGROUND</Text>
             <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
           </View>
-          <View style={styles.platformTag}><Text style={styles.platformTagText}>Android Demo</Text></View>
+          <View style={styles.platformTag}>
+            <Text style={styles.platformTagText}>{isElectronDemo ? 'Electron · LibVLC' : Platform.OS === 'ios' ? 'iOS Demo' : 'Android Demo'}</Text>
+          </View>
         </View>
 
         <SourceControls
@@ -115,7 +158,11 @@ export default function App() {
           viewportWidth={width}
         />
 
-        <View style={styles.playerCard} accessibilityLabel="Video player">
+        <View
+          style={[styles.playerCard, isLandscape && styles.landscapePlayerCard]}
+          accessibilityLabel="Video player"
+          onLayout={handlePlayerCardLayout}
+        >
           <PlayerViewport
             active={active}
             source={source}
@@ -137,14 +184,14 @@ export default function App() {
         </Text>
       </ScrollView>
       <ToastViewport toast={toast} onDismiss={() => setToast(null)} viewportWidth={width} />
-      </View>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
-  scroll: { flex: 1 },
+  scroll: { flex: 1, minHeight: 0 },
   content: { width: '100%', maxWidth: 1060, alignSelf: 'center', paddingTop: 32, paddingBottom: 56 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 },
   eyebrow: { color: '#16c7d9', fontSize: 11, fontWeight: '800', letterSpacing: 2.3 },
@@ -152,5 +199,6 @@ const styles = StyleSheet.create({
   platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
   playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
+  landscapePlayerCard: { minHeight: 0 },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

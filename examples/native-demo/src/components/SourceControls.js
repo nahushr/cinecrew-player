@@ -153,7 +153,9 @@ export function SourceControls({
         </View>
       </View>
 
-      <Text style={styles.status}>{status} · Browser format and CORS support depend on the source host.</Text>
+      <Text style={styles.status}>{status} · {Platform.OS === 'web' && window.cinecrewRuntime?.isElectron
+        ? 'Native LibVLC playback.'
+        : 'Browser format and CORS support depend on the source host.'}</Text>
       <Text accessibilityLiveRegion="polite" style={styles.progress}>onProgressBarChange · {progressTime}</Text>
     </View>
   );
