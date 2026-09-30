@@ -35,6 +35,11 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./electron'].default, './src/web/index.js');
   assert.equal(manifest.exports['./react-native'].default, './src/native/index.js');
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
+  const expoWebApp = readFileSync(path.join(root, 'examples/expo-web-demo/App.js'), 'utf8');
+  const expoWebViewport = readFileSync(path.join(root, 'examples/expo-web-demo/src/components/PlayerViewport.web.js'), 'utf8');
+  assert.match(expoWebApp, /\.\/src\/components\/PlayerViewport\.web\.js/);
+  assert.match(expoWebViewport, /@cinecrew\/cinecrew-player\/react-native-web/);
+  assert.doesNotMatch(expoWebViewport, /@cinecrew\/cinecrew-player\/native/);
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   assert.doesNotMatch(webEntry, /from ['"](?:react-native|react-native-webview|@expo\/vector-icons)['"]/);
   assert.doesNotMatch(webEntry, /import ['"]\.\/styles\.css['"]/);
