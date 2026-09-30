@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { asPlayerSource, sampleSources } from './src/samples.js';
-import { PlayerViewport } from './src/components/PlayerViewport';
+// Snack's resolver does not consistently honor the `.web.js` platform suffix.
+// This project only targets Expo Web, so make the browser implementation explicit.
+import { PlayerViewport } from './src/components/PlayerViewport.web.js';
 import { SourceControls } from './src/components/SourceControls';
 import { ToastViewport } from './src/components/ToastViewport';
 import { useDemoIntegrations } from './src/hooks/useDemoIntegrations.js';
