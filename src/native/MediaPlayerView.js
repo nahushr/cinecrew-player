@@ -965,7 +965,7 @@ export const MediaPlayerView = ({
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       try {
         const user = await integrations.getUser?.();
         if (active && user) setCurrentUser(user);

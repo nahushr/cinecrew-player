@@ -4,6 +4,7 @@ import {
   WEB_AC3_UNSUPPORTED_CODE,
   WEB_AC3_UNSUPPORTED_MESSAGE,
 } from './webPlaybackErrors';
+import { attemptVideoPlayback } from './playbackAutoplay';
 
 const getMpegts = () => {
   const candidates = [
@@ -203,8 +204,7 @@ export function useWebMpegTsPlayback({
           player.load();
           lastPlaybackTime = Number(video.currentTime) || 0;
           lastPlaybackProgressAt = Date.now();
-          const playResult = player.play();
-          playResult?.catch?.(() => {});
+          void attemptVideoPlayback(player, video, pausedRef);
         } catch (recoveryError) {
           onErrorRef.current?.({
             message: recoveryError?.message || 'Could not reconnect to the live stream.',
@@ -259,13 +259,7 @@ export function useWebMpegTsPlayback({
       }
       delete video.dataset.mpegtsCodecGate;
       if (!pausedRef.current && player) {
-        const playResult = player.play();
-        playResult?.catch?.((err) => {
-          if (err?.name === 'NotAllowedError') {
-            video.muted = true;
-            player.play()?.catch?.(() => {});
-          }
-        });
+        void attemptVideoPlayback(player, video, pausedRef);
       }
     };
 
@@ -305,13 +299,7 @@ export function useWebMpegTsPlayback({
       handleCanPlay = () => {
         delete video.dataset.mpegtsCodecGate;
         if (!pausedRef.current && player) {
-          const playResult = player.play();
-          playResult?.catch?.((err) => {
-            if (err?.name === 'NotAllowedError') {
-              video.muted = true;
-              player.play()?.catch?.(() => {});
-            }
-          });
+          void attemptVideoPlayback(player, video, pausedRef);
         }
       };
       video.addEventListener('canplay', handleCanPlay);
@@ -355,13 +343,7 @@ export function useWebMpegTsPlayback({
       player.attachMediaElement(video);
       player.load();
       if (!pausedRef.current) {
-        const playResult = player.play();
-        playResult?.catch?.((err) => {
-          if (err?.name === 'NotAllowedError') {
-            video.muted = true;
-            player.play()?.catch?.(() => {});
-          }
-        });
+        void attemptVideoPlayback(player, video, pausedRef);
       }
       stallWatchdog = setInterval(() => {
         if (disposed || pausedRef.current || recoveryPending || video.currentTime <= 0) return;

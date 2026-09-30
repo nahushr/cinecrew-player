@@ -190,7 +190,7 @@ export function useWebAc3AudioPlayback({
 
     audio.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, Number(volume) / 100)), audio.context.currentTime, 0.025);
     setState('loading');
-    decodeAc3Stream({
+    void decodeAc3Stream({
       streamUrl,
       audio,
       videoRef,

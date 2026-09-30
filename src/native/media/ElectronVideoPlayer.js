@@ -3,6 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 const PLAYER_STAGE_ID = 'cinecrew-electron-vlc-stage';
 
+async function unmountBundledVlc(ipc) {
+  try {
+    await ipc.invoke('cinecrew:vlc:unmount');
+  } catch {
+    // The native view may already be unmounted during route changes.
+  }
+}
+
 function getElectronIpcRenderer() {
   if (typeof window === 'undefined' || typeof window.require !== 'function') return null;
   try {
@@ -140,7 +148,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       container: `#${PLAYER_STAGE_ID}`,
     }).then((result) => {
       if (!result?.ok) throw new Error(result?.error || 'Could not initialize CineCrew’s bundled VLC player.');
-      if (disposed) void ipc.invoke('cinecrew:vlc:unmount').catch(() => {});
+      if (disposed) void unmountBundledVlc(ipc);
       return result;
     }).catch((error) => {
       if (!disposed) {
@@ -168,7 +176,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       ipc.removeListener('cinecrew:vlc:event', handleNativeEvent);
       ipcRef.current = null;
       mountPromiseRef.current = null;
-      void ipc.invoke('cinecrew:vlc:unmount').catch(() => {});
+      void unmountBundledVlc(ipc);
     };
   }, [handleNativeEvent]);
 

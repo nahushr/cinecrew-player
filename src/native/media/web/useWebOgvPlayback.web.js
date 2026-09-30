@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { attemptVideoPlayback } from './playbackAutoplay';
 
 const DEFAULT_OGV_RESOURCE_BASE = 'https://cdn.jsdelivr.net/npm/ogv@1.9.0/dist';
 const ogvRuntimePromises = new Map();
@@ -52,17 +53,6 @@ function loadOgvRuntime(resourceBase) {
 const isOgvSource = (url, type) => /(?:^|\/)video\/ogg(?:$|;)/i.test(String(type || ''))
   || /\bogv\b/i.test(String(type || ''))
   || /\.ogv(?:$|[?#])/i.test(String(url || ''));
-
-function attemptPlayback(player, pausedRef) {
-  if (pausedRef.current) return;
-  const result = player.play();
-  result?.catch?.((error) => {
-    if (error?.name === 'NotAllowedError') {
-      player.muted = true;
-      player.play()?.catch?.(() => {});
-    }
-  });
-}
 
 function readCustomRatio(playerStyle) {
   if (playerStyle?.width !== 'auto' || playerStyle?.height !== 'auto') return null;
@@ -232,7 +222,7 @@ export function useWebOgvPlayback({
       onBufferingRef?.current?.(false);
       onProgressRef?.current?.();
       onPlaybackRouteRef?.current?.(activeUrl);
-      attemptPlayback(player, pausedRef);
+      void attemptVideoPlayback(player, player, pausedRef);
     };
     const handlePlaying = () => {
       onBufferingRef?.current?.(false);
@@ -298,7 +288,7 @@ export function useWebOgvPlayback({
         container.replaceChildren(playerFrame);
         videoRef.current = player;
         player.src = activeUrl;
-        if (!options.paused) attemptPlayback(player, pausedRef);
+        if (!options.paused) void attemptVideoPlayback(player, player, pausedRef);
       })
       .catch(reportError);
 
@@ -334,7 +324,7 @@ export function useWebOgvPlayback({
     player.volume = Math.max(0, Math.min(1, Number(volume) || 0));
     player.playbackRate = Number(playbackRate) || 1;
     if (paused) player.pause();
-    else attemptPlayback(player, pausedRef);
+    else void attemptVideoPlayback(player, player, pausedRef);
   }, [activeUrl, useOgv, videoRef, pausedRef, paused, muted, volume, playbackRate, videoOnly]);
 
   useEffect(() => {

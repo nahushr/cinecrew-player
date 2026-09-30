@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import Hls from 'hls.js';
+import { attemptVideoPlayback } from './playbackAutoplay';
 
 const isHlsUrl = (url) => /\.m3u8(?:$|[?#])/i.test(String(url || ''));
 
@@ -43,33 +44,12 @@ export function useWebHlsPlayback({ activeUrl, isLive, videoRef, pausedRef, onEr
       hls.loadSource(activeUrl);
       video.crossOrigin = 'anonymous';
       hls.attachMedia(video);
-      const attemptPlay = () => {
-        if (pausedRef.current) return;
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err?.name === 'NotAllowedError') {
-              video.muted = true;
-              video.play().catch(() => {});
-            }
-          });
-        }
-      };
+      const attemptPlay = () => { void attemptVideoPlayback(video, video, pausedRef); };
       hls.on(Hls.Events.MANIFEST_PARSED, attemptPlay);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = activeUrl;
       video.load();
-      if (!pausedRef.current) {
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err?.name === 'NotAllowedError') {
-              video.muted = true;
-              video.play().catch(() => {});
-            }
-          });
-        }
-      }
+      if (!pausedRef.current) void attemptVideoPlayback(video, video, pausedRef);
     } else {
       onErrorRef.current?.({ message: 'This browser does not support HLS playback.' });
     }

@@ -564,6 +564,23 @@ function getInlinePlayerStyle(inlinePreview, rect) {
   return { position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
+async function retryMutedVideoPlayback(video) {
+  try {
+    await video.play();
+  } catch {
+    // Autoplay can remain blocked until the user interacts with the page.
+  }
+}
+
+async function toggleBrowserFullscreen(element) {
+  try {
+    if (document.fullscreenElement === element) await document.exitFullscreen?.();
+    else await element?.requestFullscreen?.();
+  } catch {
+    // Browsers may reject fullscreen requests when they are not user initiated.
+  }
+}
+
 function stopBrowserRecorder(recorderRef, completionRef, finalizerRef) {
   return new Promise((resolve, reject) => {
     const recorder = recorderRef.current;
@@ -1140,7 +1157,9 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   }, [rows]);
 
   useEffect(() => {
-    if (isChat && hasMoreMessages && !loadingOlder && panelListRef.current?.scrollTop <= 24) loadOlderMessages();
+    if (isChat && hasMoreMessages && !loadingOlder && panelListRef.current?.scrollTop <= 24) {
+      void loadOlderMessages();
+    }
   }, [rows.length, hasMoreMessages, loadingOlder, isChat]);
 
   const send = async (comment) => {
@@ -1178,7 +1197,7 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
       className: 'cinecrew-player__panel-list',
       ref: panelListRef,
       onScroll: (event) => {
-        if (isChat && event.currentTarget.scrollTop <= 24) loadOlderMessages();
+        if (isChat && event.currentTarget.scrollTop <= 24) void loadOlderMessages();
       },
       'aria-live': isChat ? 'polite' : undefined,
     },
@@ -1460,7 +1479,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
             } else {
               video.muted = true;
               setMuted(true);
-              video.play().catch(() => {});
+              void retryMutedVideoPlayback(video);
             }
           } else if (playError?.name !== 'AbortError') {
             handleError({ message: playError?.message || 'Unable to start playback.', err: playError });
@@ -1812,10 +1831,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
-  const toggleFullscreen = () => action('onFullscreen', () => {
-    if (document.fullscreenElement === playerRef.current) document.exitFullscreen?.();
-    else playerRef.current?.requestFullscreen?.();
-  }, { isFullscreen: !fullscreen });
+  const toggleFullscreen = () => action(
+    'onFullscreen',
+    () => toggleBrowserFullscreen(playerRef.current),
+    { isFullscreen: !fullscreen },
+  );
   const openPanel = (panel) => {
     const isOpen = activePanel !== panel;
     return action(

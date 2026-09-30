@@ -343,7 +343,7 @@ export const LiveChatDrawer = ({
       }
     };
 
-    poll();
+    void poll();
     const intervalMs = Math.max(1000, Number(integrations.liveChat.pollIntervalMs) || 5000);
     const timer = setInterval(poll, intervalMs);
 
@@ -414,7 +414,7 @@ export const LiveChatDrawer = ({
       }
     };
 
-    load();
+    void load();
     const tick = setInterval(() => setEpgNow(Date.now()), 30000);
     return () => {
       cancelled = true;
