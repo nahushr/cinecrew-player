@@ -6,10 +6,11 @@ const demoAudioTracks = [
   { id: 'test-2', name: 'Test 2' },
 ];
 
-export function PlayerViewport({
+export const PlayerViewport = React.forwardRef(function PlayerViewport({
   active,
   source,
   drawerMode,
+  playerStyle,
   inline,
   showBrightnessControl,
   onBrightnessChangeEnd,
@@ -19,7 +20,7 @@ export function PlayerViewport({
   onProgressBarChange,
   onStatus,
   onPlaybackError,
-}) {
+}, ref) {
   const reportPlaybackError = (error) => {
     onStatus(error?.message || 'Playback error');
     onPlaybackError?.(error);
@@ -44,7 +45,9 @@ export function PlayerViewport({
   return (
     <CineCrewPlayer
       source={source}
+      ref={ref}
       title={active.title}
+      style={playerStyle}
       showBrightnessControl={showBrightnessControl}
       onBrightnessChangeEnd={onBrightnessChangeEnd}
       poster={active.poster}
@@ -67,4 +70,4 @@ export function PlayerViewport({
       onError={reportPlaybackError}
     />
   );
-}
+});

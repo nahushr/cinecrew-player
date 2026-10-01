@@ -184,6 +184,16 @@ function InlineLivePlayerSurface({
   onBrightnessChangeEnd,
   renderOverlay,
 }) {
+  const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
+  const [fullscreenFrameHeight, setFullscreenFrameHeight] = useState(0);
+  const handleInlineFrameLayout = React.useCallback((event) => {
+    const nextHeight = event?.nativeEvent?.layout?.height || 0;
+    setInlineFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
+  }, []);
+  const handleFullscreenFrameLayout = React.useCallback((event) => {
+    const nextHeight = event?.nativeEvent?.layout?.height || 0;
+    setFullscreenFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
+  }, []);
   const brightnessOverlay = (visible) => visible && brightness < 1
     ? React.createElement(View, {
       pointerEvents: 'none',
@@ -191,17 +201,22 @@ function InlineLivePlayerSurface({
     })
     : null;
   const brightnessControl = (visible) => visible && showBrightnessControl
+    && (!fullscreen || fullscreenFrameHeight > 0)
     ? React.createElement(VerticalBrightnessControl, {
       value: brightness,
       onChange: onBrightnessChange,
       onChangeEnd: onBrightnessChangeEnd,
       accentColor: palette.accentColor,
       compact: true,
-      availableHeight: visible && !fullscreen ? height : undefined,
+      availableHeight: fullscreen
+        ? fullscreenFrameHeight
+        : (inlineFrameHeight || height),
+      topInset: 54,
+      bottomInset: 54,
     })
     : null;
 
-  return React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style] },
+  return React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style], onLayout: handleInlineFrameLayout },
     createInlinePlayerLayer(player, !fullscreen),
     brightnessOverlay(!fullscreen && shouldRenderVideo),
     createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
@@ -213,7 +228,7 @@ function InlineLivePlayerSurface({
       animationType: 'none',
       statusBarTranslucent: true,
       onRequestClose: () => setFullscreen(false),
-    }, React.createElement(View, { style: styles.fullscreenFrame },
+    }, React.createElement(View, { style: styles.fullscreenFrame, onLayout: handleFullscreenFrameLayout },
       createInlinePlayerLayer(player, true),
       brightnessOverlay(shouldRenderVideo),
       createInlineStatusLayer(loading, error, palette),

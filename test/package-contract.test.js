@@ -75,7 +75,10 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   assert.match(nativeDrawer, /drawerMode === 'resize' && !popupMode/);
   assert.match(nativeDrawer, /drawerLandscape: \{[\s\S]*?right: 0/);
   assert.match(nativeDrawer, /bottomModalDrawer: \{/);
-  assert.match(nativePlayer, /drawerMode === 'resize' && showLiveChat/);
+  assert.match(nativePlayer, /const resizeDrawerOpen = drawerMode === 'resize'\s+&& showLiveChat\s+&& windowWidth >= windowHeight/);
+  assert.match(nativePlayer, /landscapeFullWidth=\{props\.isLandscape\}/);
+  assert.match(nativeDrawer, /const fullscreenLandscape = \(fullscreen \|\| landscapeFullWidth\)[\s\S]*?windowWidth >= windowHeight/);
+  assert.match(nativeDrawer, /fullscreenTopInset[\s\S]*fullscreenBottomInset/);
   assert.match(webPlayer, /cinecrew-player__modal-backdrop/);
   assert.match(webPlayer, /aria-modal/);
   assert.match(webStyles, /\.cinecrew-player__panel\.is-modal/);
@@ -87,6 +90,17 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   ]) {
     assert.match(readFileSync(path.join(root, demoFile), 'utf8'), /value: 'modal'|value="modal"/);
   }
+});
+
+test('native fullscreen video taps dismiss controls and landscape drawers overlay full-width video', () => {
+  const nativePlayer = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const nativeDrawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
+
+  assert.match(nativePlayer, /const handleFullscreenTouchEnd = useCallback/);
+  assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \? handleFullscreenTouchEnd : undefined\}/);
+  assert.match(nativePlayer, /onTouchStart=\{markControlSurfaceTouch\}/);
+  assert.match(nativeDrawer, /fullscreenLandscapeStyle = fullscreenLandscape/);
+  assert.match(nativeDrawer, /width: Math\.max\(0, windowWidth - fullscreenLeftInset - fullscreenRightInset\)/);
 });
 
 test('native VLC implementation is bundled inside the single player package', () => {

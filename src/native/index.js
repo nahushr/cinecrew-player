@@ -99,6 +99,26 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 /** Compact inline live preview companion for channel lists and guides. */
 export { InlineLivePlayer } from './InlineLivePlayer';
 export { PlayerCustomizationProvider } from './customization';
+export { MediaPlayerView } from './MediaPlayerView';
+export {
+  PlatformMediaSurface,
+  InlinePreviewFrame,
+  FullscreenVideoLayer,
+  FullscreenGestureLayer,
+  FullscreenControlsPanel,
+  FullscreenVisualFeedback,
+  FullscreenStatusLayer,
+  FullscreenChatLayer,
+  FullscreenRecordingLayer,
+  mediaPlayerStyles,
+  PlayerTopBar,
+  PlayerBottomBar,
+  CenterControls,
+  AudioOnlyView,
+  VerticalBrightnessControl,
+} from './media/player';
+export { LiveChatDrawer } from './media/LiveChatDrawer';
+export { LiveChatPanel, DiagnosticsTab } from './media/chat';
 export default CineCrewPlayer;
 
 const styles = StyleSheet.create({

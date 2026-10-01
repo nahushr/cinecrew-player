@@ -23,13 +23,14 @@ export default function App() {
   const [brightnessControl, setBrightnessControl] = useState(true);
   const [status, setStatus] = useState('Ready');
   const [progressTime, setProgressTime] = useState('00:00:00');
-  const [drawerMode, setDrawerMode] = useState('overlay');
+  const [drawerMode, setDrawerMode] = useState('resize');
   const [toast, setToast] = useState(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
   const toastTimerRef = useRef(null);
   const fileInputRef = useRef(null);
   const scrollViewRef = useRef(null);
   const playerCardTopRef = useRef(0);
+  const playerRef = useRef(null);
 
   const revealLandscapePlayer = useCallback(() => {
     if (!isLandscape) return;
@@ -62,6 +63,14 @@ export default function App() {
   useEffect(() => {
     setProgressTime('00:00:00');
   }, [active.url]);
+
+  useEffect(() => {
+    if (inline || !active.url || !isLandscape) {
+      playerRef.current?.closePanel?.();
+      return;
+    }
+    playerRef.current?.setPanel?.('chat');
+  }, [active.url, inline, isLandscape]);
 
   useEffect(() => {
     if (!isLandscape) return undefined;
@@ -129,6 +138,15 @@ export default function App() {
 
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
+  const effectiveDrawerMode = isLandscape ? 'resize' : drawerMode;
+  const landscapePlayerStyle = isLandscape
+    ? {
+        width: '100%',
+        maxWidth: '100%',
+        height: Math.max(1, height - 24),
+        alignSelf: 'stretch',
+      }
+    : undefined;
   const pageContent = (
     <>
       <View nativeID="cinecrew-electron-demo-header" style={styles.pageHeader}>
@@ -148,7 +166,7 @@ export default function App() {
           fileInputRef={fileInputRef}
           inline={inline}
           brightnessControl={brightnessControl}
-          drawerMode={drawerMode}
+          drawerMode={effectiveDrawerMode}
           onSelectSample={selectSample}
           onDraftUrlChange={setDraftUrl}
           onLoadUrl={loadUrl}
@@ -174,9 +192,11 @@ export default function App() {
         onLayout={handlePlayerCardLayout}
       >
         <PlayerViewport
+          ref={playerRef}
           active={active}
           source={source}
-          drawerMode={drawerMode}
+          drawerMode={effectiveDrawerMode}
+          playerStyle={landscapePlayerStyle}
           inline={inline}
           showBrightnessControl={brightnessControl}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
@@ -198,7 +218,9 @@ export default function App() {
   );
   const pageContentStyle = [
     styles.content,
-    { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 },
+    isLandscape
+      ? { maxWidth: width, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }
+      : { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 },
   ];
 
   return (
@@ -247,6 +269,6 @@ const styles = StyleSheet.create({
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
   playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
   electronOverlayPlayerCard: { backgroundColor: 'transparent' },
-  landscapePlayerCard: { minHeight: 0 },
+  landscapePlayerCard: { minHeight: 0, padding: 0, marginBottom: 0 },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

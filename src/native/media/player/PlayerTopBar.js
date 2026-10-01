@@ -171,6 +171,8 @@ export const PlayerTopBar = ({
   isFullscreen = false,
   playerIsPortrait,
   compact = false,
+  onPlayerLayout,
+  onHeaderLayout,
 }) => {
   const topBarRef = useRef(null);
   const landscapeTopOffsetRef = useRef(0);
@@ -181,6 +183,7 @@ export const PlayerTopBar = ({
   const isMobile = isAndroid() || isIOS() || Math.min(width, height) < 600;
   const electronFullscreen = isFullscreen && isElectronOverlay();
   const compactAndroidLandscape = compact && isAndroid();
+  const compactImmersiveAndroid = compactAndroidLandscape && isFullscreen;
 
   const alignCompactLandscapeTopBar = () => {
     if (!compact) {
@@ -196,7 +199,7 @@ export const PlayerTopBar = ({
       // after rotation. Move only the top controls back into the visible player
       // region; the video surface, center controls, and seek bar stay untouched.
       const baseWindowY = windowY - landscapeTopOffsetRef.current;
-      const safeTop = Math.max(insets?.top || 0, 8);
+      const safeTop = compactImmersiveAndroid ? 4 : Math.max(insets?.top || 0, 8);
       const nextOffset = Math.max(0, safeTop - baseWindowY);
       if (Math.abs(nextOffset - landscapeTopOffsetRef.current) > 1) {
         landscapeTopOffsetRef.current = nextOffset;
@@ -222,12 +225,15 @@ export const PlayerTopBar = ({
         compact && styles.compactLandscapeTopBar,
         compact && { top: landscapeTopOffset },
         {
-          paddingTop: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
+          paddingTop: electronFullscreen ? 8 : compactImmersiveAndroid ? 4 : isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
           paddingHorizontal: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
         },
       ]}
       ref={(node) => { topBarRef.current = node; }}
-      onLayout={alignCompactLandscapeTopBar}
+      onLayout={(event) => {
+        alignCompactLandscapeTopBar();
+        onPlayerLayout?.(event);
+      }}
       pointerEvents="box-none"
     >
       <View
@@ -238,6 +244,7 @@ export const PlayerTopBar = ({
           compact && styles.compactLandscapeHeaderRow,
           compactAndroidLandscape && styles.compactAndroidLandscapeHeaderRow,
         ]}
+        onLayout={onHeaderLayout}
       >
         <BackButton visible={!locked && controls.back !== false} palette={palette} scale={scale} onClose={onClose} compact={compact} />
         {!locked ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
@@ -318,8 +325,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   compactAndroidLandscapeHeaderRow: {
-    justifyContent: 'flex-start',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 6,
+    paddingLeft: 52,
   },
   portraitTopRightActions: {
     flex: 1,
@@ -337,8 +345,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   compactAndroidTopRightActions: {
-    justifyContent: 'flex-start',
-    marginLeft: 6,
+    flexShrink: 0,
+    justifyContent: 'flex-end',
   },
   compactLandscapeTitle: {
     alignSelf: 'stretch',

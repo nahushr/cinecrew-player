@@ -351,9 +351,47 @@ function WebRecordingOverlay(props) {
 }
 
 function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
+  const controlRef = useRef(null);
   const valueRef = useRef(brightness);
   const activeRef = useRef(false);
+  const [safeLane, setSafeLane] = useState(null);
   valueRef.current = brightness;
+
+  useLayoutEffect(() => {
+    const control = controlRef.current;
+    const controlsRoot = control?.parentElement;
+    if (!controlsRoot) return undefined;
+
+    const measureLane = () => {
+      const rootRect = controlsRoot.getBoundingClientRect();
+      if (rootRect.height <= 0) return;
+      const topRect = controlsRoot.querySelector('.cinecrew-player__top-controls')?.getBoundingClientRect();
+      const bottomRect = controlsRoot.querySelector('.cinecrew-player__bottom-controls')?.getBoundingClientRect();
+      const top = Math.max(0, (topRect?.bottom ?? (rootRect.top + 44)) - rootRect.top) + 8;
+      const bottom = Math.max(0, rootRect.bottom - (bottomRect?.top ?? (rootRect.bottom - 76))) + 8;
+      const laneHeight = Math.min(188, rootRect.height - top - bottom - 8);
+      const next = laneHeight < 64
+        ? { hidden: true }
+        : { hidden: false, top: Math.round(top + Math.max(0, (rootRect.height - top - bottom - laneHeight) / 2)), height: Math.round(laneHeight) };
+      setSafeLane((current) => (
+        current?.hidden === next.hidden
+        && current?.top === next.top
+        && current?.height === next.height
+          ? current
+          : next
+      ));
+    };
+
+    measureLane();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measureLane) : null;
+    observer?.observe(controlsRoot);
+    controlsRoot.querySelectorAll('.cinecrew-player__top-controls, .cinecrew-player__bottom-controls').forEach((node) => observer?.observe(node));
+    if (!observer) window.addEventListener('resize', measureLane);
+    return () => {
+      observer?.disconnect();
+      if (!observer) window.removeEventListener('resize', measureLane);
+    };
+  }, []);
 
   const finish = useCallback(() => {
     if (!activeRef.current) return;
@@ -361,7 +399,15 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
     onChangeEnd?.(Math.round(valueRef.current * 100));
   }, [onChangeEnd]);
 
-  return h('div', { className: 'cinecrew-player__brightness-control' },
+  return h('div', {
+    ref: controlRef,
+    className: 'cinecrew-player__brightness-control',
+    style: safeLane?.hidden
+      ? { display: 'none' }
+      : safeLane
+        ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' }
+        : undefined,
+  },
     h('span', { className: 'cinecrew-player__brightness-icon', 'aria-hidden': true }, '☼'),
     h('input', {
       type: 'range',

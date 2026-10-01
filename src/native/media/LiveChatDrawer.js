@@ -10,229 +10,32 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Platform,
+  StatusBar,
   useWindowDimensions,
 } from 'react-native';
 import { isIOS, isWeb } from '../../utils/runtimePlatform';
-import { EmojiPickerModal } from './EmojiPickerModal';
 import { PlayerIcon } from '../customization';
-
-const DEFAULT_EPG_LIMIT = 48;
-
-const QUICK_REACTIONS = ['❤️', '🔥', '😂', '👏', '🙌', '😮', '💯'];
-
-const USER_COLORS = [
-  '#4FC3F7', '#81D4FA', '#A7FFEB', '#FFD54F', '#FF8A80',
-  '#EA80FC', '#B388FF', '#80D8FF', '#A5D6A7', '#FFE082',
-];
-
-function getUserColor(username = '') {
-  let hash = 0;
-  for (let i = 0; i < username.length; i++) {
-    hash = username.codePointAt(i) + ((hash << 5) - hash);
-  }
-  return USER_COLORS[Math.abs(hash) % USER_COLORS.length];
-}
-
-function formatMessageTime(timestamp) {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-function normalizeChatMessage(message) {
-  return {
-    ...message,
-    username: message?.username || message?.userName || message?.name || 'Viewer',
-    textContent: message?.textContent || message?.comment || message?.message || message?.text || '',
-    createdAt: message?.createdAt || message?.timestamp || message?.sentAt || message?.time || null,
-  };
-}
-
-function normalizeChatPage(value) {
-  const rows = Array.isArray(value)
-    ? value
-    : value?.messages || value?.items || value?.comments || value?.data || [];
-  return Array.isArray(rows) ? rows.map(normalizeChatMessage) : [];
-}
-
-function chatMessageKey(message, index) {
-  if (message?.id !== undefined && message?.id !== null) return String(message.id);
-  if (message?.messageId !== undefined && message?.messageId !== null) return String(message.messageId);
-  return `${message?.username || ''}:${message?.createdAt || ''}:${message?.textContent || ''}:${index}`;
-}
-
-function mergeChatMessages(existing, incoming, prepend = false) {
-  const combined = prepend ? [...incoming, ...existing] : [...existing, ...incoming];
-  const unique = new Map();
-  combined.forEach((message, index) => unique.set(chatMessageKey(message, index), message));
-  return [...unique.values()];
-}
-
-function extractHostname(url) {
-  if (!url) return 'Xtream Server';
-  try {
-    const clean = url.replace(/^[a-zA-Z]+:\/\//, '');
-    return clean.split('/')[0] || url;
-  } catch {
-    return 'Xtream Server';
-  }
-}
-
-function detectStreamProtocol(url = '', isLive = false) {
-  if (/\.m3u8(\?|$)/i.test(url)) return 'HLS Adaptive (m3u8)';
-  if (/\.ts(\?|$)/i.test(url) || /\/live\//i.test(url)) return 'MPEG-TS Live (.ts)';
-  if (/\.mkv(\?|$)/i.test(url)) return 'Matroska Video (.mkv)';
-  if (/\.mp4(\?|$)/i.test(url)) return 'Direct Progressive (.mp4)';
-  return isLive ? 'Live IPTV Stream' : 'VOD Media Stream';
-}
-
-function detectAudioCodec(url = '') {
-  if (/ac3|eac3|dolby/i.test(url)) return 'Dolby AC-3 5.1 Surround';
-  if (/mp3/i.test(url)) return 'MPEG Audio Layer 3 (MP3)';
-  return 'AAC-LC 2.0 Stereo (@ 192 kbps)';
-}
-
-function formatEpgClock(ms) {
-  if (!ms) return '';
-  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-function formatEpgDayLabel(ms) {
-  if (!ms) return '';
-  const date = new Date(ms);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) return 'Today';
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
-  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function epgProgress(item, now = Date.now()) {
-  if (!item?.startMs || item.endMs <= item.startMs) return 0;
-  return Math.max(0, Math.min(1, (now - item.startMs) / (item.endMs - item.startMs)));
-}
-
-const TAB_META = {
-  chat: { icon: 'comment-text-multiple', title: 'Live Chat' },
-  epg: { icon: 'television-guide', title: 'Programme Guide' },
-  diagnostics: { icon: 'pulse', title: 'Stream Diagnostics' },
-};
-
-function LiveChatPanel({
-  messagesLoading,
-  messages,
-  flatListRef,
-  renderMessageItem,
-  loadOlderMessages,
-  loadingOlderMessages,
-  chatError,
-  handleQuickReaction,
-  inputText,
-  setInputText,
-  handleSend,
-  isSending,
-  setShowEmojiPicker,
-  showEmojiPicker,
-  handleSelectEmoji,
-  colors,
-}) {
-  return (
-    <>
-      <View style={styles.welcomeBanner}>
-        <PlayerIcon name="shield-check" size={16} color="#00E5FF" style={{ marginTop: 2 }} />
-        <Text style={styles.welcomeText}>
-          Welcome to live chat! Remember to guard your privacy and abide by community guidelines.
-        </Text>
-      </View>
-
-      {messagesLoading && messages.length === 0 ? (
-        <View style={styles.chatLoadingWrap}>
-          <ActivityIndicator size="small" color="#00E5FF" />
-          <Text style={styles.epgStatusText}>Loading live chat…</Text>
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          nestedScrollEnabled
-          data={messages}
-          keyExtractor={(item, index) => chatMessageKey(item, index)}
-          renderItem={renderMessageItem}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={loadingOlderMessages ? (
-            <View style={styles.loadingOlderMessages}>
-              <ActivityIndicator size="small" color="#00E5FF" />
-              <Text style={styles.loadingOlderMessagesText}>Loading older messages…</Text>
-            </View>
-          ) : null}
-          onScroll={(event) => {
-            if (event.nativeEvent.contentOffset.y <= 24) loadOlderMessages();
-          }}
-          scrollEventThrottle={16}
-          ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
-        />
-      )}
-      {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
-
-      <View style={styles.quickReactionsRow}>
-        {QUICK_REACTIONS.map((emoji) => (
-          <TouchableOpacity
-            key={emoji}
-            style={styles.quickReactionBtn}
-            onPress={() => handleQuickReaction(emoji)}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.quickReactionEmoji}>{emoji}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.inputBarContainer}>
-        <View style={styles.inputPill}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Chat..."
-            placeholderTextColor="rgba(255, 255, 255, 0.4)"
-            onSubmitEditing={() => handleSend()}
-            returnKeyType="send"
-            maxLength={400}
-          />
-          <TouchableOpacity
-            style={styles.emojiToggleBtn}
-            onPress={() => setShowEmojiPicker(true)}
-            hitSlop={6}
-          >
-            <PlayerIcon name="emoticon-happy-outline" size={22} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.sendBtn, (!inputText.trim() || isSending) && styles.sendBtnDisabled]}
-          onPress={() => handleSend()}
-          disabled={!inputText.trim() || isSending}
-          hitSlop={8}
-        >
-          <PlayerIcon
-            name="send"
-            size={18}
-            color={inputText.trim() && !isSending ? '#000' : 'rgba(255, 255, 255, 0.3)'}
-          />
-        </TouchableOpacity>
-      </View>
-
-      <EmojiPickerModal
-        visible={showEmojiPicker}
-        onClose={() => setShowEmojiPicker(false)}
-        onSelectEmoji={handleSelectEmoji}
-        colors={colors}
-      />
-    </>
-  );
-}
+import {
+  DEFAULT_EPG_LIMIT,
+  QUICK_REACTIONS,
+  USER_COLORS,
+  getUserColor,
+  formatMessageTime,
+  normalizeChatMessage,
+  normalizeChatPage,
+  chatMessageKey,
+  mergeChatMessages,
+  extractHostname,
+  detectStreamProtocol,
+  detectAudioCodec,
+  formatEpgClock,
+  formatEpgDayLabel,
+  epgProgress,
+  TAB_META,
+  LiveChatPanel,
+  DiagnosticsTab,
+} from './chat';
 
 export const LiveChatDrawer = ({
   videoId,
@@ -255,6 +58,9 @@ export const LiveChatDrawer = ({
   colors,
   messagePageSize = 50,
   drawerStyle,
+  fullscreen = false,
+  landscapeFullWidth = false,
+  safeAreaInsets,
 }) => {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const pageSize = Math.max(1, Math.floor(Number(messagePageSize) || 50));
@@ -629,6 +435,35 @@ export const LiveChatDrawer = ({
   const bottomModal = drawerMode === 'modal' && !isWeb() && !popupMode;
   const centeredModal = popupMode || (drawerMode === 'modal' && isWeb());
   const resizeWidth = windowWidth < 640 ? '48%' : '36%';
+  const fullscreenTopInset = Math.max(
+    Number(safeAreaInsets?.top) || 0,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+  );
+  const fullscreenBottomInset = Number(safeAreaInsets?.bottom) || 0;
+  const fullscreenLeftInset = Number(safeAreaInsets?.left) || 0;
+  const fullscreenRightInset = Number(safeAreaInsets?.right) || 0;
+  const fullscreenLandscape = (fullscreen || landscapeFullWidth)
+    && drawerMode !== 'resize'
+    && windowWidth >= windowHeight;
+  const fullscreenLandscapeStyle = fullscreenLandscape
+    ? {
+        position: 'absolute',
+        top: fullscreenTopInset,
+        right: fullscreenRightInset,
+        bottom: fullscreenBottomInset,
+        left: fullscreenLeftInset,
+        width: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
+        maxWidth: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
+        height: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
+        maxHeight: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
+        alignSelf: 'stretch',
+        borderLeftWidth: 0,
+        borderRadius: 0,
+      }
+    : null;
+  const fullscreenDrawerInsets = fullscreen && !centeredModal && !bottomModal
+    ? { top: fullscreenTopInset, bottom: fullscreenBottomInset }
+    : null;
 
   const drawerContent = (
     <KeyboardAvoidingView
@@ -646,6 +481,9 @@ export const LiveChatDrawer = ({
           height: Math.min(Math.max(windowHeight - 32, 280), 680),
         },
         bottomModal && styles.bottomModalDrawer,
+        fullscreenDrawerInsets,
+        fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
+        fullscreenLandscapeStyle,
         drawerStyle,
       ]}
     >
@@ -676,6 +514,7 @@ export const LiveChatDrawer = ({
       {/* --- Tab 1: Live Chat --- */}
       {activeTab === 'chat' && chatAvailable ? (
         <LiveChatPanel
+          styles={styles}
           messagesLoading={messagesLoading}
           messages={messages}
           flatListRef={flatListRef}
@@ -766,115 +605,16 @@ export const LiveChatDrawer = ({
 
       {/* --- Tab 2: Provider Health & Stream Diagnostics HUD --- */}
       {activeTab === 'diagnostics' && (
-        <ScrollView
-          style={styles.diagnosticsContainer}
-          contentContainerStyle={styles.diagnosticsContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Health Status Bar */}
-          <View style={styles.healthStatusBar}>
-            <View style={styles.healthStatusLeft}>
-              <View style={[styles.healthDot, { backgroundColor: health.color }]} />
-              <Text style={[styles.healthStatusText, { color: health.color }]}>
-                {health.label}
-              </Text>
-            </View>
-          </View>
-
-          {/* 4 Primary Metric Cards */}
-          <View style={styles.metricsGrid}>
-            {/* Ping Latency Card */}
-            <View style={styles.metricCard}>
-              <View style={styles.metricCardHeader}>
-                <PlayerIcon name="speedometer" size={16} color="#00E5FF" />
-                <Text style={styles.metricCardLabel}>HTTP PING</Text>
-              </View>
-              <Text style={[styles.metricCardValue, { color: health.color }]}>
-                {pingLatency !== null ? `${pingLatency} ms` : 'Testing...'}
-              </Text>
-              <Text style={styles.metricCardSub}>
-                Jitter: {pingJitter === null ? 'unavailable' : `${pingJitter} ms`}
-              </Text>
-            </View>
-
-            {/* Bitrate Card */}
-            <View style={styles.metricCard}>
-              <View style={styles.metricCardHeader}>
-                <PlayerIcon name="lightning-bolt" size={16} color="#FFD54F" />
-                <Text style={styles.metricCardLabel}>BITRATE</Text>
-              </View>
-              <Text style={styles.metricCardValue}>
-                —
-              </Text>
-              <Text style={styles.metricCardSub}>
-                Not reported by the player
-              </Text>
-            </View>
-
-            {/* FPS Card */}
-            <View style={styles.metricCard}>
-              <View style={styles.metricCardHeader}>
-                <PlayerIcon name="filmstrip" size={16} color="#A5D6A7" />
-                <Text style={styles.metricCardLabel}>FRAME RATE</Text>
-              </View>
-              <Text style={styles.metricCardValue}>
-                —
-              </Text>
-              <Text style={styles.metricCardSub}>
-                Not reported by the player
-              </Text>
-            </View>
-
-            {/* Dropped Frames Card */}
-            <View style={styles.metricCard}>
-              <View style={styles.metricCardHeader}>
-                <PlayerIcon name="shield-alert-outline" size={16} color="#FF8A80" />
-                <Text style={styles.metricCardLabel}>DROPPED</Text>
-              </View>
-              <Text style={styles.metricCardValue}>
-                —
-              </Text>
-              <Text style={styles.metricCardSub}>
-                Not reported by the player
-              </Text>
-            </View>
-          </View>
-
-          {/* Technical Pipeline Details */}
-          <Text style={styles.detailsHeading}>STREAM PIPELINE</Text>
-          <View style={styles.detailsTable}>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Audio Codec</Text>
-              <Text style={styles.tableValue} numberOfLines={1}>{audioCodecName}</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Protocol</Text>
-              <Text style={styles.tableValue}>{protocolName}</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Server Host</Text>
-              <Text style={styles.tableValue} numberOfLines={1}>{serverHost}</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Stream Routing</Text>
-              <Text style={styles.tableValue}>Direct Xtream Stream</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Resolution</Text>
-              <Text style={styles.tableValue}>1920 × 1080 (16:9 FHD)</Text>
-            </View>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Buffer Ahead</Text>
-              <Text style={styles.tableValue}>14.2s (Safe buffer)</Text>
-            </View>
-            {!!title && (
-              <View style={styles.tableRow}>
-                <Text style={styles.tableLabel}>Active Stream</Text>
-                <Text style={styles.tableValue} numberOfLines={1}>{title}</Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        <DiagnosticsTab
+          styles={styles}
+          health={health}
+          pingLatency={pingLatency}
+          pingJitter={pingJitter}
+          audioCodecName={audioCodecName}
+          protocolName={protocolName}
+          serverHost={serverHost}
+          title={title}
+        />
       )}
     </KeyboardAvoidingView>
   );

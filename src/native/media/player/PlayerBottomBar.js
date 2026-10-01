@@ -143,6 +143,7 @@ export const PlayerBottomBar = ({
   onSelectAudioTrack,
   onToggleFullscreen,
   controls = {},
+  onPlayerLayout,
 }) => {
   const electronFullscreen = isFullscreen && isElectronOverlay();
   const edgePadding = electronFullscreen ? 8 : Math.max(insets?.left || 0, insets?.right || 0, 20);
@@ -162,6 +163,7 @@ export const PlayerBottomBar = ({
         },
       ]}
       pointerEvents="box-none"
+      onLayout={onPlayerLayout}
     >
       <SeekControls isLive={isLive} controls={controls} insets={insets} scale={scale} compact={compact} edgePadding={edgePadding} isSeeking={isSeeking} sliderPos={sliderPos} currentTime={currentTime} duration={duration} onValueChange={onSliderValueChange} onSlidingStart={onSliderSlidingStart} onSlidingComplete={onSliderSlidingComplete} />
 

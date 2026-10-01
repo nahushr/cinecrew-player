@@ -23,14 +23,22 @@ export function VerticalBrightnessControl({
   accentColor = '#00D4FF',
   compact = false,
   availableHeight,
+  topInset = 0,
+  bottomInset = 0,
+  alignTop = false,
 }) {
   const measuredHeight = Number(availableHeight);
   const responsiveCompact = compact || (measuredHeight > 0 && measuredHeight < 260);
+  const safeTopInset = Math.max(0, Number(topInset) || 0);
+  const safeBottomInset = Math.max(0, Number(bottomInset) || 0);
+  const freeHeight = measuredHeight > 0
+    ? Math.max(0, measuredHeight - safeTopInset - safeBottomInset - 8)
+    : 0;
   const cardHeight = measuredHeight > 0
-    ? Math.max(72, Math.min(188, measuredHeight - 8))
+    ? Math.min(188, freeHeight)
     : (responsiveCompact ? 154 : 188);
-  const reservedTrackSpace = responsiveCompact ? 55 : 64;
-  const trackHeight = Math.max(16, Math.min(responsiveCompact ? 92 : 120, cardHeight - reservedTrackSpace));
+  const reservedTrackSpace = responsiveCompact ? 52 : 66;
+  const trackHeight = Math.max(1, Math.min(responsiveCompact ? 92 : 120, cardHeight - reservedTrackSpace));
   const percent = clampPercent(Number(value) * 100);
   const percentRef = useRef(percent);
   const dragStartPercentRef = useRef(percent);
@@ -77,31 +85,40 @@ export function VerticalBrightnessControl({
   const fillRatio = (percent - MIN_PERCENT) / PERCENT_RANGE;
   const thumbTop = `${(1 - fillRatio) * 100}%`;
   const fillHeight = `${fillRatio * 100}%`;
+  const positionerStyle = measuredHeight > 0
+    ? {
+        top: safeTopInset + (alignTop ? 0 : 4),
+        bottom: safeBottomInset + 4,
+        justifyContent: alignTop ? 'flex-start' : 'center',
+      }
+    : null;
   const adjustByKeyboard = (event) => {
     const change = event?.nativeEvent?.actionName === 'increment' ? 5 : -5;
     finishInteraction(percentRef.current + change);
   };
 
   return (
-    <View pointerEvents="box-none" style={styles.positioner}>
-      <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
-        <Text style={[styles.sunIcon, responsiveCompact && styles.compactSunIcon, { color: accentColor }]} accessible={false}>☼</Text>
-        <View
-          {...responder.panHandlers}
-          accessibilityRole="adjustable"
-          accessibilityLabel="Video brightness"
-          accessibilityValue={{ min: MIN_PERCENT, max: MAX_PERCENT, now: percent, text: `${percent}%` }}
-          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-          onAccessibilityAction={adjustByKeyboard}
-          style={[styles.trackHitTarget, responsiveCompact && styles.compactTrackHitTarget, { height: trackHeight }]}
-        >
-          <View style={styles.track}>
-            <View style={[styles.trackFill, { height: fillHeight, backgroundColor: accentColor }]} />
-            <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
+    <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]}>
+      {measuredHeight > 0 && cardHeight < 64 ? null : (
+        <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
+          <Text style={[styles.sunIcon, responsiveCompact && styles.compactSunIcon, { color: accentColor }]} accessible={false}>☼</Text>
+          <View
+            {...responder.panHandlers}
+            accessibilityRole="adjustable"
+            accessibilityLabel="Video brightness"
+            accessibilityValue={{ min: MIN_PERCENT, max: MAX_PERCENT, now: percent, text: `${percent}%` }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={adjustByKeyboard}
+            style={[styles.trackHitTarget, responsiveCompact && styles.compactTrackHitTarget, { height: trackHeight }]}
+          >
+            <View style={styles.track}>
+              <View style={[styles.trackFill, { height: fillHeight, backgroundColor: accentColor }]} />
+              <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
+            </View>
           </View>
+          <Text style={[styles.valueLabel, responsiveCompact && styles.compactValueLabel]}>{percent}%</Text>
         </View>
-        <Text style={[styles.valueLabel, responsiveCompact && styles.compactValueLabel]}>{percent}%</Text>
-      </View>
+      )}
     </View>
   );
 }
