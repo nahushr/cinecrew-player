@@ -3,8 +3,7 @@ import { isElectron, isWeb } from '../../../utils/runtimePlatform';
 import { ElectronVideoPlayer } from '../ElectronVideoPlayer';
 import { WebVideoPlayer } from '../WebVideoPlayer';
 import VLCPlayer from '../../../../packages/react-native-vlc-media-player/VLCPlayer.js';
-import { VLC_AVAILABLE } from './playerConstants';
-import { VLCBoundary } from './VLCBoundary';
+import { VLC_AVAILABLE, VLCBoundary } from './VLCBoundary';
 import { mediaPlayerStyles as styles } from './mediaPlayerStyles';
 
 export function PlatformMediaSurface(props) {

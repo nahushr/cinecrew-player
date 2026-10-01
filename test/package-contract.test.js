@@ -187,6 +187,25 @@ test('progress-bar callback is public, documented, and connected on web and nati
   assert.match(formatter, /padStart\(2, '0'\)/);
 });
 
+test('startTime is public and wired through full, inline, web, and native playback', () => {
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const nativeInline = readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8');
+  const webNativePlayer = readFileSync(path.join(root, 'src/native/media/WebVideoPlayer.web.js'), 'utf8');
+  const ogvPlayer = readFileSync(path.join(root, 'src/native/media/web/useWebOgvPlayback.web.js'), 'utf8');
+
+  assert.match(declarations, /interface CineCrewPlayerProps[\s\S]*startTime\?: number \| string/);
+  assert.match(declarations, /interface InlineLivePlayerProps[\s\S]*startTime\?: number \| string/);
+  assert.match(readme, /`startTime`[\s\S]*`HH:MM:SS`/);
+  assert.match(nativeEntry, /parsePlaybackStartTime\(startTime\)/);
+  assert.match(nativeEntry, /handleSeekTo\(requestedStartTime\)/);
+  assert.match(nativeInline, /pendingSeekRef\.current = playbackPositionRef\.current/);
+  assert.match(nativeInline, /playerInstance\.seek\(/);
+  assert.match(webEntry, /startTime,[\s\S]*onLoadedMetadata: applyInitialTime/);
+  assert.match(webNativePlayer, /startTime: requestedStartTime/);
+  assert.match(ogvPlayer, /player\.currentTime = Math\.min\(initialTime, duration\)/);
+});
+
 test('compact inline titles are bottom-anchored and the Vite source controls stay streamlined', () => {
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');

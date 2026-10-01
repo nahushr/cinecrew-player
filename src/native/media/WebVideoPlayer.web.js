@@ -8,9 +8,11 @@ import { useWebHlsPlayback } from './web/useWebHlsPlayback';
 import { useWebDashPlayback } from './web/useWebDashPlayback';
 import { useWebOgvPlayback } from './web/useWebOgvPlayback';
 import { useWebAc3AudioPlayback } from './web/useWebAc3AudioPlayback';
+import { parsePlaybackStartTime } from '../../utils/playbackTime.js';
 
 export const WebVideoPlayer = forwardRef(({
   streamUrl,
+  startTime,
   paused,
   muted,
   volume = 100,
@@ -32,6 +34,8 @@ export const WebVideoPlayer = forwardRef(({
   onPlaybackRoute,
   ogvResourceBase,
 }, ref) => {
+  const requestedStartTime = parsePlaybackStartTime(startTime);
+  const initialTimeAppliedRef = useRef(false);
   const videoRef = useRef(null);
   const ogvContainerRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -107,6 +111,7 @@ export const WebVideoPlayer = forwardRef(({
     onErrorRef: playbackErrorRef,
     onBufferingRef,
     resourceBase: ogvResourceBase,
+    startTime: requestedStartTime,
     paused,
     muted,
     volume: (volume ?? 100) / 100,
@@ -117,6 +122,21 @@ export const WebVideoPlayer = forwardRef(({
     onEndedRef,
     onPlaybackRouteRef: onPlaybackRouteEventRef,
   });
+  useEffect(() => {
+    initialTimeAppliedRef.current = false;
+  }, [streamUrl, requestedStartTime]);
+  const applyInitialTime = useCallback(() => {
+    if (requestedStartTime === null || initialTimeAppliedRef.current) return;
+    const video = videoRef.current;
+    const duration = Number(video?.duration);
+    if (!video || !Number.isFinite(duration) || duration <= 0) return;
+    try {
+      video.currentTime = Math.min(requestedStartTime, duration);
+      initialTimeAppliedRef.current = true;
+    } catch {
+      // Retry on subsequent readiness events if the media engine is attaching.
+    }
+  }, [requestedStartTime]);
   const ac3Audio = useWebAc3AudioPlayback({
     active: useAc3Fallback,
     streamUrl: activeUrl,
@@ -340,7 +360,9 @@ export const WebVideoPlayer = forwardRef(({
             onBufferingRef.current?.(false);
           }}
           onTimeUpdate={emitProgress}
+          onDurationChange={applyInitialTime}
           onLoadedMetadata={() => {
+            applyInitialTime();
             emitProgress();
             reportPlaybackRoute(videoRef.current, activeUrl);
           }}

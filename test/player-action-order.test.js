@@ -90,7 +90,8 @@ test('inline fullscreen expands its own player instead of promoting to the stand
   assert.match(webEntry, /async function toggleBrowserFullscreen\(element\)[\s\S]*element\?\.requestFullscreen\?\./);
   assert.doesNotMatch(webFullscreenAction, /onPromotePreview/);
   assert.doesNotMatch(webInlinePlayer, /onPromotePreview: onFullscreen/);
-  assert.match(nativeFullscreenAction, /setFullscreen\(/);
+  assert.match(nativeFullscreenAction, /changeFullscreenWithPosition\(!fullscreen\)/);
+  assert.match(nativeEntry, /pendingSeekRef\.current = playbackPositionRef\.current/);
   assert.doesNotMatch(nativeFullscreenAction, /onFullscreen\(/);
   assert.match(nativeEntry, /React\.createElement\(Modal, \{\s*visible: fullscreen/);
 });
