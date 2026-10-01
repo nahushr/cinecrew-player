@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nahushr/cinecrew-player/actions"><img src="https://github.com/nahushr/cinecrew-player/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/@cinecrew/cinecrew-player"><img src="https://img.shields.io/npm/v/@cinecrew/cinecrew-player.svg" alt="npm version" /></a>
 </p>
 
@@ -29,12 +28,12 @@
   <tbody>
     <tr>
       <td>React + Vite</td>
-      <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/web-demo"><img alt="Open React + Vite demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Vite%20Demo-1269D3?logo=stackblitz&logoColor=white" /></a> <a href="https://github.com/nahushr/cinecrew-player/codespaces"><img alt="Open the existing React + Vite Codespace" src="https://img.shields.io/badge/Codespaces-Open%20Demo-181717?logo=github&logoColor=white" /></a></td>
+      <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/web-demo"><img alt="Open React + Vite demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Vite%20Demo-1269D3?logo=stackblitz&logoColor=white" /></a></td>
       <td></td>
     </tr>
     <tr>
       <td>React Native Web (Expo)</td>
-      <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo"><img alt="Open Expo Web demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Expo%20Web-1269D3?logo=stackblitz&logoColor=white" /></a> <a href="https://github.com/nahushr/cinecrew-player/codespaces"><img alt="Open the existing Expo Web Codespace" src="https://img.shields.io/badge/Codespaces-Open%20Demo-181717?logo=github&logoColor=white" /></a></td>
+      <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo"><img alt="Open Expo Web demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Expo%20Web-1269D3?logo=stackblitz&logoColor=white" /></a></td>
       <td></td>
     </tr>
     <tr>
@@ -50,7 +49,7 @@
   </tbody>
 </table>
 
-The StackBlitz buttons open the matching web-demo directory; the Codespaces buttons open the existing shared demo Codespace. The Android APK, macOS DMG, and Windows installer are attached to each GitHub Release.
+The StackBlitz buttons open the matching web-demo directory. The Android APK, macOS DMG, and Windows installer are attached to each GitHub Release.
 
 <p align="center"><a href="#install">Install</a> · <a href="#feature-portfolio">Features</a> · <a href="#platform--playback-matrix">Platforms</a> · <a href="#props">API reference</a> · <a href="#roadmap">Roadmap</a></p>
 
