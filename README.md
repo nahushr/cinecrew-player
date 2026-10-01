@@ -23,28 +23,32 @@
 
 <table width="100%">
   <thead>
-    <tr><th>Platform</th><th>Link</th><th>Installation instructions</th></tr>
+    <tr><th>Platform</th><th>Link</th><th>Installation instructions</th><th>Demo README</th></tr>
   </thead>
   <tbody>
     <tr>
       <td>React + Vite</td>
       <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/web-demo"><img alt="Open React + Vite demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Vite%20Demo-1269D3?logo=stackblitz&logoColor=white" /></a></td>
       <td></td>
+      <td><a href="examples/web-demo/README.md">Setup and code guide</a></td>
     </tr>
     <tr>
       <td>React Native Web (Expo)</td>
       <td><a href="https://stackblitz.com/github/nahushr/cinecrew-player/tree/main/examples/expo-web-demo"><img alt="Open Expo Web demo in StackBlitz" src="https://img.shields.io/badge/StackBlitz-Open%20Expo%20Web-1269D3?logo=stackblitz&logoColor=white" /></a></td>
       <td></td>
+      <td><a href="examples/expo-web-demo/README.md">Setup and code guide</a></td>
     </tr>
     <tr>
       <td>React Native (Android / iOS · LibVLC)</td>
       <td><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.apk"><img alt="Download latest Android APK" src="https://img.shields.io/badge/Android-Download%20APK-3DDC84?logo=android&logoColor=white" /></a></td>
       <td><strong>iOS</strong>:<br><strong>Android</strong>: <a href="examples/native-demo/INSTALL.md#android-emulator-from-terminal">macOS and Windows terminal-only setup</a></td>
+      <td><a href="examples/native-demo/README.md">Setup and code guide</a></td>
     </tr>
     <tr>
       <td>Electron (macOS DMG / Windows EXE · LibVLC)</td>
       <td><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo.dmg"><img alt="Download latest macOS DMG" src="https://img.shields.io/badge/macOS-Download%20DMG-111111?logo=apple&logoColor=white" /></a><br><a href="https://github.com/nahushr/cinecrew-player/releases/latest/download/cinecrew-player-demo-setup.exe"><img alt="Download latest Windows installer" src="https://img.shields.io/badge/Windows-Download%20EXE-0078D6?logo=windows&logoColor=white" /></a></td>
       <td><strong>macOS</strong>: <a href="examples/native-demo/INSTALL.md#electron-macos">run or package from Terminal</a>.<br><strong>Windows</strong>:</td>
+      <td><a href="examples/electron-demo/README.md">Setup and code guide</a></td>
     </tr>
   </tbody>
 </table>

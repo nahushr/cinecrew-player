@@ -1,28 +1,39 @@
-# CineCrew Player · Native & Expo Demo
+# React Native demo · Android and iOS
 
-Cross-platform video player playground for React Native and Expo (supporting Web, Android, and iOS).
+Expo app demonstrating the CineCrew Player native interface and VLC-backed playback. The demo package points to the player source at the repository root (`file:../..`), so clone the full repository before installing.
 
-## 🚀 One-Click Expo Snack
+## Install and start
 
-You can open this entire demo in Expo Snack with all files and dependencies pre-loaded in **one click**:
+Requirements: Git, Node.js LTS, npm, and a configured Android or iOS development environment.
 
-- Run from root: `npm run snack`
-- Or click the [Expo Snack badge in README.md](../../README.md#demos)
-
-## 💻 Running Locally
-
-To run this demo on your machine:
-
-```sh
-npm install
-npm run web      # Run on Expo Web
-npm run android  # Run on Android
-npm run ios      # Run on iOS
+```bash
+git clone https://github.com/nahushr/cinecrew-player.git
+cd cinecrew-player/examples/native-demo
+npm ci
 ```
 
-## Features Demonstrated
+Start on Android with an emulator running or a USB-debugging device connected:
 
-- **Multi-format Playback:** HLS (.m3u8), MPEG-DASH (.mpd), MP4, WebM, MKV, MPEG-TS (.ts), FLV, and OGV.
-- **Custom URL Input & Local File Picker:** Play any custom stream or local video.
-- **Interactive Player Controls:** Play/pause, seek bar, audio track switching, aspect ratio, audio-only mode, and diagnostics overlay.
-- **Service Integrations:** Live chat drawer and EPG; overlay opens from the right, resize places video beside the drawer, and modal opens as a web dialog or native/Electron bottom sheet.
+```bash
+npm run android
+```
+
+Start on iOS with macOS, Xcode, and an available simulator/device:
+
+```bash
+npm run ios
+```
+
+For terminal-only Android SDK/emulator setup and release APK build steps on macOS or Windows, see [INSTALL.md](INSTALL.md#android-emulator-from-terminal). Expo generates or updates native project files as needed; native VLC playback must be tested in an installed Android/iOS app, not a browser.
+
+## Code map
+
+- `App.js` — responsive app shell, source selection, and event handlers.
+- `src/components/PlayerViewport.js` — native player props, controls, and error callbacks.
+- `src/components/SourceControls.js` — sample, URL/file input, and drawer settings.
+- `src/samples.js` — media sample URLs and source metadata.
+- `src/hooks/` — chat/EPG integrations and player action callbacks.
+- `android/` — Android application project and native build configuration.
+- `app.json` — Expo app identifiers and platform settings.
+
+Samples include HLS, DASH, MP4, WebM, MKV, MPEG-TS, FLV, OGV, MOV, M4V, and 3GP. Device codec and network support determine which streams play successfully.
