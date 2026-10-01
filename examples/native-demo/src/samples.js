@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export const sampleSources = [
   {
     id: 'hls',
@@ -109,7 +111,7 @@ export function asPlayerSource(item) {
           : undefined);
 
   let uri = item.url;
-  if (typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     if (uri.includes('raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/')) {
       uri = uri.replace('https://raw.githubusercontent.com/nahushr/cinecrew-player/main/examples/web-demo/public/', '/');
     }

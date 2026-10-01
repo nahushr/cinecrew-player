@@ -76,6 +76,65 @@
   transition: opacity 160ms ease;
 }
 
+.cinecrew-player__brightness-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: #000;
+}
+
+.cinecrew-player__brightness-control {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 10px;
+  display: flex;
+  width: 48px;
+  min-height: 168px;
+  padding: 8px 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 24px;
+  background: rgba(5, 11, 20, .78);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .3), inset 0 1px rgba(255, 255, 255, .06);
+  pointer-events: auto;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.cinecrew-player__brightness-icon {
+  color: var(--cinecrew-accent, #00d4ff);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cinecrew-player__brightness-control input {
+  width: 22px;
+  height: clamp(76px, 22cqh, 116px);
+  margin: 0;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.cinecrew-player__brightness-value {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.cinecrew-player--drawer-resize .cinecrew-player__brightness-control {
+  left: 8px;
+}
+
 .cinecrew-player:hover .cinecrew-player__controls,
 .cinecrew-player:focus-within .cinecrew-player__controls {
   opacity: 1;
@@ -762,9 +821,14 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(340px, calc(100vw - 32px));
-  max-height: min(390px, 65vh);
-  padding: 10px;
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 24px));
+  height: min(76vh, 540px);
+  height: min(76dvh, 540px);
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  min-height: 0;
+  padding: 12px;
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 14px;
   background: var(--cinecrew-surface);
@@ -772,7 +836,7 @@
 }
 
 @supports (width: 1cqw) {
-  .cinecrew-player__emoji-picker { width: min(340px, 100cqw); }
+  .cinecrew-player__emoji-picker { width: min(460px, 100cqw); }
 }
 
 .cinecrew-player__emoji-anchor {

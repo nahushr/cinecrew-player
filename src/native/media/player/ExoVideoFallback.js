@@ -293,6 +293,18 @@ export const ExoVideoFallback = forwardRef(function ExoVideoFallback(
   }, [player, onProgress]);
 
   useImperativeHandle(ref, () => ({
+    play() {
+      withActivePlayer((activePlayer) => activePlayer.play());
+    },
+    pause() {
+      withActivePlayer((activePlayer) => activePlayer.pause());
+    },
+    restart() {
+      withActivePlayer((activePlayer) => {
+        activePlayer.currentTime = 0;
+        activePlayer.play();
+      });
+    },
     seek(ratio) {
       withActivePlayer((activePlayer) => {
         if (activePlayer.duration && Number.isFinite(activePlayer.duration) && activePlayer.duration > 0) {

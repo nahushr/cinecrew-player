@@ -584,6 +584,26 @@ class ReactVlcPlayerView extends TextureView
     }
   }
 
+  public void restartPlayback() {
+    if (mMediaPlayer == null) {
+      return;
+    }
+    isPaused = false;
+    mMediaPlayer.setTime(0);
+    mMediaPlayer.play();
+    if (playInBackground) {
+      acquireWakeLock();
+    }
+  }
+
+  public void setAudioState(boolean muted, int volume) {
+    mMuted = muted;
+    mVolume = Math.max(0, Math.min(100, volume));
+    if (mMediaPlayer != null) {
+      mMediaPlayer.setVolume(mMuted ? 0 : mVolume);
+    }
+  }
+
   public void setSubtitleUri(String subtitleUri) {
     this.subtitleUri = subtitleUri;
     if (mMediaPlayer != null) {

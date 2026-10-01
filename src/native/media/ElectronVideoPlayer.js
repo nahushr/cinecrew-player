@@ -273,6 +273,16 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   }, [videoAspectRatio, invokePlayer]);
 
   useImperativeHandle(ref, () => ({
+    play() {
+      return invokePlayer('cinecrew:vlc:set-paused', false);
+    },
+    pause() {
+      return invokePlayer('cinecrew:vlc:set-paused', true);
+    },
+    async restart() {
+      await invokePlayer('cinecrew:vlc:seek-to', 0);
+      return invokePlayer('cinecrew:vlc:set-paused', false);
+    },
     seek(ratio) {
       return invokePlayer('cinecrew:vlc:seek', Math.max(0, Math.min(1, Number(ratio) || 0)));
     },

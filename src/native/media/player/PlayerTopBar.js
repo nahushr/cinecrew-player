@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { forwardRef, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { isAndroid, isIOS } from '../../../utils/runtimePlatform';
+import { isAndroid, isIOS, isElectronOverlay } from '../../../utils/runtimePlatform';
 import { cleanPlayerTitle } from '../../../utils/mediaUtils';
 import { PlayerIcon, usePlayerColors } from '../../customization';
 
@@ -70,12 +70,42 @@ function SessionActionButton({ visible, compact, onPress, icon, color, accessibi
   );
 }
 
+export const PlayerLockButton = forwardRef(function PlayerLockButton(
+  { locked = false, onPress, onLayout, compact = false, style },
+  ref,
+) {
+  const palette = usePlayerColors();
+  const stateStyle = {
+    backgroundColor: palette.controlBackground,
+    borderWidth: 1,
+    borderColor: locked ? palette.accentColor : 'transparent',
+  };
+  return (
+    <TouchableOpacity
+      ref={ref}
+      style={[styles.pill, compact && styles.compactPill, stateStyle, style]}
+      onLayout={onLayout}
+      onPress={(event) => { event.stopPropagation(); onPress?.(); }}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={locked ? 'Unlock controls' : 'Lock player controls'}
+      accessibilityState={{ selected: locked }}
+    >
+      <PlayerIcon
+        name={locked ? 'lock' : 'lock-open-variant'}
+        size={compact ? 18 : 20}
+        color={locked ? palette.accentColor : palette.controlColor}
+      />
+    </TouchableOpacity>
+  );
+});
+
 function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, onLock, palette, compact }) {
   return (
     <>
       <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" />
       <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} />
-      <SessionActionButton visible={controls.lock !== false} compact={compact} onPress={onLock} icon="lock-open-variant" color={palette.controlColor} accessibilityLabel="Lock player controls" />
+      {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onLock} /> : null}
     </>
   );
 }
@@ -137,6 +167,7 @@ export const PlayerTopBar = ({
   onToggleMute,
   onToggleLock,
   controls = {},
+  locked = false,
   isFullscreen = false,
   playerIsPortrait,
   compact = false,
@@ -148,6 +179,8 @@ export const PlayerTopBar = ({
   const palette = usePlayerColors();
   const isPortrait = playerIsPortrait ?? (height >= width);
   const isMobile = isAndroid() || isIOS() || Math.min(width, height) < 600;
+  const electronFullscreen = isFullscreen && isElectronOverlay();
+  const compactAndroidLandscape = compact && isAndroid();
 
   const alignCompactLandscapeTopBar = () => {
     if (!compact) {
@@ -189,8 +222,8 @@ export const PlayerTopBar = ({
         compact && styles.compactLandscapeTopBar,
         compact && { top: landscapeTopOffset },
         {
-          paddingTop: isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
-          paddingHorizontal: isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
+          paddingTop: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
+          paddingHorizontal: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
         },
       ]}
       ref={(node) => { topBarRef.current = node; }}
@@ -198,19 +231,34 @@ export const PlayerTopBar = ({
       pointerEvents="box-none"
     >
       <View
-        style={[styles.headerRow, !isPortrait && styles.landscapeHeaderRow, isPortrait && styles.portraitHeaderRow, compact && styles.compactLandscapeHeaderRow]}
+        style={[
+          styles.headerRow,
+          !isPortrait && styles.landscapeHeaderRow,
+          isPortrait && styles.portraitHeaderRow,
+          compact && styles.compactLandscapeHeaderRow,
+          compactAndroidLandscape && styles.compactAndroidLandscapeHeaderRow,
+        ]}
       >
-        <BackButton visible={controls.back !== false} palette={palette} scale={scale} onClose={onClose} compact={compact} />
-        <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
+        <BackButton visible={!locked && controls.back !== false} palette={palette} scale={scale} onClose={onClose} compact={compact} />
+        {!locked ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
 
-        <View style={[styles.topRightActions, isPortrait && styles.portraitTopRightActions, compact && styles.compactTopRightActions]}>
-          <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} />
-          <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} compact={compact} />
-          <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} compact={compact} />
+        <View style={[
+          styles.topRightActions,
+          isPortrait && styles.portraitTopRightActions,
+          compact && styles.compactTopRightActions,
+          compactAndroidLandscape && styles.compactAndroidTopRightActions,
+        ]}>
+          {locked ? <PlayerLockButton locked onPress={onToggleLock} compact={compact} /> : (
+            <>
+              <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} />
+              <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} compact={compact} />
+              <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} compact={compact} />
+            </>
+          )}
         </View>
       </View>
-      <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} />
-      <PortraitPlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} />
+      {!locked ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} /> : null}
+      {!locked ? <PortraitPlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
     </View>
   );
 };
@@ -269,6 +317,10 @@ const styles = StyleSheet.create({
     flex: 0,
     flexShrink: 0,
   },
+  compactAndroidLandscapeHeaderRow: {
+    justifyContent: 'flex-start',
+    gap: 8,
+  },
   portraitTopRightActions: {
     flex: 1,
     flexShrink: 1,
@@ -283,6 +335,10 @@ const styles = StyleSheet.create({
     gap: 3,
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  compactAndroidTopRightActions: {
+    justifyContent: 'flex-start',
+    marginLeft: 6,
   },
   compactLandscapeTitle: {
     alignSelf: 'stretch',

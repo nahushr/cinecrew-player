@@ -177,7 +177,9 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
     return MapBuilder.of(
         "startRecording", 1,
         "stopRecording", 2,
-        "snapshot", 3);
+        "snapshot", 3,
+        "restart", 4,
+        "setAudioState", 5);
   }
 
   @Override
@@ -198,6 +200,18 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
         if (args != null && args.size() > 0 && !args.isNull(0)) {
           String path = args.getString(0);
           root.doSnapshot(path);
+        }
+        break;
+
+      case 4:
+        root.restartPlayback();
+        break;
+
+      case 5:
+        if (args != null && args.size() > 0 && !args.isNull(0)) {
+          boolean muted = args.getBoolean(0);
+          int volume = args.size() > 1 && !args.isNull(1) ? args.getInt(1) : 100;
+          root.setAudioState(muted, volume);
         }
         break;
 

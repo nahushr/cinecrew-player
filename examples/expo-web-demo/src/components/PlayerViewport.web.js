@@ -11,6 +11,8 @@ export function PlayerViewport({
   source,
   drawerMode,
   inline,
+  showBrightnessControl,
+  onBrightnessChangeEnd,
   selectedAudioTrack,
   integrations,
   actions,
@@ -33,6 +35,8 @@ export function PlayerViewport({
         isActive
         paused={false}
         controls={{ playPause: true, mute: true, fullscreen: true }}
+        showBrightnessControl={showBrightnessControl}
+        onBrightnessChangeEnd={onBrightnessChangeEnd}
         onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
@@ -44,6 +48,8 @@ export function PlayerViewport({
       key={active.url}
       source={source}
       title={active.title}
+      showBrightnessControl={showBrightnessControl}
+      onBrightnessChangeEnd={onBrightnessChangeEnd}
       poster={active.poster}
       mediaId={active.id}
       autoPlay

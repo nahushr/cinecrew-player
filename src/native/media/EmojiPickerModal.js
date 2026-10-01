@@ -19,8 +19,11 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
   const [activeGroup, setActiveGroup] = useState(EMOJI_GROUPS[0].name);
   const [query, setQuery] = useState('');
   const isDark = colors?.mode ? colors.mode === 'dark' : systemScheme !== 'light';
-  const sheetWidth = Math.min(windowWidth - 32, 420);
-  const numColumns = Math.max(5, Math.min(9, Math.floor((sheetWidth - 32) / 42)));
+  // Keep the sheet inside the actual window in both orientations. A fixed
+  // 300px minimum can exceed the usable height on short landscape screens.
+  const sheetWidth = Math.max(0, Math.min(windowWidth - 32, 520));
+  const sheetHeight = Math.max(0, Math.min(windowHeight - 32, 600));
+  const numColumns = Math.max(4, Math.min(10, Math.floor((sheetWidth - 32) / 42)));
   const activeGroupData = EMOJI_GROUPS.find((group) => group.name === activeGroup) || EMOJI_GROUPS[0];
   const emojis = useMemo(
     () => query.trim() ? searchEmojis(query) : activeGroupData.items,
@@ -50,7 +53,7 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
         <Pressable
           style={[styles.sheet, {
             width: sheetWidth,
-            height: Math.min(Math.max(300, windowHeight * 0.72), 560),
+            height: sheetHeight,
             backgroundColor: palette.surface,
             borderColor: palette.outline,
           }]}
@@ -108,6 +111,7 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
             data={emojis}
             keyExtractor={(item) => item.codepoints}
             numColumns={numColumns}
+            style={styles.emojiList}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.grid}
             initialNumToRender={numColumns * 6}
@@ -142,7 +146,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sheet: {
-    maxHeight: '82%',
+    minHeight: 0,
+    flexShrink: 1,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 20,
     padding: 16,
@@ -161,6 +166,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
+    flexShrink: 1,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -206,8 +212,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   grid: {
+    flexGrow: 1,
     alignItems: 'center',
     paddingBottom: 8,
+  },
+  emojiList: {
+    flex: 1,
+    minHeight: 0,
   },
   emojiButton: {
     width: 42,

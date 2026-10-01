@@ -11,6 +11,7 @@ import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
 import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
+import { playPlayer } from '../utils/playbackRecovery.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
 import { installWebPlayerStyles } from './installStyles.js';
 
@@ -349,7 +350,47 @@ function WebRecordingOverlay(props) {
   }, getRecordingOverlayContent(props), dismissButton);
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps }) {
+function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
+  const valueRef = useRef(brightness);
+  const activeRef = useRef(false);
+  valueRef.current = brightness;
+
+  const finish = useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    onChangeEnd?.(Math.round(valueRef.current * 100));
+  }, [onChangeEnd]);
+
+  return h('div', { className: 'cinecrew-player__brightness-control' },
+    h('span', { className: 'cinecrew-player__brightness-icon', 'aria-hidden': true }, '☼'),
+    h('input', {
+      type: 'range',
+      min: 10,
+      max: 100,
+      step: 1,
+      value: Math.round(brightness * 100),
+      'aria-label': 'Video brightness',
+      'aria-valuetext': `${Math.round(brightness * 100)}%`,
+      style: { accentColor: theme.accentColor },
+      onPointerDown: (event) => {
+        activeRef.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      },
+      onChange: (event) => {
+        const percent = Math.max(10, Math.min(100, Number(event.currentTarget.value) || 10));
+        valueRef.current = percent / 100;
+        onChange(percent / 100);
+      },
+      onKeyDown: () => { activeRef.current = true; },
+      onPointerUp: finish,
+      onPointerCancel: finish,
+      onKeyUp: finish,
+      onBlur: finish,
+    }),
+    h('span', { className: 'cinecrew-player__brightness-value', 'aria-live': 'off' }, `${Math.round(brightness * 100)}%`));
+}
+
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
   let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -388,7 +429,13 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       onDownload: bottomProps.downloadRecording,
       onDismiss: bottomProps.clearRecordingError,
     }),
-    bottomControls);
+    bottomControls,
+    !locked && showBrightnessControl ? h(WebBrightnessControl, {
+      brightness,
+      onChange: onBrightnessChange,
+      onChangeEnd: onBrightnessChangeEnd,
+      theme,
+    }) : null);
 }
 
 function getDrawerResizedVideoStyle(drawerResize, videoStyle) {
@@ -707,6 +754,10 @@ function WebPlayerLayout(props) {
       icons: props.icons,
       unlockedControls: props.unlockedControls,
       toggleLock: props.toggleLock,
+      showBrightnessControl: props.showBrightnessControl,
+      brightness: props.brightness,
+      onBrightnessChange: props.onBrightnessChange,
+      onBrightnessChangeEnd: props.onBrightnessChangeEnd,
       paused: props.isPaused,
       title: props.title,
       inlinePreview: props.inlinePreview,
@@ -757,6 +808,14 @@ function WebPlayerLayout(props) {
     'data-stream-mode': props.streamMode,
   },
   props.mediaSurface,
+  !props.audioOnly && props.brightness < 1 ? h('div', {
+    className: 'cinecrew-player__brightness-dim',
+    style: {
+      opacity: 1 - props.brightness,
+      ...(props.drawerMode === 'resize' && props.activePanel ? { right: 'auto', width: 'var(--cinecrew-media-width, 64%)' } : {}),
+    },
+    'aria-hidden': true,
+  }) : null,
   audioCard,
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
   loadingNotice,
@@ -1244,6 +1303,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     playbackRate: playbackRateProp = 1,
     paused: pausedProp,
     showProgressBar = true,
+    showBrightnessControl = false,
     controls: controlOverrides = {},
     features = {},
     drawerMode = 'overlay',
@@ -1275,6 +1335,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onReady,
     onProgress,
     onProgressBarChange,
+    onBrightnessChangeEnd,
     onPlaying,
     onBuffering,
     onError,
@@ -1297,6 +1358,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const errorRef = useRef(onError);
   const [isPaused, setIsPaused] = useState(pausedProp ?? !autoPlay);
   const [muted, setMuted] = useState(!!mutedProp);
+  const [brightness, setBrightness] = useState(1);
   const [volume, setVolume] = useState(Math.max(0, Math.min(1, Number(volumeProp) || 0)));
   const [videoOnly, setVideoOnly] = useState(!!videoOnlyProp);
   const [audioOnly, setAudioOnly] = useState(!!audioOnlyProp);
@@ -1402,6 +1464,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
 
   useEffect(() => setPlaybackRate(Number(playbackRateProp) || 1), [playbackRateProp]);
   useEffect(() => setVolume(Math.max(0, Math.min(1, Number(volumeProp) || 0))), [volumeProp]);
+  useEffect(() => {
+    setBrightness(1);
+  }, [streamUrl]);
+
+  const updateBrightness = useCallback((value) => {
+    const next = Math.max(0.1, Math.min(1, Number(value) || 0.1));
+    setBrightness(next);
+  }, []);
 
   useEffect(() => {
     onPlayerHostRef?.(playerRef.current);
@@ -1729,7 +1799,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const togglePlay = useCallback(() => action('onPlayPause', () => setPaused(), { isPlaying: pausedRef.current }), [action, setPaused]);
   const restart = useCallback(() => action('onRestart', () => {
     const video = videoRef.current;
-    if (video) video.currentTime = 0;
+    if (video) {
+      video.currentTime = 0;
+      playPlayer(video);
+    }
     setPaused(false);
     emitProgressBarTime(0, progressBarCallback, lastProgressBarSecondRef, { force: true });
   }, { currentTime: Number(videoRef.current?.currentTime) || 0 }), [action, progressBarCallback, setPaused]);
@@ -1747,9 +1820,15 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const setPlaybackRateAction = useCallback((next) => action('onPlaybackRateChange', () => setPlaybackRate(next), { playbackRate: next }), [action]);
   const seekTo = useCallback((seconds) => action('onSeek', () => {
     const targetSeconds = Math.max(0, Number(seconds) || 0);
-    if (videoRef.current) videoRef.current.currentTime = targetSeconds;
+    const video = videoRef.current;
+    const wasEnded = video?.ended === true;
+    if (video) video.currentTime = targetSeconds;
+    if (wasEnded && video) {
+      setPaused(false);
+      playPlayer(video);
+    }
     emitProgressBarTime(targetSeconds, progressBarCallback, lastProgressBarSecondRef, { force: true });
-  }, { seconds: Number(seconds) || 0 }), [action, progressBarCallback]);
+  }, { seconds: Number(seconds) || 0 }), [action, progressBarCallback, setPaused]);
   const handleBack = useCallback(() => action('onBack', undefined, { title, source: media }), [action, title, media]);
   useImperativeHandle(ref, () => {
     const api = {
@@ -2012,6 +2091,10 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     onWheel: (event) => onInlinePreviewWheel?.(event.deltaY),
     drawerMode,
     drawerStyle,
+    showBrightnessControl,
+    brightness,
+    onBrightnessChange: updateBrightness,
+    onBrightnessChangeEnd,
   });
 });
 
@@ -2032,6 +2115,8 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   icons,
   style,
   initialMuted = true,
+  showBrightnessControl = false,
+  onBrightnessChangeEnd,
   onError,
   onPlaying,
 }) {
@@ -2065,6 +2150,8 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     actions,
     theme,
     icons,
+    showBrightnessControl,
+    onBrightnessChangeEnd,
     onError,
     onPlaying,
     inlinePreview: true,

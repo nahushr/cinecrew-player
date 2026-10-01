@@ -24,6 +24,8 @@ import { getFontSize, getFontWeight } from '../utils/layoutUtils';
 import { isLocalMediaUri } from '../utils/mediaUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
+import { playPlayer, resumePlayerAfterSeek } from '../utils/playbackRecovery.js';
+import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
 import {
   USER_AGENT,
   ASPECT_OPTIONS,
@@ -565,6 +567,7 @@ function FullscreenControlsPanel(props) {
         diagnosticsOverlayEnabled={props.diagnosticsOverlayEnabled}
         muted={props.muted}
         controls={props.controls}
+        locked={props.isLocked}
         playerIsPortrait={isPortrait}
         compact={compact}
         onClose={props.onClose}
@@ -577,15 +580,15 @@ function FullscreenControlsPanel(props) {
         onToggleMute={props.handleMuteAction}
         onToggleLock={props.handleLockAction}
       />
-      <CenterControls
+      {!props.isLocked ? <CenterControls
         compact={compact}
         visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
         onTogglePlayPause={props.handlePlayPauseAction}
-      />
-      <PlayerBottomBar
+      /> : null}
+      {!props.isLocked ? <PlayerBottomBar
         compact={compact}
         isLive={props.isLive}
         insets={props.insets}
@@ -617,17 +620,17 @@ function FullscreenControlsPanel(props) {
         onToggleAudioPicker={props.onToggleAudioPicker}
         onSelectAudioTrack={props.handleAudioTrackAction}
         onToggleFullscreen={props.handleFullscreenAction}
-      />
+      /> : null}
     </View>
   );
 }
 
-function FullscreenVisualFeedback({ isAudioOnly, isWebPlatform, brightness, zoomBadgeText, seekRipple }) {
+function FullscreenVisualFeedback({ isAudioOnly, brightness, zoomBadgeText, seekRipple }) {
   return (
     <>
-      {isWebPlatform && !isAudioOnly && brightness < 1 ? (
+      {!isAudioOnly && brightness < 1 ? (
         <View
-          style={[styles.brightnessDimOverlay, { opacity: Math.max(0, Math.min(0.88, (1 - brightness) * 0.95)) }]}
+          style={[styles.brightnessDimOverlay, { opacity: 1 - brightness }]}
           pointerEvents="none"
         />
       ) : null}
@@ -723,45 +726,6 @@ function FullscreenRecordingLayer(props) {
   );
 }
 
-function FullscreenSessionLayer({ locked, controlsVisible, isAudioOnly, insets, scale, onToggleLock }) {
-  const lockButtonRef = useRef(null);
-  const lockTopOffsetRef = useRef(0);
-  const [lockTopOffset, setLockTopOffset] = useState(0);
-  const alignLockButton = () => {
-    lockButtonRef.current?.measureInWindow?.((_x, windowY) => {
-      // The Android fullscreen Modal can extend above the app window after a
-      // rotation. Keep the locked-state affordance below the real status bar.
-      const baseWindowY = windowY - lockTopOffsetRef.current;
-      const safeTop = Math.max(insets?.top || 0, 24);
-      const nextOffset = Math.max(0, safeTop - baseWindowY);
-      if (Math.abs(nextOffset - lockTopOffsetRef.current) > 1) {
-        lockTopOffsetRef.current = nextOffset;
-        setLockTopOffset(nextOffset);
-      }
-    });
-  };
-  if (!locked || !controlsVisible || isAudioOnly) return null;
-  return locked && controlsVisible ? (
-        <TouchableOpacity
-          ref={lockButtonRef}
-          style={[styles.floatingLockBtn, {
-            top: Math.max(insets?.top || 0, 24) + lockTopOffset,
-            right: Math.max(insets?.left || 0, insets?.right || 0, 20),
-          }]}
-          onLayout={alignLockButton}
-          onPress={(event) => {
-            event.stopPropagation();
-            onToggleLock();
-          }}
-          activeOpacity={0.8}
-          hitSlop={16}
-        >
-          <PlayerIcon name="lock" size={22} color="#FF5252" />
-          <Text style={[styles.floatingLockText, { fontSize: scale.lockTextFont, fontWeight: scale.lockTextWeight }]}>Locked</Text>
-        </TouchableOpacity>
-  ) : null;
-}
-
 function isUsableInlinePreviewRect(rect) {
   return Boolean(rect && rect.width > 20 && rect.height > 20 && rect.x > -1000 && rect.y > -1000);
 }
@@ -836,6 +800,8 @@ export const MediaPlayerView = ({
   onProgress,
   showProgressBar = true,
   onProgressBarChange,
+  showBrightnessControl = false,
+  onBrightnessChangeEnd,
   onPlaying,
   onBuffering,
   onError,
@@ -854,6 +820,18 @@ export const MediaPlayerView = ({
   } : colors);
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // Keep the default 16:9 player fully visible in landscape without requiring
+  // apps to calculate dimensions or pass a demo-specific style. A consumer's
+  // explicit `style` is applied afterwards and can still override this limit.
+  const landscapeInlineStyle = windowWidth > windowHeight
+    ? {
+        maxWidth: Math.max(
+          1,
+          (windowHeight - (insets?.top || 0) - (insets?.bottom || 0) - 140) * (16 / 9),
+        ),
+        alignSelf: 'center',
+      }
+    : null;
   const windowSizeRef = useRef({ w: windowWidth, h: windowHeight });
   const insetsRef = useRef(insets);
   windowSizeRef.current = { w: windowWidth, h: windowHeight };
@@ -898,6 +876,7 @@ export const MediaPlayerView = ({
   const [isPlaying, setIsPlaying] = useState(!initialPaused);
   const isPlayingRef = useRef(!initialPaused);
   isPlayingRef.current = isPlaying;
+  const playbackEndedRef = useRef(false);
   const [playbackUrl, setPlaybackUrl] = useState(streamUrl || '');
   const [muted, setMuted] = useState(!!initialMuted);
   const [videoOnlyMode, setVideoOnlyMode] = useState(!!videoOnly);
@@ -956,6 +935,14 @@ export const MediaPlayerView = ({
       });
     }
   }, []);
+
+  useEffect(() => {
+    cancelControlFrame(brightnessFrameRef.current);
+    brightnessFrameRef.current = null;
+    brightnessRef.current = 1;
+    pendingBrightnessRef.current = 1;
+    setBrightness(1);
+  }, [streamUrl]);
 
   const commitVolume = useCallback((value, { unmute = true } = {}) => {
     const next = normalizeVolume(value);
@@ -1405,6 +1392,7 @@ export const MediaPlayerView = ({
     setErrorMessage(null);
     setIsPlaying(!initialPaused);
     isPlayingRef.current = !initialPaused;
+    playbackEndedRef.current = false;
     setVideoOnlyMode(!!videoOnly);
     lastProgressBarSecondRef.current = null;
     setPlaybackUrl(streamUrl || '');
@@ -1641,13 +1629,25 @@ export const MediaPlayerView = ({
    * Restart the movie/episode from the beginning (seek to 00:00).
    */
   const handleRestart = useCallback(() => {
+    playbackEndedRef.current = false;
+    const player = vlcRef.current;
+    let restartResult;
     try {
-      if (vlcRef.current && typeof vlcRef.current.seek === 'function') {
-        vlcRef.current.seek(0);
+      if (typeof player?.restart === 'function') restartResult = player.restart();
+      else if (typeof player?.reload === 'function') restartResult = player.reload();
+      else {
+        restartResult = player?.seek?.(0);
       }
     } catch (e) {
       // restart seek is best-effort
     }
+    if (restartResult && typeof restartResult.then === 'function') {
+      Promise.resolve(restartResult).then(() => playPlayer(player), () => playPlayer(player));
+    } else {
+      playPlayer(player);
+    }
+    isPlayingRef.current = true;
+    setIsPlaying(true);
     isSeeking.current = false;
     setCurrentTime(0);
     setSliderPos(0);
@@ -1660,6 +1660,7 @@ export const MediaPlayerView = ({
   // Episode finished: auto-advance to the next episode (sequential) or to a
   // random episode (shuffle mode). Last episode in the playlist stops playback.
   const handleEpisodeEnded = useCallback(() => {
+    playbackEndedRef.current = true;
     onEnded?.();
     const eps = Array.isArray(playlist) ? playlist : [];
     if (!eps.length) return;
@@ -1718,23 +1719,28 @@ export const MediaPlayerView = ({
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
+    const nextVolume = !next && volumeRef.current === 0 ? 100 : volumeRef.current;
     if (isWeb()) {
       if (next) {
         vlcRef.current?.deactivateAudio?.();
       } else {
-        vlcRef.current?.activateAudio?.(volumeRef.current || 100);
+        vlcRef.current?.activateAudio?.(nextVolume);
       }
     }
     mutedRef.current = next;
     if (next) pendingUnmuteRef.current = false;
     setMuted(next);
 
+    // Drive mute and volume together for native VLC. This avoids relying on
+    // React prop ordering to restore the user's audible volume after unmute.
+    vlcRef.current?.setAudioState?.(next || videoOnlyMode, nextVolume);
+
     if (!next && volumeRef.current === 0) {
       commitVolume(100, { unmute: false });
     }
 
     badgeService.emit('player.mute', {}).catch(() => {});
-  }, [commitVolume]);
+  }, [commitVolume, videoOnlyMode]);
 
   const toggleLock = useCallback(() => {
     setIsLocked((prev) => {
@@ -1748,6 +1754,14 @@ export const MediaPlayerView = ({
   }, [isPlaying, scheduleHide]);
 
   const pendingSeekRef = useRef(null);
+
+  const resumeAfterEndedSeek = useCallback((seekResult) => {
+    if (!playbackEndedRef.current) return;
+    playbackEndedRef.current = false;
+    isPlayingRef.current = true;
+    setIsPlaying(true);
+    resumePlayerAfterSeek(vlcRef.current, seekResult, true);
+  }, []);
 
   const restorePlaybackPosition = useCallback((position, delay = 100) => {
     if (isLive || !visible) return;
@@ -1789,6 +1803,8 @@ export const MediaPlayerView = ({
 
   const handleSeekTo = (secs) => {
     scheduleBufferingIndicator();
+    let seekResult;
+    let seekIssued = false;
     try {
       if (vlcRef.current) {
         const audioOffset = isAudioOnly && !audioOnlyFallback && !isLive
@@ -1798,7 +1814,8 @@ export const MediaPlayerView = ({
         const playerTarget = Math.max(0, Number(secs) - audioOffset);
         if (playerDuration > 0) {
           const ratio = Math.max(0, Math.min(1, playerTarget / playerDuration));
-          vlcRef.current.seek(ratio);
+          seekResult = vlcRef.current.seek(ratio);
+          seekIssued = true;
         } else {
           // Native seek expects a 0-1 ratio; defer until duration is known.
           pendingSeekRef.current = secs;
@@ -1807,6 +1824,7 @@ export const MediaPlayerView = ({
     } catch (e) {
       // seek is best-effort; ignore player-specific failures
     }
+    if (seekIssued) resumeAfterEndedSeek(seekResult);
   };
 
   const handleSeekBy = useCallback((secs) => {
@@ -1892,6 +1910,7 @@ export const MediaPlayerView = ({
 
   const handleNativePlaying = (event) => {
     hasStartedPlaybackRef.current = true;
+    playbackEndedRef.current = false;
     clearAudioOnlyFallbackTimer();
     clearBufferingIndicator();
     setErrorMessage(null);
@@ -1901,6 +1920,7 @@ export const MediaPlayerView = ({
 
   const handleNativeLoadStart = useCallback(() => {
     hasStartedPlaybackRef.current = false;
+    playbackEndedRef.current = false;
     setIsLoading(true);
     setErrorMessage(null);
   }, []);
@@ -2675,6 +2695,7 @@ export const MediaPlayerView = ({
     isEpgEnabled,
     diagnosticsOverlayEnabled,
     muted,
+    isLocked,
     controls: { ...controls, seek: progressBarVisible },
     onClose: handleBackAction,
     handleRecordingAction,
@@ -2765,7 +2786,7 @@ export const MediaPlayerView = ({
       ]}
       {...(nativeGestureHandlers || {})}
     >
-      <StatusBar hidden={isFullscreen ? !showControls : false} translucent={isFullscreen} backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar hidden={isFullscreen} translucent={isFullscreen} backgroundColor="transparent" barStyle="light-content" />
 
       <View
         ref={mediaFrameRef}
@@ -2781,7 +2802,6 @@ export const MediaPlayerView = ({
         />
         <FullscreenVisualFeedback
           isAudioOnly={isAudioOnly}
-          isWebPlatform={isWeb()}
           brightness={brightness}
           zoomBadgeText={zoomBadgeText}
           seekRipple={seekRipple}
@@ -2807,12 +2827,19 @@ export const MediaPlayerView = ({
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls
             are hidden if the elevated overlay remains mounted. */}
-        {showControls && !isLocked && !isAudioOnly && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 60, elevation: 60 }]} pointerEvents="box-none">
+        {showControls && !isAudioOnly && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
             <View style={styles.controlsShell} pointerEvents="box-none">
               <FullscreenControlsPanel {...fullscreenControlsProps} frameSize={mediaFrameSize} />
+              {showBrightnessControl && !isLocked ? (
+                <VerticalBrightnessControl
+                  value={brightness}
+                  onChange={commitBrightness}
+                  onChangeEnd={onBrightnessChangeEnd}
+                  accentColor={colors?.brandAccent || colors?.primary || '#00D4FF'}
+                  availableHeight={mediaFrameSize.height}
+                />
+              ) : null}
             </View>
-          </View>
         ) : null}
 
         <FullscreenStatusLayer
@@ -2836,14 +2863,6 @@ export const MediaPlayerView = ({
           handleStopRecording={handleStopRecording}
           recNotice={recNotice}
           onDismissNotice={() => setRecNotice(null)}
-        />
-        <FullscreenSessionLayer
-          locked={isLocked}
-          controlsVisible={showControls}
-          isAudioOnly={isAudioOnly}
-          insets={insets}
-          scale={scale}
-          onToggleLock={toggleLock}
         />
       </View>
 
@@ -2878,6 +2897,7 @@ export const MediaPlayerView = ({
         collapsable={false}
         style={[
           isFullscreen ? styles.electronFullscreenHost : styles.inlinePlayerContainer,
+          !isFullscreen && landscapeInlineStyle,
           transparentElectronOverlay && { backgroundColor: 'transparent' },
           style,
         ]}
@@ -2910,6 +2930,7 @@ export const MediaPlayerView = ({
         collapsable={false}
         style={[
           styles.inlinePlayerContainer,
+          landscapeInlineStyle,
           transparentElectronOverlay && { backgroundColor: 'transparent' },
           style,
         ]}
@@ -3175,8 +3196,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   controlsShell: {
-    flex: 1,
-    width: '100%',
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
     zIndex: 65,
     elevation: 65,
@@ -3305,23 +3325,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   errorBtnText: {
-    color: '#FFF',
-  },
-  floatingLockBtn: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    borderColor: '#FF5252',
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 400,
-    elevation: 400,
-  },
-  floatingLockText: {
     color: '#FFF',
   },
 });

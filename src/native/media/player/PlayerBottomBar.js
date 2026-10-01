@@ -1,16 +1,17 @@
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { Platform, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { ASPECT_OPTIONS, PLAYBACK_SPEEDS, formatTime } from './playerConstants';
 import { PlayerIcon, usePlayerColors } from '../../customization';
+import { isElectronOverlay } from '../../../utils/runtimePlatform';
 
-function SeekControls({ isLive, controls, insets, scale, compact, isSeeking, sliderPos, currentTime, duration, onValueChange, onSlidingStart, onSlidingComplete }) {
+function SeekControls({ isLive, controls, insets, scale, compact, edgePadding, isSeeking, sliderPos, currentTime, duration, onValueChange, onSlidingStart, onSlidingComplete }) {
   const palette = usePlayerColors();
   if (isLive || controls.seek === false) return null;
   const seeking = Boolean(isSeeking?.current);
   const displayTime = seeking ? sliderPos : currentTime;
   const remaining = duration > 0 ? formatTime(Math.max(0, duration - displayTime)) : '--:--';
   return (
-    <View style={[styles.bottomBar, compact && styles.compactBottomBar, { paddingHorizontal: compact ? 4 : Math.max(insets?.left || 0, insets?.right || 0, 20) }]} pointerEvents="box-none">
+    <View style={[styles.bottomBar, compact && styles.compactBottomBar, { paddingHorizontal: compact ? 4 : edgePadding ?? Math.max(insets?.left || 0, insets?.right || 0, 20) }]} pointerEvents="box-none">
       <View style={styles.timeRow}>
         <Text style={[styles.timeText, seeking && styles.timeTextSeeking, { color: seeking ? palette.accentColor : palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: seeking ? scale?.timeSeekingWeight : scale?.timeWeight }]}>{formatTime(displayTime)}</Text>
         <Text style={[styles.timeText, { color: palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: scale?.timeWeight }]}>{remaining}</Text>
@@ -25,7 +26,7 @@ function AspectRatioControl({ controls, open, aspectRatio, aspectRatios = ASPECT
   if (controls.aspectRatio === false) return null;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
-    <View style={styles.speedButtonContainer}>
+    <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
       {open ? <View style={[styles.speedPickerPopup, compact && styles.compactPickerPopup, { right: 'auto', left: 0, backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}>
         <Text style={[styles.speedPickerTitle, compact && styles.compactPickerTitle, { color: palette.mutedColor }]}>Aspect Ratio</Text>
         {aspectRatios.map((option) => {
@@ -54,7 +55,7 @@ function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect, compact
   if (!enabled) return null;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
-    <View style={styles.speedButtonContainer}>
+    <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
       {open ? <View style={[styles.speedPickerPopup, compact && styles.compactPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}>
         <Text style={[styles.speedPickerTitle, compact && styles.compactPickerTitle, { color: palette.mutedColor }]}>Playback speed</Text>
         {[...PLAYBACK_SPEEDS].reverse().map((speed) => {
@@ -94,7 +95,7 @@ function AudioTracksControl({ enabled, open, audioTracks, selectedAudioTrack, on
   if (!enabled) return null;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
-    <View style={styles.speedButtonContainer}>
+    <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
       <AudioTrackMenu open={open} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onSelect={onSelect} palette={palette} compact={compact} />
       <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, open && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }}>
         <PlayerIcon pack="material" name="audiotrack" size={compact ? 16 : 18} color={palette.controlColor} />
@@ -143,29 +144,36 @@ export const PlayerBottomBar = ({
   onToggleFullscreen,
   controls = {},
 }) => {
+  const electronFullscreen = isFullscreen && isElectronOverlay();
+  const edgePadding = electronFullscreen ? 8 : Math.max(insets?.left || 0, insets?.right || 0, 20);
+  const leftPickerOpen = Boolean(showAspectPicker);
+  const rightPickerOpen = Boolean(showSpeedPicker || showAudioPicker);
+  const anyPickerOpen = leftPickerOpen || rightPickerOpen;
+  const android = Platform.OS === 'android';
+
   return (
     <View
       style={[
         styles.bottomContainer,
         compact && styles.compactBottomContainer,
         {
-          paddingBottom: isFullscreen ? Math.max(insets?.bottom || 0, 16) : 6,
-          paddingHorizontal: isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
+          paddingBottom: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.bottom || 0, 16) : 6,
+          paddingHorizontal: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
         },
       ]}
       pointerEvents="box-none"
     >
-      <SeekControls isLive={isLive} controls={controls} insets={insets} scale={scale} compact={compact} isSeeking={isSeeking} sliderPos={sliderPos} currentTime={currentTime} duration={duration} onValueChange={onSliderValueChange} onSlidingStart={onSliderSlidingStart} onSlidingComplete={onSliderSlidingComplete} />
+      <SeekControls isLive={isLive} controls={controls} insets={insets} scale={scale} compact={compact} edgePadding={edgePadding} isSeeking={isSeeking} sliderPos={sliderPos} currentTime={currentTime} duration={duration} onValueChange={onSliderValueChange} onSlidingStart={onSliderSlidingStart} onSlidingComplete={onSliderSlidingComplete} />
 
       {/* ASPECT RATIO PICKER & RIGHT ACTIONS (PLAYBACK SPEED & FULLSCREEN) */}
-      <View style={[styles.bottomControlsRow, compact && styles.compactBottomControlsRow]} pointerEvents="box-none">
-        <View style={styles.leftActionsContainer}>
+      <View style={[styles.bottomControlsRow, compact && styles.compactBottomControlsRow, electronFullscreen && { paddingHorizontal: 0 }, anyPickerOpen && styles.openPickerRow, anyPickerOpen && android && { elevation: 12 }]} pointerEvents="box-none">
+        <View style={[styles.leftActionsContainer, leftPickerOpen && styles.openPickerActions, leftPickerOpen && android && { elevation: 16 }]}>
           {isAudioOnlyFeatureEnabled && controls.audioOnly !== false ? <AudioOnlyModeControl compact={compact} isAudioOnly={isAudioOnly} onToggle={onToggleAudioOnly} /> : null}
           <AspectRatioControl compact={compact} controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} aspectRatios={aspectRatios} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} />
         </View>
 
         {/* RIGHT ACTIONS: Playback Speed, Audio, Fullscreen */}
-        <View style={styles.rightActionsContainer}>
+        <View style={[styles.rightActionsContainer, rightPickerOpen && styles.openPickerActions, rightPickerOpen && android && { elevation: 16 }]}>
           <SpeedControl compact={compact} enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} />
 
           {/* Audio Tracks Picker */}
@@ -229,6 +237,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     minHeight: 44,
   },
+  openPickerRow: {
+    zIndex: 180,
+  },
   compactBottomControlsRow: {
     minHeight: 32,
     paddingHorizontal: 2,
@@ -237,11 +248,17 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 100,
   },
+  openPickerContainer: {
+    zIndex: 240,
+  },
   leftActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     zIndex: 100,
+  },
+  openPickerActions: {
+    zIndex: 210,
   },
   rightActionsContainer: {
     flexDirection: 'row',
@@ -283,7 +300,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     minWidth: 168,
-    zIndex: 200,
+    zIndex: 240,
+    ...(Platform.OS === 'android' ? { elevation: 24 } : null),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden',

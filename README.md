@@ -349,6 +349,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `volume` | `number` | `1` | Initial volume from `0` to `1`. |
 | `playbackRate` | `number` | `1` | Initial playback speed; the on-demand speed control can change it afterward. |
 | `showProgressBar` | `boolean` | `true` | Show or hide the playback seek bar. When hidden, `onProgressBarChange` is not called. |
+| `showBrightnessControl` | `boolean` | `false` | Show a vertical in-video brightness slider. It dims the video with a translucent black overlay and never changes device brightness. |
 | `aspectRatios` | `(string \| { value, label? })[]` | built-in choices | Customize the aspect-ratio menu. Values include `FIT`, `FILL`, `STRETCH`, or a ratio such as `1:1`; labels are optional. |
 | `defaultAspectRatio` | `string` | `'FIT'` | Initial and source-reset aspect mode. Must match an item in `aspectRatios` to appear selected. |
 | `controls` | `PlayerControls` | defaults below | Show/hide individual control buttons. |
@@ -376,6 +377,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `onClose`, `onBack` | callbacks | — | App-owned navigation callbacks; Back does not close the player unless your callback does so. |
 | `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
 | `onProgressBarChange` | `(time: string) => void` | — | When the progress bar is shown, reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. It is not called when `showProgressBar` is false, `controls.seek` is false, or the live-player UI hides seeking. |
+| `onBrightnessChangeEnd` | `(brightnessPercent: number) => void` | — | When `showBrightnessControl` is enabled, called once after the user finishes dragging or adjusting the slider, with the final integer percentage from `10` to `100`. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. `onError` receives a player-facing `message` plus `actualMessage` and the original engine error under `cause`/`err` when available; progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
@@ -432,6 +434,8 @@ type PlayerSource = string | {
 | `onActivate` | `() => void` | — | Called when an inactive preview poster is selected. |
 | `onFullscreen` | `() => void` | — | Deprecated; no longer promotes to another player. Use `actions.onFullscreen` to observe the inline player's fullscreen state after it changes. |
 | `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen'>` | all shown | Toggle its compact controls. |
+| `showBrightnessControl` | `boolean` | `false` | Show the vertical in-video brightness slider. The dimming overlay affects the video only, not device brightness. |
+| `onBrightnessChangeEnd` | `(brightnessPercent: number) => void` | — | Called after the inline brightness adjustment ends with its final integer percentage (`10`–`100`). |
 | `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
 | `theme`, `icons`, `style` | `PlayerTheme`, `PlayerIcons`, platform style | defaults | Customize preview colors, controls, and layout. |

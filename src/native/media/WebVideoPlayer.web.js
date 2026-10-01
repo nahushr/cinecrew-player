@@ -239,6 +239,16 @@ export const WebVideoPlayer = forwardRef(({
 
   // Imperative handle for parent component control
   useImperativeHandle(ref, () => ({
+    play() {
+      const video = videoRef.current;
+      if (!video) return undefined;
+      const result = video.play();
+      result?.catch?.(() => {});
+      return result;
+    },
+    pause() {
+      videoRef.current?.pause();
+    },
     reload() {
       const video = videoRef.current;
       if (video && activeUrl) {

@@ -39,7 +39,11 @@ async function setHostStageBounds(rect) {
 
 function syncControlsWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed() || !controlsWindow || controlsWindow.isDestroyed()) return;
-  controlsWindow.setBounds(mainWindow.getContentBounds());
+  // In fullscreen, getContentBounds() can exclude the native titlebar/safe-area
+  // strip on macOS. The transparent controls layer must cover the same full
+  // frame as the VLC surface or the player inherits visible top/edge gutters.
+  const bounds = mainWindow.isFullScreen() ? mainWindow.getBounds() : mainWindow.getContentBounds();
+  controlsWindow.setBounds(bounds);
 }
 
 function resolveVlcDir() {

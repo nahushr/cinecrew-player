@@ -16,6 +16,7 @@ import { isAndroid, isElectron, isIOS, isWeb } from '../utils/runtimePlatform';
 import { USER_AGENT } from './media/player/playerConstants';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
+import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -177,13 +178,36 @@ function InlineLivePlayerSurface({
   artwork,
   loading,
   error,
+  brightness,
+  showBrightnessControl,
+  onBrightnessChange,
+  onBrightnessChangeEnd,
   renderOverlay,
 }) {
+  const brightnessOverlay = (visible) => visible && brightness < 1
+    ? React.createElement(View, {
+      pointerEvents: 'none',
+      style: [StyleSheet.absoluteFill, { backgroundColor: '#000000', opacity: 1 - brightness, zIndex: 2 }],
+    })
+    : null;
+  const brightnessControl = (visible) => visible && showBrightnessControl
+    ? React.createElement(VerticalBrightnessControl, {
+      value: brightness,
+      onChange: onBrightnessChange,
+      onChangeEnd: onBrightnessChangeEnd,
+      accentColor: palette.accentColor,
+      compact: true,
+      availableHeight: visible && !fullscreen ? height : undefined,
+    })
+    : null;
+
   return React.createElement(View, { style: [styles.frame, { height, backgroundColor: palette.surfaceColor }, style] },
     createInlinePlayerLayer(player, !fullscreen),
+    brightnessOverlay(!fullscreen && shouldRenderVideo),
     createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
     createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
     fullscreen ? null : renderOverlay(),
+    brightnessControl(!fullscreen && shouldRenderVideo),
     React.createElement(Modal, {
       visible: fullscreen,
       animationType: 'none',
@@ -191,8 +215,10 @@ function InlineLivePlayerSurface({
       onRequestClose: () => setFullscreen(false),
     }, React.createElement(View, { style: styles.fullscreenFrame },
       createInlinePlayerLayer(player, true),
+      brightnessOverlay(shouldRenderVideo),
       createInlineStatusLayer(loading, error, palette),
-      renderOverlay())));
+      renderOverlay(),
+      brightnessControl(shouldRenderVideo))));
 }
 
 function InlineLivePlayerView({
@@ -211,6 +237,8 @@ function InlineLivePlayerView({
   style,
   icons,
   initialMuted = true,
+  showBrightnessControl = false,
+  onBrightnessChangeEnd,
   onError,
   onPlaying,
 }) {
@@ -224,6 +252,7 @@ function InlineLivePlayerView({
   const [error, setError] = useState('');
   const [showControls, setShowControls] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  const [brightness, setBrightness] = useState(1);
   const shouldRenderVideo = isActive && !externalPaused;
   const pausedNow = Boolean(externalPaused) || internallyPaused;
   const artwork = poster || getArtwork(posterChannel);
@@ -247,6 +276,8 @@ function InlineLivePlayerView({
     setError('');
     setShowControls(true);
   }, [streamUrl, initialMuted]);
+
+  useEffect(() => setBrightness(1), [streamUrl]);
 
   useEffect(() => {
     if (streamUrl && isActive && !pausedNow) setLoading(true);
@@ -366,6 +397,10 @@ function InlineLivePlayerView({
       artwork,
       loading,
       error,
+      brightness,
+      showBrightnessControl: showBrightnessControl && showControls && shouldRenderVideo,
+      onBrightnessChange: setBrightness,
+      onBrightnessChangeEnd,
       renderOverlay,
     }),
   );

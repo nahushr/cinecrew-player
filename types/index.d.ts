@@ -235,6 +235,8 @@ export interface CineCrewPlayerProps {
   controls?: PlayerControls;
   /** Show the playback progress/seek bar. When false, onProgressBarChange is not called. Defaults to true. */
   showProgressBar?: boolean;
+  /** Show the in-video brightness slider. Brightness is simulated with a translucent black layer; device brightness is not changed. Defaults to false. */
+  showBrightnessControl?: boolean;
   /** Web/Electron chat and EPG drawer behavior. Overlay keeps the video full-size; resize shrinks it to make room. */
   drawerMode?: PlayerDrawerMode;
   /** Web CSS or React Native view-style overrides for the chat, EPG, and diagnostics drawer. */
@@ -287,6 +289,8 @@ export interface CineCrewPlayerProps {
   onProgress?: (event: unknown) => void;
   /** Called once for each elapsed playback second and after a completed seek/restart with a zero-padded HH:MM:SS position. */
   onProgressBarChange?: (time: string) => void;
+  /** Called after a brightness drag/adjustment ends with the final integer percentage (10–100). */
+  onBrightnessChangeEnd?: (brightnessPercent: number) => void;
   onPlaying?: (event: unknown) => void;
   onBuffering?: (buffering: boolean) => void;
   /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
@@ -317,6 +321,10 @@ export interface InlineLivePlayerProps {
   icons?: PlayerIcons;
   style?: unknown;
   initialMuted?: boolean;
+  /** Show a brightness slider over the inline video. Defaults to false. */
+  showBrightnessControl?: boolean;
+  /** Called when an inline brightness adjustment ends with the final integer percentage (10–100). */
+  onBrightnessChangeEnd?: (brightnessPercent: number) => void;
   /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
   onError?: (error: PlayerError) => void;
   onPlaying?: (event: unknown) => void;

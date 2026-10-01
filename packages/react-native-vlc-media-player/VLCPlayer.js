@@ -40,12 +40,26 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
 
     return {
       setNativeProps,
+      play: () => setNativeProps({ paused: false }),
+      pause: () => setNativeProps({ paused: true }),
       startRecording: (path) => {
         lastRecordingRef.current = null;
         dispatchCommand('startRecording', [path]);
       },
       stopRecording: () => dispatchCommand('stopRecording', []),
       stopPlayer: () => dispatchCommand('stopPlayer', []),
+      restart: () => {
+        const manager = UIManager.getViewManagerConfig('RCTVLCPlayer');
+        if (manager?.Commands?.restart != null) {
+          dispatchCommand('restart', []);
+        } else {
+          setNativeProps({ seek: 0, paused: false });
+        }
+      },
+      setAudioState: (muted, volume = 100) => dispatchCommand('setAudioState', [
+        Boolean(muted),
+        Math.max(0, Math.min(100, Math.round(Number(volume) || 0))),
+      ]),
       snapshot: (path) => dispatchCommand('snapshot', [path]),
       seek: (position) => setNativeProps({ seek: position }),
       resume: (shouldResume) => setNativeProps({ resume: shouldResume }),
