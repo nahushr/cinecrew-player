@@ -46,3 +46,48 @@ test('the package-owned Electron recorder starts, finalizes, and returns its fil
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('pausing the package-owned Electron recorder keeps playback running and joins resumed segments', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cinecrew-recording-pause-'));
+  const source = 'https://example.test/live.ts';
+  const contents = [];
+  let currentTime = 12000;
+  const player = {
+    source,
+    isEmbedded: () => true,
+    isPaused: () => false,
+    getTime: () => currentTime,
+    setSource: (nextSource, options) => {
+      assert.equal(nextSource, source);
+      const sout = options.mediaOptions.find((option) => option.startsWith(':sout='));
+      if (!sout) return;
+      const outputPath = sout.slice(':sout='.length).match(/dst="(.+?)"/)?.[1];
+      assert.ok(outputPath);
+      const bytes = Buffer.from(`segment-${contents.length + 1}`);
+      contents.push(bytes);
+      fs.writeFileSync(outputPath, bytes);
+    },
+  };
+  const controller = createVlcRecordingController({
+    app: { getPath: () => directory },
+    getPlayer: () => player,
+  });
+
+  try {
+    const started = await controller.start();
+    currentTime = 25000;
+    await controller.pause();
+    assert.equal(controller.isActive(), true);
+    currentTime = 41000;
+    await controller.resume();
+    currentTime = 53000;
+    const completed = await controller.stop();
+    const expected = Buffer.concat(contents);
+    assert.equal(completed.path, started.path);
+    assert.equal(completed.size, expected.length);
+    assert.deepEqual(fs.readFileSync(completed.path), expected);
+    assert.equal(controller.isActive(), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

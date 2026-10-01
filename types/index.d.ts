@@ -64,8 +64,14 @@ export interface PlayerApi {
   getAudioTracks(): AudioTrack[];
   /** Start a built-in native VLC/LibVLC recording. The path is optional; when omitted the platform chooses an app-owned recordings folder. */
   startNativeRecording?(path?: string): boolean | Promise<{ path?: string; filename?: string } | null>;
+  /** Pause capture without pausing playback; native recorders save the current segment. */
+  pauseNativeRecording?(): boolean | Promise<{ ok?: boolean } | null>;
+  /** Resume capture at the current playback position. */
+  resumeNativeRecording?(): boolean | Promise<{ ok?: boolean; path?: string } | null>;
   /** Stop an active native VLC/LibVLC recording. */
   stopNativeRecording?(): boolean | Promise<{ path?: string; filename?: string; size?: number } | null>;
+  /** Join native transport-stream segments created by pause/resume into one recording. */
+  mergeNativeRecordingSegments?(paths: string[]): boolean | Promise<boolean>;
   enterFullscreen?(): void | Promise<void>;
   exitFullscreen?(): void | Promise<void>;
 }

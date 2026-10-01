@@ -46,6 +46,7 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
         lastRecordingRef.current = null;
         dispatchCommand('startRecording', [path ?? null]);
       },
+      mergeRecordingSegments: (paths) => dispatchCommand('mergeRecordingSegments', [Array.isArray(paths) ? paths : []]),
       stopRecording: () => dispatchCommand('stopRecording', []),
       stopPlayer: () => dispatchCommand('stopPlayer', []),
       restart: () => {
@@ -85,12 +86,12 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
   );
   const handleRecordingState = useCallback(
     (event) => {
-      const { isRecording, recordPath } = event.nativeEvent;
+      const { isRecording, recordPath, size, operation } = event.nativeEvent;
       onRecordingState?.(event.nativeEvent);
-      if (lastRecordingRef.current === recordPath) return;
+      if (operation === 'merge' || lastRecordingRef.current === recordPath) return;
       if (!isRecording && recordPath) {
         lastRecordingRef.current = recordPath;
-        onRecordingCreated?.(recordPath);
+        onRecordingCreated?.(recordPath, Number(size) || 0);
       }
     },
     [onRecordingCreated, onRecordingState],

@@ -214,14 +214,17 @@ function InlineLivePlayerSurface({
 }) {
   const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
   const [fullscreenFrameHeight, setFullscreenFrameHeight] = useState(0);
+  const [fullscreenFrameWidth, setFullscreenFrameWidth] = useState(0);
   const handleInlineFrameLayout = React.useCallback((event) => {
     const nextHeight = event?.nativeEvent?.layout?.height || 0;
     setInlineFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
   }, []);
   const handleFullscreenFrameLayout = React.useCallback((event) => {
-    const nextHeight = event?.nativeEvent?.layout?.height || 0;
+    const { width: nextWidth = 0, height: nextHeight = 0 } = event?.nativeEvent?.layout || {};
     setFullscreenFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
+    setFullscreenFrameWidth((current) => Math.abs(current - nextWidth) > 1 ? nextWidth : current);
   }, []);
+  const fullscreenLandscape = fullscreen && fullscreenFrameWidth > fullscreenFrameHeight;
   const brightnessOverlay = (visible) => visible && brightness < 1
     ? React.createElement(View, {
       pointerEvents: 'none',
@@ -236,6 +239,7 @@ function InlineLivePlayerSurface({
       onChangeEnd: onBrightnessChangeEnd,
       accentColor: brightnessAccentColor || palette.accentColor,
       compact: true,
+      fullscreenLandscape,
       availableHeight: fullscreen ? fullscreenFrameHeight : inlineFrameHeight,
       topInset: fullscreen ? 54 : 32,
       bottomInset: fullscreen ? 54 : 32,
@@ -249,6 +253,7 @@ function InlineLivePlayerSurface({
       onChangeEnd: onVolumeChangeEnd,
       accentColor: volumeAccentColor || '#FFE066',
       compact: true,
+      fullscreenLandscape,
       availableHeight: fullscreen ? fullscreenFrameHeight : inlineFrameHeight,
       topInset: fullscreen ? 54 : 32,
       bottomInset: fullscreen ? 54 : 32,
@@ -319,6 +324,7 @@ function InlineLivePlayerView({
   const playbackPositionRef = useRef(requestedStartTime ?? 0);
   const playbackDurationRef = useRef(0);
   const pendingSeekRef = useRef(requestedStartTime);
+  const pendingSeekAttemptAtRef = useRef(0);
   const [internallyPaused, setInternallyPaused] = useState(Boolean(externalPaused));
   const [muted, setMuted] = useState(Boolean(initialMuted));
   const [volume, setVolume] = useState(typeof initialVolume === 'number' ? initialVolume : 100);
@@ -339,16 +345,23 @@ function InlineLivePlayerView({
     ...theme,
   };
 
-  const applyPendingSeek = useCallback(() => {
+  const applyPendingSeek = useCallback((observedPosition = null) => {
     const target = pendingSeekRef.current;
     const duration = playbackDurationRef.current;
     if (target === null || target === undefined || duration <= 0) return false;
     const playerInstance = playerRef.current;
     if (typeof playerInstance?.seek !== 'function') return false;
+    if (observedPosition !== null && Math.abs(observedPosition - target) <= 1) {
+      pendingSeekRef.current = null;
+      pendingSeekAttemptAtRef.current = 0;
+      return true;
+    }
+    const now = Date.now();
+    if (now - pendingSeekAttemptAtRef.current < 400) return false;
     try {
       playerInstance.seek(Math.max(0, Math.min(1, target / duration)));
+      pendingSeekAttemptAtRef.current = now;
       playbackPositionRef.current = target;
-      pendingSeekRef.current = null;
       return true;
     } catch {
       return false;
@@ -364,13 +377,14 @@ function InlineLivePlayerView({
         ? progress.position * playbackDurationRef.current
         : null);
     if (current !== null) playbackPositionRef.current = current;
-    applyPendingSeek();
+    applyPendingSeek(current);
   }, [applyPendingSeek]);
 
   const changeFullscreenWithPosition = useCallback((nextFullscreen) => {
     // The native preview is re-parented into a Modal. Preserve the latest
     // progress event and restore it after the new native view mounts.
     pendingSeekRef.current = playbackPositionRef.current;
+    pendingSeekAttemptAtRef.current = 0;
     // Do not try the seek against the old surface's duration; wait for a
     // progress event from the newly mounted surface to report its duration.
     playbackDurationRef.current = 0;
@@ -381,12 +395,8 @@ function InlineLivePlayerView({
     playbackPositionRef.current = requestedStartTime ?? 0;
     playbackDurationRef.current = 0;
     pendingSeekRef.current = requestedStartTime;
+    pendingSeekAttemptAtRef.current = 0;
   }, [streamUrl, requestedStartTime]);
-
-  useEffect(() => {
-    const timeout = setTimeout(applyPendingSeek, 120);
-    return () => clearTimeout(timeout);
-  }, [fullscreen, applyPendingSeek]);
 
   useEffect(() => {
     setInternallyPaused(Boolean(externalPaused));

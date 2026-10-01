@@ -901,7 +901,16 @@ function WebPlayerLayout(props) {
         role: 'presentation',
         onClick: props.onClosePanel,
       }, panel)
-      : panel;
+      : props.drawerMode === 'overlay'
+        ? h('div', { className: 'cinecrew-player__overlay-layer' },
+          h('button', {
+            type: 'button',
+            className: 'cinecrew-player__overlay-backdrop',
+            onClick: props.onClosePanel,
+            'aria-label': `Close ${getDrawerLabel(props.activePanel)}`,
+          }),
+          panel)
+        : panel;
   }
   return h('div', {
     ref: props.playerRef,
@@ -1346,6 +1355,7 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   const send = async (comment) => {
     if (!comment || sending || !integration.sendMessage) return false;
     setSending(true);
+    shouldScrollBottomRef.current = true;
     try {
       await integration.sendMessage({
         channelId,
@@ -1354,6 +1364,17 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
         comment,
       });
       await load();
+      // Also scroll explicitly after the async refresh. The list can keep the
+      // same row count when a provider replaces/updates its newest message.
+      const scrollToNewest = () => {
+        const panelList = panelListRef.current;
+        if (panelList) panelList.scrollTop = panelList.scrollHeight;
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(scrollToNewest);
+      } else {
+        setTimeout(scrollToNewest, 0);
+      }
       return true;
     } catch (sendError) {
       setError(sendError?.message || 'Could not send your message.');

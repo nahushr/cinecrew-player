@@ -177,7 +177,7 @@ export function LiveRecordingNotice({ notice, colors, onDismiss }) {
         size={18}
         color={accent}
       />
-      <Text style={[styles.noticeText, { color: theme.text }]} numberOfLines={2}>
+      <Text style={[styles.noticeText, { color: theme.text }]} numberOfLines={4}>
         {notice.message}
       </Text>
       <PlayerIcon name="close" size={16} color={theme.muted} />

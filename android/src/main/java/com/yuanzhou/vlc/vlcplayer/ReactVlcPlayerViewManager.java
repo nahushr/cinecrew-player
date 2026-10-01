@@ -164,6 +164,10 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
     videoView.stopRecording();
   }
 
+  public void mergeRecordingSegments(final ReactVlcPlayerView videoView, final ReadableArray paths) {
+    videoView.mergeRecordingSegments(paths);
+  }
+
   public void stopPlayer(final ReactVlcPlayerView videoView) {
     videoView.stopPlayer();
   }
@@ -179,7 +183,8 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
         "stopRecording", 2,
         "snapshot", 3,
         "restart", 4,
-        "setAudioState", 5);
+        "setAudioState", 5,
+        "mergeRecordingSegments", 6);
   }
 
   @Override
@@ -215,6 +220,10 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
           int volume = args.size() > 1 && !args.isNull(1) ? args.getInt(1) : 100;
           root.setAudioState(muted, volume);
         }
+        break;
+
+      case 6:
+        root.mergeRecordingSegments(args != null && args.size() > 0 && !args.isNull(0) ? args.getArray(0) : null);
         break;
 
       default:

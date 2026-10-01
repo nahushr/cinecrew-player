@@ -31,6 +31,7 @@
 - (void)setPlayWhenInactive:(BOOL)value;
 - (void)startRecording:(NSString*)path;
 - (void)stopRecording;
+- (void)mergeRecordingSegments:(NSArray<NSString *> *)paths;
 - (void)stopPlayer;
 - (void)snapshot:(NSString*)path;
 @end

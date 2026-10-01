@@ -162,7 +162,7 @@ flowchart LR
 |---|---|
 | UI & API | React · React Native · TypeScript declarations |
 | Web playback | HTML video · hls.js · patched mpegts.js |
-| Native playback | VLC adapter bundled in `@cinecrew/cinecrew-player` · `expo-video` fallback |
+| Native playback | VLC adapter bundled in `@cinecrew/cinecrew-player` · VLC is required in the app binary |
 | Electron desktop demo | Electron · IPC preload · `electron-vlc-player` · packaged LibVLC runtime |
 | Native UI / utilities | React Native · Expo config plugins · safe-area context · SVG · community slider |
 | Optional media utilities | Mediabunny / AC3 parsing support in relevant web playback paths |
@@ -201,7 +201,7 @@ Install the player from the public npm registry:
 npm install @cinecrew/cinecrew-player
 ```
 
-React is the shared peer dependency. Native React Native builds use the VLC adapter bundled in this package plus the `expo-video` fallback; native code is autolinked and compiled into the app binary. Plain React web consumers use the browser entry and do not execute or compile the bundled Android/iOS source.
+React is the shared peer dependency. Native React Native builds use the VLC adapter bundled in this package; VLC is autolinked and compiled into the app binary. If VLC is unavailable or fails, the player reports the error and does not switch playback engines. Plain React web consumers use the browser entry and do not execute or compile the bundled Android/iOS source.
 
 ### Supported targets and entry points
 
@@ -233,7 +233,7 @@ export function WatchScreen() {
 }
 ```
 
-For an Expo prebuild project, add the CineCrew Player config plugin and rebuild the native app (a JavaScript reload cannot add a native module). The VLC native implementation ships inside this same package; there is no second VLC package to install. Native streams use VLC / `expo-video`.
+For an Expo prebuild project, add the CineCrew Player config plugin and rebuild the native app (a JavaScript reload cannot add a native module). The VLC native implementation ships inside this same package; there is no second VLC package to install. Native streams use VLC exclusively.
 
 ```json
 {
@@ -243,7 +243,7 @@ For an Expo prebuild project, add the CineCrew Player config plugin and rebuild 
 }
 ```
 
-Then run `npx expo prebuild` as appropriate for your project and rebuild/install the development or production client. Expo Go does not contain the VLC native module; the player uses its `expo-video` fallback where available. In bare React Native projects, install the native dependencies, run CocoaPods on iOS, and rebuild the app.
+Then run `npx expo prebuild` as appropriate for your project and rebuild/install the development or production client. Expo Go does not contain the VLC native module and cannot play native media with this package; the player reports a VLC-unavailable error instead of falling back to another engine. In bare React Native projects, install the native dependencies, run CocoaPods on iOS, and rebuild the app.
 
 The component opens the native player as a full-screen player. To show a compact live preview in a channel list, use the companion component:
 
@@ -312,7 +312,7 @@ Pass a direct media URL or a platform-readable local file URI. Hosted-video watc
 | Platform | Playback path | Notes |
 | --- | --- | --- |
 | Web | Native `<video>`, hls.js, and the bundled patched mpegts.js client | MP4 and browser-native formats, HLS (`.m3u8`), and MPEG-TS (`.ts`) when the stream, codecs, and CORS policy permit it. |
-| React Native Android / iOS | VLC native module; `expo-video` fallback when VLC is unavailable | VLC supports a broader range of containers/codecs, including common AC3 streams. Native module availability depends on the app binary. |
+| React Native Android / iOS | Bundled VLC native module (required) | VLC supports a broad range of containers/codecs, including common AC3 streams. The native module must be present in the app binary; there is no alternate-engine fallback. |
 | React DOM in Electron | Chromium `<video>`, hls.js, and patched mpegts.js | Same browser codec/CORS constraints as React web. |
 | Electron LibVLC demo | `electron-vlc-player` with the VLC 3 runtime | Native LibVLC playback; VLC runtime is packaged into the macOS DMG and Windows installer. |
 

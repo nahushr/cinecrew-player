@@ -57,10 +57,6 @@ export default defineConfig({
         replacement: path.join(demoDir, 'src/shims/empty-vlc-player.jsx'),
       },
       {
-        find: /^expo-video$/,
-        replacement: path.join(demoDir, 'src/shims/expo-video.js'),
-      },
-      {
         find: /^@cinecrew\/cinecrew-player$/,
         replacement: path.join(repoRoot, 'src/native/index.js'),
       },

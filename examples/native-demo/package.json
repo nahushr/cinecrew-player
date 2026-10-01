@@ -17,7 +17,6 @@
     "expo-constants": "~17.0.8",
     "expo-file-system": "~18.0.12",
     "expo-font": "~13.0.4",
-    "expo-video": "~2.0.6",
     "hls.js": "^1.7.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",

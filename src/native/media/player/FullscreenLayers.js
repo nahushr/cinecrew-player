@@ -211,6 +211,7 @@ export function FullscreenControlsPanel(props) {
           onChangeEnd={props.onBrightnessChangeEnd}
           accentColor={props.brightnessAccentColor}
           availableHeight={frame.height}
+          fullscreenLandscape={props.isFullscreen && !isPortrait}
           topInset={topInset}
           bottomInset={bottomInset}
           leftInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}
@@ -223,6 +224,7 @@ export function FullscreenControlsPanel(props) {
           onChangeEnd={props.onVolumeChangeEnd}
           accentColor={props.volumeAccentColor || props.brightnessAccentColor}
           availableHeight={frame.height}
+          fullscreenLandscape={props.isFullscreen && !isPortrait}
           topInset={topInset}
           bottomInset={bottomInset}
           rightInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}

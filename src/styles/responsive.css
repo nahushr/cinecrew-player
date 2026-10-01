@@ -26,3 +26,24 @@
   .cinecrew-player--drawer-resize { --cinecrew-media-width: 52% !important; }
   .cinecrew-player--drawer-resize .cinecrew-player__panel { width: calc(100% - var(--cinecrew-media-width)); padding: 10px; }
 }
+
+@media (max-width: 640px), (max-height: 520px) {
+  .cinecrew-player__overlay-layer {
+    --cinecrew-panel-inset: auto 0 0;
+    --cinecrew-panel-width: 100%;
+    --cinecrew-panel-max-width: 100%;
+    --cinecrew-panel-height: 75%;
+    --cinecrew-panel-max-height: 75%;
+    --cinecrew-panel-overflow: hidden;
+    --cinecrew-panel-padding: 12px;
+    --cinecrew-panel-border-left: 1px solid rgba(255, 255, 255, .16);
+    --cinecrew-panel-border-top: 1px solid rgba(255, 255, 255, .16);
+    --cinecrew-panel-border-bottom: 0;
+    --cinecrew-panel-radius: 22px 22px 0 0;
+    --cinecrew-panel-background: rgba(8, 16, 28, .9);
+    --cinecrew-panel-shadow: 0 -12px 40px rgba(0, 0, 0, .42);
+    --cinecrew-panel-animation: cinecrew-sheet-in 180ms ease-out both;
+  }
+
+  .cinecrew-player__overlay-backdrop { display: block; }
+}

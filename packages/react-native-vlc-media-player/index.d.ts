@@ -175,16 +175,17 @@ export type VLCPlayerCallbackProps = {
    *
    * @param recordingPath - Full path to the recording file
    */
-  onRecordingCreated?: (recordingPath: string) => void;
+  onRecordingCreated?: (recordingPath: string, size?: number) => void;
 
   /**
    * Called with native VLC recording request/state events.
    */
   onRecordingState?: (event: {
-    operation?: 'start' | 'stop';
+    operation?: 'start' | 'stop' | 'merge';
     requestAccepted?: boolean;
     isRecording: boolean;
     recordPath?: string | null;
+    size?: number;
     error?: string | null;
   }) => void;
 
@@ -307,7 +308,10 @@ declare class PlaybackMethods<T> extends Component<T> {
    * Start a new recording session at the given path
    * @param path Directory to create new recording in
    */
-  startRecording(path: string);
+  startRecording(path?: string);
+
+  /** Merge paused/resumed transport-stream segments and emit a completed recording event. */
+  mergeRecordingSegments(paths: string[]): void;
 
   /**
    * Stop current recording session

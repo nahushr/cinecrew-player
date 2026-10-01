@@ -21,8 +21,11 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.uimanager.ThemedReactContext;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.List;
 import org.videolan.libvlc.Dialog;
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
@@ -324,6 +327,9 @@ class ReactVlcPlayerView extends TextureView
               // Only want to emit when recording has stopped and the recording is created.
               if (!event.getRecording() && completedPath != null) {
                 recordingPath = null;
+                map.putString("operation", "stop");
+                File completedFile = new File(completedPath);
+                if (completedFile.isFile()) map.putDouble("size", completedFile.length());
               }
               eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
               break;
@@ -876,6 +882,59 @@ class ReactVlcPlayerView extends TextureView
       map.putString(EVENT_PROP_ERROR, "VLC rejected the request to stop recording.");
     }
     eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
+  }
+
+  public void mergeRecordingSegments(ReadableArray inputPaths) {
+    List<String> paths = new ArrayList<>();
+    if (inputPaths != null) {
+      for (int index = 0; index < inputPaths.size(); index += 1) {
+        if (!inputPaths.isNull(index)) paths.add(inputPaths.getString(index));
+      }
+    }
+    new Thread(() -> {
+      String outputPath = null;
+      String error = null;
+      long size = 0;
+      try {
+        if (paths.isEmpty()) throw new IOException("No recording segments were provided.");
+        String firstPath = paths.get(0);
+        outputPath = firstPath.replaceFirst("\\.ts$", "-complete.ts");
+        if (outputPath.equals(firstPath)) outputPath = firstPath + "-complete.ts";
+        File output = new File(outputPath);
+        File parent = output.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+          throw new IOException("Could not create the recording output directory.");
+        }
+        try (FileOutputStream destination = new FileOutputStream(output, false)) {
+          byte[] buffer = new byte[64 * 1024];
+          for (String segmentPath : paths) {
+            try (FileInputStream source = new FileInputStream(segmentPath)) {
+              int read;
+              while ((read = source.read(buffer)) >= 0) destination.write(buffer, 0, read);
+            }
+          }
+          destination.getFD().sync();
+        }
+        size = output.length();
+        if (size <= 0) throw new IOException("VLC produced an empty recording.");
+        for (String segmentPath : paths) if (!segmentPath.equals(outputPath)) new File(segmentPath).delete();
+      } catch (Exception exception) {
+        error = exception.getMessage() == null ? "Could not assemble recording segments." : exception.getMessage();
+      }
+      final String completedPath = outputPath;
+      final String failure = error;
+      final long completedSize = size;
+      post(() -> {
+        WritableMap map = Arguments.createMap();
+        map.putString("operation", "merge");
+        map.putBoolean("requestAccepted", failure == null);
+        map.putBoolean(EVENT_PROP_IS_RECORDING, false);
+        if (completedPath != null) map.putString("recordPath", completedPath);
+        if (failure == null) map.putDouble("size", completedSize);
+        else map.putString(EVENT_PROP_ERROR, failure);
+        eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
+      });
+    }, "cinecrew-recording-merge").start();
   }
 
   public void stopPlayer() {

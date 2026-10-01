@@ -19,6 +19,7 @@ export function VerticalBrightnessControl({
   accentColor = '#00D4FF',
   compact = false,
   availableHeight,
+  fullscreenLandscape = false,
   topInset = 0,
   bottomInset = 0,
   leftInset,
@@ -120,7 +121,18 @@ export function VerticalBrightnessControl({
     <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]}>
       {measuredHeight > 0 && cardHeight < 44 ? null : (
         <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
-          <Text style={[styles.sunIcon, responsiveCompact && styles.compactSunIcon, { color: accentColor }]} accessible={false}>☼</Text>
+          <Text
+            style={[
+              styles.sunIcon,
+              responsiveCompact && styles.compactSunIcon,
+              fullscreenLandscape && {
+                fontSize: (responsiveCompact ? 14 : 20) * 1.05,
+                lineHeight: (responsiveCompact ? 16 : 22) * 1.05,
+              },
+              { color: accentColor },
+            ]}
+            accessible={false}
+          >☼</Text>
           <View
             {...responder.panHandlers}
             accessibilityRole="adjustable"
@@ -135,7 +147,16 @@ export function VerticalBrightnessControl({
               <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
             </View>
           </View>
-          <Text style={[styles.valueLabel, responsiveCompact && styles.compactValueLabel]}>{displayPercent}</Text>
+          <Text
+            style={[
+              styles.valueLabel,
+              responsiveCompact && styles.compactValueLabel,
+              fullscreenLandscape && {
+                fontSize: (responsiveCompact ? 10 : 11) * 1.05,
+                lineHeight: (responsiveCompact ? 12 : 13) * 1.05,
+              },
+            ]}
+          >{displayPercent}</Text>
         </View>
       )}
     </View>
@@ -167,8 +188,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   compactSunIcon: { fontSize: 14, lineHeight: 16 },
-  trackHitTarget: { width: 36, alignItems: 'center', justifyContent: 'center', marginVertical: 3 },
-  compactTrackHitTarget: { width: 32, marginVertical: 2 },
+  trackHitTarget: { width: 36, alignItems: 'center', justifyContent: 'center', marginVertical: 6 },
+  compactTrackHitTarget: { width: 32, marginVertical: 6 },
   track: {
     width: 4,
     height: '100%',

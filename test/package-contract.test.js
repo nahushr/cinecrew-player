@@ -26,7 +26,10 @@ test('published package metadata and export targets are complete', () => {
     assert.ok(existsSync(path.join(root, target)), `missing package export target: ${target}`);
   }
   for (const file of ['README.md', 'LICENSE', 'NOTICE', 'types/index.d.ts']) {
-    assert.ok(manifest.files.some((entry) => file.startsWith(entry)), `${file} is not included in npm files`);
+    assert.ok(
+      manifest.files.some((entry) => file.startsWith(entry)),
+      `${file} is not included in npm files`
+    );
   }
   assert.equal(manifest.dependencies['react-native-webview'], undefined, 'the package no longer bundles an embedded-video WebView');
   assert.equal(manifest.dependencies['@cinecrew/react-native-vlc-media-player'], undefined);
@@ -37,7 +40,7 @@ test('published package metadata and export targets are complete', () => {
   assert.equal(manifest.exports['./react-native-web'].default, './src/web/index.js');
   assert.equal(manifest.dependencies['@expo/vector-icons'], '^15.0.2');
   assert.equal(manifest.dependencies['@react-native-community/slider'], '^5.1.2');
-  assert.equal(manifest.dependencies['expo-video'], '>=2.0.0 || ~55.0.21 || ~57.0.2');
+  assert.equal(manifest.dependencies['expo-video'], undefined, 'native playback is VLC-only');
   assert.equal(manifest.dependencies['react-native-safe-area-context'], '^5.6.2');
   assert.equal(manifest.dependencies['react-native-svg'], '^15.15.3');
   const expoWebApp = readFileSync(path.join(root, 'examples/expo-web-demo/App.js'), 'utf8');
@@ -75,6 +78,9 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   assert.match(nativeDrawer, /drawerMode === 'resize' && !popupMode/);
   assert.match(nativeDrawer, /drawerLandscape: \{[\s\S]*?right: 0/);
   assert.match(nativeDrawer, /bottomModalDrawer: \{/);
+  assert.match(nativeDrawer, /const compactOverlay = drawerMode === 'overlay'[\s\S]*?windowHeight < 520/);
+  assert.match(nativeDrawer, /height: '75%'/);
+  assert.match(nativeDrawer, /compactOverlayBackdrop/);
   assert.match(nativePlayer, /const resizeDrawerOpen = drawerMode === 'resize'\s+&& showLiveChat\s+&& windowWidth >= windowHeight/);
   assert.match(nativePlayer, /landscapeFullWidth=\{props\.isLandscape\}/);
   assert.match(nativeDrawer, /const fullscreenLandscape = \(fullscreen \|\| landscapeFullWidth\)[\s\S]*?windowWidth >= windowHeight/);
@@ -82,11 +88,14 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   assert.match(webPlayer, /cinecrew-player__modal-backdrop/);
   assert.match(webPlayer, /aria-modal/);
   assert.match(webStyles, /\.cinecrew-player__panel\.is-modal/);
+  assert.match(webPlayer, /cinecrew-player__overlay-backdrop/);
+  assert.match(webStyles, /@media \(max-width: 640px\), \(max-height: 520px\)/);
+  assert.match(webStyles, /--cinecrew-panel-height: 75%/);
 
   for (const demoFile of [
     'examples/web-demo/src/components/SourceControls.jsx',
     'examples/expo-web-demo/src/components/SourceControls.js',
-    'examples/native-demo/src/components/SourceControls.js',
+    'examples/native-demo/src/components/SourceControls.js'
   ]) {
     assert.match(readFileSync(path.join(root, demoFile), 'utf8'), /value: 'modal'|value="modal"/);
   }
@@ -97,7 +106,7 @@ test('native fullscreen video taps dismiss controls and landscape drawers overla
   const nativeDrawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
 
   assert.match(nativePlayer, /const handleFullscreenTouchEnd = useCallback/);
-  assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \? handleFullscreenTouchEnd : undefined\}/);
+  assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \|\| \(drawerMode === 'resize' && showLiveChat\) \? handleFullscreenTouchEnd : undefined\}/);
   assert.match(nativePlayer, /onTouchStart=\{markControlSurfaceTouch\}/);
   assert.match(nativeDrawer, /fullscreenLandscapeStyle = fullscreenLandscape/);
   assert.match(nativeDrawer, /width: Math\.max\(0, windowWidth - fullscreenLeftInset - fullscreenRightInset\)/);

@@ -155,6 +155,8 @@ function registerIpc() {
   ipcMain.handle('cinecrew:vlc:mount', (event, payload = {}) => mountPlayer({ sender: event.sender, args: payload }));
   ipcMain.handle('cinecrew:vlc:unmount', unmountPlayer);
   recordingController.registerIpc(ipcMain);
+  ipcMain.handle('cinecrew:vlc:record-pause', () => recordingController.pause());
+  ipcMain.handle('cinecrew:vlc:record-resume', () => recordingController.resume());
   ipcMain.handle('cinecrew:window:set-fullscreen', (_event, fullscreen) => {
     if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
     const requested = Boolean(fullscreen);

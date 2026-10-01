@@ -16,6 +16,7 @@ export function DiagnosticsTab({
     <ScrollView
       style={styles.diagnosticsContainer}
       contentContainerStyle={styles.diagnosticsContent}
+      nestedScrollEnabled
       showsVerticalScrollIndicator={false}
     >
       {/* Health Status Bar */}

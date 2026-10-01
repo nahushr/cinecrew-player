@@ -254,10 +254,19 @@ export const LiveChatDrawer = ({
   // Avoid snapping to the bottom when an older page is prepended.
   useEffect(() => {
     if (scrollChatToEndRef.current && messages.length > 0 && flatListRef.current && activeTab === 'chat') {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
+      const timer = setTimeout(() => {
+        const list = flatListRef.current;
+        const scrollView = list?.getNativeScrollRef?.();
+
+        // VirtualizedList warns when scrollToEnd is called without a native
+        // scroll host (for example, while a platform-specific list is mounting).
+        if (typeof scrollView?.scrollTo === 'function') {
+          list.scrollToEnd({ animated: true });
+        }
       }, 80);
       scrollChatToEndRef.current = false;
+
+      return () => clearTimeout(timer);
     }
   }, [messages.length, activeTab]);
 
@@ -343,6 +352,15 @@ export const LiveChatDrawer = ({
         const msgs = normalizeChatPage(response);
         setMessages((current) => mergeChatMessages(current, msgs));
       }
+      // Do not rely only on the messages-length effect: some integrations return
+      // the same page length after a send, even though the newest row is updated.
+      setTimeout(() => {
+        const list = flatListRef.current;
+        const scrollView = list?.getNativeScrollRef?.();
+        if (typeof scrollView?.scrollTo === 'function') {
+          list.scrollToEnd({ animated: true });
+        }
+      }, 80);
     } catch {
       // Error handled
     } finally {
@@ -448,6 +466,8 @@ export const LiveChatDrawer = ({
     && drawerMode !== 'resize'
     && windowWidth >= windowHeight;
   const overlayWidth = Math.min(380, Math.max(280, Math.round(windowWidth * 0.42)));
+  const compactOverlay = drawerMode === 'overlay'
+    && (isPortrait || (isWeb() && (windowWidth < 720 || windowHeight < 520)));
   const fullscreenLandscapeStyle = fullscreenLandscape
     ? {
         position: 'absolute',
@@ -490,23 +510,23 @@ export const LiveChatDrawer = ({
       }
     : null;
 
-  const portraitOverlayStyle = isPortrait && drawerMode === 'overlay' && !popupMode
+  const compactOverlayStyle = compactOverlay && !popupMode
     ? {
         position: 'absolute',
         top: undefined,
-        bottom: 0,
+        bottom: fullscreen ? fullscreenBottomInset : 0,
         left: 0,
         right: 0,
         width: '100%',
         maxWidth: '100%',
-        height: '62%',
-        maxHeight: '72%',
+        height: '75%',
+        maxHeight: '75%',
         borderTopLeftRadius: 22,
         borderTopRightRadius: 22,
         borderTopWidth: 1,
         borderTopColor: 'rgba(255, 255, 255, 0.2)',
         borderLeftWidth: 0,
-        backgroundColor: 'rgba(7, 14, 26, 0.95)',
+        backgroundColor: 'rgba(7, 14, 26, 0.9)',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -6 },
         shadowOpacity: 0.55,
@@ -518,7 +538,7 @@ export const LiveChatDrawer = ({
   // In overlay mode the panel owns the video surface, not just a narrow
   // side-drawer. On fullscreen phones, inset it inside the system safe area;
   // inline players instead use their own measured bounds with no device inset.
-  const overlayVideoSurfaceStyle = drawerMode === 'overlay' && !popupMode
+  const overlayVideoSurfaceStyle = drawerMode === 'overlay' && !popupMode && !compactOverlay
     ? {
         position: 'absolute',
         top: fullscreen ? fullscreenTopInset : 0,
@@ -564,7 +584,7 @@ export const LiveChatDrawer = ({
         fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
         fullscreenLandscapeStyle,
         portraitResizeStyle,
-        portraitOverlayStyle,
+        compactOverlayStyle,
         overlayVideoSurfaceStyle,
         drawerStyle,
       ]}
@@ -691,6 +711,21 @@ export const LiveChatDrawer = ({
     </KeyboardAvoidingView>
   );
 
+  if (compactOverlay && !popupMode) {
+    return (
+      <View pointerEvents="box-none" style={styles.compactOverlayRoot}>
+        <TouchableOpacity
+          style={styles.compactOverlayBackdrop}
+          activeOpacity={1}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close player panel"
+        />
+        {drawerContent}
+      </View>
+    );
+  }
+
   if (!centeredModal && !bottomModal) return drawerContent;
 
   return (
@@ -716,6 +751,15 @@ export const LiveChatDrawer = ({
 };
 
 const styles = StyleSheet.create({
+  compactOverlayRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 150,
+    elevation: 15,
+  },
+  compactOverlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+  },
   drawerContainer: {
     position: 'absolute',
     backgroundColor: 'rgba(12, 14, 18, 0.95)',

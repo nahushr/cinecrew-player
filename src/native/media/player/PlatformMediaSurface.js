@@ -8,14 +8,38 @@ import { mediaPlayerStyles as styles } from './mediaPlayerStyles';
 
 export function PlatformMediaSurface(props) {
   const {
-    playerStreamUrl, vlcRef, isPlaying, muted, videoOnlyMode,
-    volume, playbackRate, aspectRatio, title, posterUrl, isLive, isAudioOnly,
-    selectedAudioTrack, handleTracksChanged, handleProgress, handleNativePlaying,
-    handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
-    handleSeekByAction, handlePlaybackRoute, exoFallback,
-    nativeSource, computedAspectRatio, handleNativeLoadStart,
-    handleNativeOpen, handleNativeBuffering, onRecordingCreated, onRecordingState, getPlayerHostBounds,
-    setIsFullscreen,
+    playerStreamUrl,
+    vlcRef,
+    isPlaying,
+    muted,
+    videoOnlyMode,
+    volume,
+    playbackRate,
+    aspectRatio,
+    title,
+    posterUrl,
+    isLive,
+    isAudioOnly,
+    selectedAudioTrack,
+    handleTracksChanged,
+    handleProgress,
+    handleNativePlaying,
+    handleWebBuffering,
+    handleEpisodeEnded,
+    handleWebError,
+    handleVlcError,
+    togglePlayPause,
+    handleSeekByAction,
+    handlePlaybackRoute,
+    nativeSource,
+    computedAspectRatio,
+    handleNativeLoadStart,
+    handleNativeOpen,
+    handleNativeBuffering,
+    onRecordingCreated,
+    onRecordingState,
+    getPlayerHostBounds,
+    setIsFullscreen
   } = props;
   if (isElectron()) {
     return (
@@ -75,9 +99,9 @@ export function PlatformMediaSurface(props) {
       />
     );
   }
-  if (VLC_AVAILABLE) {
-    return (
-      <VLCBoundary key={`vlcb-${playerStreamUrl}`} fallback={exoFallback}>
+  return (
+    <VLCBoundary key={`vlcb-${playerStreamUrl}`} unavailable={!VLC_AVAILABLE} onError={handleVlcError}>
+      {VLC_AVAILABLE ? (
         <VLCPlayer
           rate={playbackRate}
           key={`vlc-${playerStreamUrl}`}
@@ -103,13 +127,12 @@ export function PlatformMediaSurface(props) {
           onEnd={handleEpisodeEnded}
           onBuffering={handleNativeBuffering}
           onVLCBuffering={handleNativeBuffering}
-          onError={handleWebError}
-          onVLCError={handleWebError}
+          onError={handleVlcError}
+          onVLCError={handleVlcError}
           onRecordingCreated={onRecordingCreated}
           onRecordingState={onRecordingState}
         />
-      </VLCBoundary>
-    );
-  }
-  return exoFallback;
+      ) : null}
+    </VLCBoundary>
+  );
 }

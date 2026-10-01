@@ -7,6 +7,8 @@ const invokeChannels = new Set([
   'cinecrew:vlc:mount',
   'cinecrew:vlc:unmount',
   'cinecrew:vlc:record-start',
+  'cinecrew:vlc:record-pause',
+  'cinecrew:vlc:record-resume',
   'cinecrew:vlc:record-stop',
   'cinecrew:vlc:load',
   'cinecrew:vlc:set-paused',

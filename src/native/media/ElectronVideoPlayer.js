@@ -304,6 +304,12 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     startRecording() {
       return invokePlayer('cinecrew:vlc:record-start');
     },
+    pauseRecording() {
+      return invokePlayer('cinecrew:vlc:record-pause');
+    },
+    resumeRecording() {
+      return invokePlayer('cinecrew:vlc:record-resume');
+    },
     stopRecording() {
       return invokePlayer('cinecrew:vlc:record-stop');
     },

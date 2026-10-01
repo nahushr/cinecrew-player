@@ -2,12 +2,7 @@ import { Component } from 'react';
 import { UIManager, NativeModules } from 'react-native';
 import { isWeb } from '../../../utils/runtimePlatform';
 
-/**
- * Whether the native VLC view manager is registered. It is absent in
- * Expo Go and can fail on new-architecture builds — in both cases we
- * fall back to expo-video instead of crashing with
- * "ViewConfig not found for component rctvlcplayer".
- */
+/** Whether the native VLC view manager is registered in this app binary. */
 export const VLC_AVAILABLE =
   !isWeb() &&
   (() => {
@@ -24,20 +19,44 @@ export const VLC_AVAILABLE =
     }
   })();
 
-/**
- * Render-phase error boundary: if VLCPlayer throws during render (e.g. the
- * native view manager isn't registered on this build/Fabric), swap to the
- * expo-video fallback instead of crashing with "View config not found".
- */
+function asVlcFailure(error) {
+  const failure = error instanceof Error ? error : new Error(String(error || 'VLC playback failed.'));
+  failure.engine = 'vlc';
+  failure.blockPlayback = true;
+  return failure;
+}
+
+/** Contains VLC render failures and reports them without switching engines. */
 export class VLCBoundary extends Component {
   state = { failed: false };
+  errorReported = false;
+
+  componentDidMount() {
+    if (this.props.unavailable) {
+      this.reportFailure(new Error('VLC playback is unavailable in this app build. Rebuild the native app with the CineCrew VLC module installed; no fallback engine is used.'));
+    }
+  }
 
   static getDerivedStateFromError() {
     return { failed: true };
   }
 
+  componentDidCatch(error) {
+    this.reportFailure(error);
+  }
+
+  reportFailure(error) {
+    if (this.errorReported) return;
+    this.errorReported = true;
+    try {
+      this.props.onError?.(asVlcFailure(error));
+    } catch {
+      // An app callback must not break React's error-boundary recovery.
+    }
+  }
+
   render() {
-    if (this.state.failed) return this.props.fallback || null;
+    if (this.state.failed || this.props.unavailable) return null;
     return this.props.children;
   }
 }

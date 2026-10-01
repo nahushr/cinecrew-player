@@ -1,6 +1,6 @@
 export * from './playerConstants';
+export * from './useMediaPlayerGestures';
 export * from './VLCBoundary';
-export * from './ExoVideoFallback';
 export * from './AudioOnlyView';
 export * from './PipOverlay';
 export * from './CenterControls';

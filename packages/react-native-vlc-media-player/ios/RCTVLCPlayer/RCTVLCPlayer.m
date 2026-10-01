@@ -348,12 +348,18 @@ static NSString *const playbackRate = @"rate";
 - (void)mediaPlayer:(VLCMediaPlayer *)player recordingStoppedAtPath:(NSString *)path {
     NSString *completedPath = path ?: _recordingPath;
     _recordingPath = nil;
+    NSDictionary *attributes = completedPath.length > 0
+        ? [[NSFileManager defaultManager] attributesOfItemAtPath:completedPath error:nil]
+        : nil;
     if (self.onRecordingState) {
-        self.onRecordingState(@{
+        NSMutableDictionary *state = [@{
             @"target": self.reactTag,
+            @"operation": @"stop",
             @"isRecording": @NO,
             @"recordPath": completedPath ?: [NSNull null]
-        });
+        } mutableCopy];
+        if (attributes[NSFileSize]) state[@"size"] = attributes[NSFileSize];
+        self.onRecordingState(state);
     }
 }
 
@@ -506,6 +512,74 @@ static NSString *const playbackRate = @"rate";
         if (_recordingPath) state[@"recordPath"] = _recordingPath;
         self.onRecordingState(state);
     }
+}
+
+- (void)mergeRecordingSegments:(NSArray<NSString *> *)paths
+{
+    NSArray<NSString *> *segments = [paths copy] ?: @[];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *outputPath = nil;
+        NSString *errorMessage = nil;
+        @try {
+            if (segments.count == 0) {
+                @throw [NSException exceptionWithName:@"RecordingMerge" reason:@"No recording segments were provided." userInfo:nil];
+            }
+            NSString *firstPath = segments.firstObject;
+            NSString *basePath = [firstPath stringByDeletingPathExtension];
+            outputPath = [basePath stringByAppendingString:@"-complete.ts"];
+            [[NSFileManager defaultManager] createFileAtPath:outputPath contents:nil attributes:nil];
+            NSFileHandle *destination = [NSFileHandle fileHandleForWritingAtPath:outputPath];
+            if (!destination) {
+                @throw [NSException exceptionWithName:@"RecordingMerge" reason:@"Could not create the completed recording file." userInfo:nil];
+            }
+            for (NSString *segmentPath in segments) {
+                NSFileHandle *source = [NSFileHandle fileHandleForReadingAtPath:segmentPath];
+                if (!source) {
+                    [destination closeFile];
+                    @throw [NSException exceptionWithName:@"RecordingMerge" reason:[NSString stringWithFormat:@"Could not read recording segment at %@.", segmentPath] userInfo:nil];
+                }
+                @try {
+                    NSData *chunk = nil;
+                    while ((chunk = [source readDataOfLength:64 * 1024]).length > 0) {
+                        [destination writeData:chunk];
+                    }
+                } @finally {
+                    [source closeFile];
+                }
+            }
+            [destination closeFile];
+            NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:outputPath error:nil];
+            if ([attributes[NSFileSize] unsignedLongLongValue] == 0) {
+                @throw [NSException exceptionWithName:@"RecordingMerge" reason:@"VLC produced an empty recording." userInfo:nil];
+            }
+            for (NSString *segmentPath in segments) {
+                if (![segmentPath isEqualToString:outputPath]) [[NSFileManager defaultManager] removeItemAtPath:segmentPath error:nil];
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!self.onRecordingState) return;
+                self.onRecordingState(@{
+                    @"target": self.reactTag,
+                    @"operation": @"merge",
+                    @"requestAccepted": @YES,
+                    @"isRecording": @NO,
+                    @"recordPath": outputPath,
+                    @"size": attributes[NSFileSize] ?: @0
+                });
+            });
+        } @catch (NSException *exception) {
+            errorMessage = exception.reason ?: @"Could not assemble recording segments.";
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!self.onRecordingState) return;
+                self.onRecordingState(@{
+                    @"target": self.reactTag,
+                    @"operation": @"merge",
+                    @"requestAccepted": @NO,
+                    @"isRecording": @NO,
+                    @"error": errorMessage
+                });
+            });
+        }
+    });
 }
 
 - (void)stopPlayer

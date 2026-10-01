@@ -22,6 +22,7 @@ export function VerticalVolumeControl({
   accentColor = '#FFE066',
   compact = false,
   availableHeight,
+  fullscreenLandscape = false,
   topInset = 0,
   bottomInset = 0,
   rightInset,
@@ -130,7 +131,11 @@ export function VerticalVolumeControl({
       {measuredHeight > 0 && cardHeight < 44 ? null : (
         <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
           <View style={styles.iconWrap}>
-            <PlayerIcon name={volumeIcon} size={responsiveCompact ? 16 : 20} color={accentColor} />
+            <PlayerIcon
+              name={volumeIcon}
+              size={(responsiveCompact ? 16 : 20) * (fullscreenLandscape ? 1.05 : 1)}
+              color={accentColor}
+            />
           </View>
           <View
             {...responder.panHandlers}
@@ -146,7 +151,16 @@ export function VerticalVolumeControl({
               <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
             </View>
           </View>
-          <Text style={[styles.valueLabel, responsiveCompact && styles.compactValueLabel]}>{displayPercent}</Text>
+          <Text
+            style={[
+              styles.valueLabel,
+              responsiveCompact && styles.compactValueLabel,
+              fullscreenLandscape && {
+                fontSize: (responsiveCompact ? 10 : 11) * 1.05,
+                lineHeight: (responsiveCompact ? 12 : 13) * 1.05,
+              },
+            ]}
+          >{displayPercent}</Text>
         </View>
       )}
     </View>
@@ -174,8 +188,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  trackHitTarget: { width: 36, alignItems: 'center', justifyContent: 'center', marginVertical: 3 },
-  compactTrackHitTarget: { width: 32, marginVertical: 2 },
+  trackHitTarget: { width: 36, alignItems: 'center', justifyContent: 'center', marginVertical: 6 },
+  compactTrackHitTarget: { width: 32, marginVertical: 6 },
   track: {
     width: 4,
     height: '100%',
