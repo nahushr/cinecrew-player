@@ -117,11 +117,20 @@ export default function App() {
     setPromotedFullscreen(true);
   }, [progressTime]);
 
+  const handleFullscreenChange = useCallback((isFullscreen, payload) => {
+    const resumeAt = payload?.startTime ?? payload?.currentTime;
+    // Fullscreen changes the parent from FlatList to View, remounting the
+    // embedded main player too. Supply its current timestamp before that
+    // remount, just as we do when promoting the compact inline player.
+    if (resumeAt !== undefined && resumeAt !== null) setStartTime(resumeAt);
+    setPromotedFullscreen(isFullscreen);
+  }, []);
+
   const integrations = useDemoIntegrations(notify);
   const actions = useDemoPlayerActions({
     notify,
     setSelectedAudioTrack,
-    onFullscreenChange: setPromotedFullscreen,
+    onFullscreenChange: handleFullscreenChange,
   });
 
   const reportPlaybackError = useCallback((error) => {

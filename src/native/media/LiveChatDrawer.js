@@ -13,14 +13,15 @@ import {
   Platform,
   StatusBar,
   useWindowDimensions,
+  Image,
 } from 'react-native';
 import { isIOS, isWeb } from '../../utils/runtimePlatform';
 import { PlayerIcon } from '../customization';
 import {
   DEFAULT_EPG_LIMIT,
   QUICK_REACTIONS,
-  USER_COLORS,
-  getUserColor,
+  getUserInitial,
+  resolveUserAvatar,
   formatMessageTime,
   normalizeChatMessage,
   normalizeChatPage,
@@ -69,6 +70,7 @@ export const LiveChatDrawer = ({
   streamId,
   popupMode = false,
   integrations = {},
+  users: usersProp,
   colors,
   messagePageSize = 50,
   drawerStyle,
@@ -406,18 +408,35 @@ export const LiveChatDrawer = ({
 
   if (!visible) return null;
 
+  const usersList = usersProp || integrations.users || [];
+
   const renderMessageItem = ({ item }) => {
     const timeStr = formatMessageTime(item.createdAt);
+    const authorName = item.username || item.userName || item.name || 'Viewer';
+    const avatar = resolveUserAvatar(item, usersList);
 
     return (
-      <View style={[styles.messageCard, item.isPending && styles.messagePending]}>
-        <View style={styles.messageHeaderRow}>
-          <Text style={styles.usernameText}>
-            {item.username || 'Viewer'}
-          </Text>
-          {!!timeStr && <Text style={styles.timeText}>{timeStr}</Text>}
+      <View style={[styles.messageRow, item.isPending && styles.messagePending]}>
+        <View style={[styles.userAvatar, { backgroundColor: avatar.color }]}>
+          {avatar.imageUrl ? (
+            <Image
+              source={{ uri: avatar.imageUrl }}
+              style={styles.userAvatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.userAvatarText}>{avatar.initial}</Text>
+          )}
         </View>
-        <Text style={styles.messageBodyText}>{item.textContent}</Text>
+        <View style={styles.messageContentWrap}>
+          <View style={styles.messageHeaderRow}>
+            <Text style={styles.usernameText}>
+              {authorName}
+            </Text>
+            {!!timeStr && <Text style={styles.timeText}>{timeStr}</Text>}
+          </View>
+          <Text style={styles.messageBodyText}>{item.textContent}</Text>
+        </View>
       </View>
     );
   };
@@ -529,7 +548,7 @@ export const LiveChatDrawer = ({
     ? {
         position: 'absolute',
         top: portraitVideoHeight,
-        bottom: 0,
+        bottom: fullscreen ? fullscreenBottomInset : 0,
         left: 0,
         right: 0,
         width: '100%',
@@ -541,27 +560,6 @@ export const LiveChatDrawer = ({
         borderTopColor: 'rgba(255, 255, 255, 0.14)',
         backgroundColor: '#07111E',
         borderRadius: 0,
-        zIndex: 160,
-      }
-    : null;
-
-  const fullscreenPortraitResizeStyle = fullscreen && isPortrait && drawerMode === 'resize' && !popupMode
-    ? {
-        position: 'absolute',
-        top: undefined,
-        bottom: fullscreenBottomInset,
-        left: 0,
-        right: 0,
-        width: '100%',
-        maxWidth: '100%',
-        height: '75%',
-        maxHeight: '75%',
-        borderLeftWidth: 0,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.2)',
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        backgroundColor: 'rgba(7, 14, 26, 0.9)',
         zIndex: 160,
       }
     : null;
@@ -621,7 +619,6 @@ export const LiveChatDrawer = ({
         fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
         fullscreenLandscapeStyle,
         portraitResizeStyle,
-        fullscreenPortraitResizeStyle,
         compactOverlayStyle,
         landscapeOverlayPanelStyle,
         drawerStyle,
@@ -1020,6 +1017,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 9,
+    marginBottom: 6,
   },
   messagePending: {
     opacity: 0.6,
@@ -1031,10 +1029,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 2,
+  },
+  userAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
   },
   userAvatarText: {
     color: '#FFF',

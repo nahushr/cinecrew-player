@@ -6,7 +6,7 @@ import { useWebHlsPlayback } from '../native/media/web/useWebHlsPlayback.web';
 import { useWebDashPlayback } from '../native/media/web/useWebDashPlayback.web';
 import { useWebOgvPlayback } from '../native/media/web/useWebOgvPlayback.web';
 import { useWebAc3AudioPlayback } from '../native/media/web/useWebAc3AudioPlayback.web';
-import { getWebRuntimePlatform, useResolvedPlayerSource } from '../utils/sourceUtils';
+import { getWebRuntimePlatform, isMpegTsSource, useResolvedPlayerSource } from '../utils/sourceUtils';
 import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
 import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
@@ -125,21 +125,21 @@ function Icon({ name, icons, color }) {
   const icon = icons?.[name];
   if (React.isValidElement(icon)) return React.cloneElement(icon, { 'aria-hidden': true });
   if (typeof icon === 'function') return h(icon, { size: 18, color, 'aria-hidden': true });
+  const iconStyle = color ? { color } : undefined;
   if (typeof icon === 'string' && !/^[a-z0-9-]+$/i.test(icon)) {
-    return h('span', { className: 'cinecrew-player__icon', style: { color }, 'aria-hidden': true }, icon);
+    return h('span', { className: 'cinecrew-player__icon', style: iconStyle, 'aria-hidden': true }, icon);
   }
   const iconName = icon || DEFAULT_ICONS[name] || name;
   const path = WEB_ICON_PATHS[iconName] || WEB_ICON_PATHS[name];
   return path
-    ? h('svg', { className: 'cinecrew-player__icon', viewBox: '0 0 24 24', width: 18, height: 18, fill: 'currentColor', style: { color }, 'aria-hidden': true }, h('path', { d: path }))
-    : h('span', { className: 'cinecrew-player__icon', style: { color }, 'aria-hidden': true }, '•');
+    ? h('svg', { className: 'cinecrew-player__icon', viewBox: '0 0 24 24', width: 18, height: 18, fill: 'currentColor', style: iconStyle, 'aria-hidden': true }, h('path', { d: path }))
+    : h('span', { className: 'cinecrew-player__icon', style: iconStyle, 'aria-hidden': true }, '•');
 }
 
 function PlayerButton({ name, label, icons, theme, onClick, active, disabled, children }) {
   return h('button', {
     type: 'button',
     className: `cinecrew-player__button${active ? ' is-active' : ''}`,
-    style: { color: theme.controlColor, background: theme.controlBackground },
     'aria-label': label,
     title: label,
     onClick,
@@ -162,6 +162,7 @@ function renderControlButton({ name, label, callback, options = {}, overrides, i
     onClick: callback,
     active: options.active,
     disabled: options.disabled,
+    children: name === 'back' ? 'Back' : options.children,
   });
 }
 
@@ -227,7 +228,6 @@ function WebSeekControl({ currentTime, duration, theme, onSeek }) {
       onKeyUp: (event) => {
         if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) finishSeek(event);
       },
-      style: { accentColor: theme.accentColor },
     }),
     h('span', null, `−${formatTime(remainingTime)}`));
 }
@@ -235,7 +235,7 @@ function WebSeekControl({ currentTime, duration, theme, onSeek }) {
 function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect, ratios, selectedRatio }) {
   let menu = null;
   if (open) {
-    menu = h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } },
+    menu = h('div', { className: 'cinecrew-player__menu' },
       ratios.map((ratio) => h('button', {
         key: ratio.value,
         type: 'button',
@@ -252,7 +252,7 @@ function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect, ratios, se
 function WebAudioTrackMenu({ open, tracks, selectedTrackId, theme, icons, onToggle, onSelect }) {
   let menu = null;
   if (open) {
-    menu = h('div', { className: 'cinecrew-player__menu', style: { background: theme.surfaceColor } },
+    menu = h('div', { className: 'cinecrew-player__menu' },
       tracks.length
         ? tracks.map((track, index) => h('button', {
           key: track.id ?? index,
@@ -307,7 +307,7 @@ function WebBottomControls(props) {
     });
   }
   let audioTracks = null;
-  if (isControlEnabled(overrides, 'audioTracks', true)) {
+  if (isControlEnabled(overrides, 'audioTracks', true) && !isLive) {
     audioTracks = h(WebAudioTrackMenu, {
       open: showAudioMenu,
       tracks: availableTracks,
@@ -327,6 +327,15 @@ function WebBottomControls(props) {
   }
   const audioOnlyLabel = 'Audio only';
   const fullscreenLabel = fullscreen ? 'Exit full screen' : 'Full screen';
+
+  if (inlinePreview && !fullscreen) {
+    return h('div', { className: 'cinecrew-player__bottom-controls' },
+      h('div', { className: 'cinecrew-player__bottom-actions' },
+        h('div', { className: 'cinecrew-player__bottom-left-actions' },
+          title ? h('span', { className: 'cinecrew-player__inline-title', title }, title) : null),
+        h('div', { className: 'cinecrew-player__bottom-right-actions' },
+          renderControlButton({ name: 'fullscreen', label: fullscreenLabel, callback: toggleFullscreen, options: { icon: 'fullscreen' }, overrides, icons, theme }))));
+  }
 
   return h('div', { className: 'cinecrew-player__bottom-controls' },
     seek,
@@ -372,7 +381,6 @@ function WebRecordingOverlay(props) {
     : null;
   return h('div', {
     className: `cinecrew-player__recording-overlay${error ? ' is-error' : ''}`,
-    style: { color: theme.controlColor },
     role: error ? 'alert' : 'status',
   }, getRecordingOverlayContent(props), dismissButton);
 }
@@ -472,7 +480,6 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
       value: Math.round(brightness * 100),
       'aria-label': 'Video brightness',
       'aria-valuetext': `${Math.round(brightness * 100)}%`,
-      style: { accentColor: theme.accentColor },
       onPointerDown: (event) => {
         activeRef.current = true;
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -491,11 +498,12 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
     h('span', { className: 'cinecrew-player__brightness-value', 'aria-live': 'off' }, `${Math.round(brightness * 100)}%`));
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, showLiveBadge, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
   installControlsStyles();
+  const compactInline = inlinePreview && !bottomProps.fullscreen;
   if (bottomProps.recordingStatus === 'finalizing') return null;
   if (bottomProps.recordingStatus === 'recording' || bottomProps.recordingStatus === 'paused') {
-    return h('div', { className: 'cinecrew-player__controls is-recording', style: { color: theme.controlColor } },
+    return h('div', { className: 'cinecrew-player__controls is-recording' },
       h(WebRecordingOverlay, {
         status: bottomProps.recordingStatus,
         elapsed: bottomProps.recordingElapsed,
@@ -507,9 +515,11 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
         onDismiss: bottomProps.clearRecordingError,
       }));
   }
-  let leftControls = locked ? null : unlockedControls.left;
-  let rightControls = unlockedControls.right;
-  if (locked) {
+  let leftControls = locked || compactInline ? null : unlockedControls.left;
+  let rightControls = compactInline
+    ? unlockedControls.right.filter((controlElement) => controlElement?.key === 'mute')
+    : unlockedControls.right;
+  if (locked && !compactInline) {
     rightControls = renderControlButton({
       name: 'lock', label: 'Unlock controls', callback: toggleLock,
       options: { active: true, defaultVisible: true }, overrides, icons, theme,
@@ -527,10 +537,30 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
     bottomControls = h(WebBottomControls, bottomProps);
   }
   const recordingUiVisible = bottomProps.recordingStatus !== 'idle' || Boolean(bottomProps.recordingError);
-  return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}`, style: { color: theme.controlColor } },
+  return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}` },
     h('div', { className: 'cinecrew-player__top-controls' },
-      h('div', { className: 'cinecrew-player__top-left-actions' }, leftControls),
-      !locked && !inlinePreview && paused && title ? h('div', { className: 'cinecrew-player__title', style: { color: theme.controlColor }, title }, title) : null,
+      h('div', { className: 'cinecrew-player__top-left-actions' },
+        compactInline && showLiveBadge ? h('span', {
+          className: 'cinecrew-player__inline-live-badge',
+          role: 'status',
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 9px',
+            borderRadius: 999,
+            background: 'rgba(183, 40, 47, 0.92)',
+            color: '#FFF',
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: '0.5px',
+            lineHeight: 1,
+          },
+        },
+        h('span', { 'aria-hidden': true, style: { width: 7, height: 7, borderRadius: '50%', background: '#FFF' } }),
+        'LIVE') : null,
+        leftControls),
+      !locked && !inlinePreview && paused && title ? h('div', { className: 'cinecrew-player__title', title }, title) : null,
       h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     h(WebRecordingOverlay, {
@@ -546,7 +576,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       onDismiss: bottomProps.clearRecordingError,
     }),
     bottomControls,
-    !locked && showBrightnessControl ? h(WebBrightnessControl, {
+    !locked && !compactInline && showBrightnessControl ? h(WebBrightnessControl, {
       brightness,
       onChange: onBrightnessChange,
       onChangeEnd: onBrightnessChangeEnd,
@@ -708,7 +738,6 @@ function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo, hasVid
   const bars = [1, 2, 3, 4, 5, 6, 7];
   return h('div', {
     className: 'cinecrew-player__audio-card',
-    style: { background: '#07090E', color: theme.controlColor, borderColor: theme.accentColor },
   },
   poster
     ? h('img', { className: 'cinecrew-player__audio-poster', src: poster, alt: '' })
@@ -717,21 +746,20 @@ function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo, hasVid
   h('div', {
     className: `cinecrew-player__audio-wave${!isPaused ? ' is-playing' : ''}`,
     'aria-hidden': true,
-  }, bars.map((b) => h('span', { key: b, style: { background: theme.accentColor } }))),
+  }, bars.map((b) => h('span', { key: b }))),
   h('strong', null, title || 'Audio only'),
   hasVideo && onSwitchToVideo
     ? h('button', {
       type: 'button',
       onClick: onSwitchToVideo,
-      style: { color: theme.accentColor, borderColor: theme.accentColor },
     }, 'Switch to video')
     : null);
 }
 
 function WebPlayerError({ error, theme, renderBackButton }) {
   if (!error) return null;
-  return h('div', { className: 'cinecrew-player__error', style: { color: theme.controlColor, background: theme.surfaceColor } },
-    h('strong', { style: { color: theme.errorColor } }, 'Playback error'),
+  return h('div', { className: 'cinecrew-player__error' },
+    h('strong', null, 'Playback error'),
     h('span', null, error),
     renderBackButton());
 }
@@ -898,6 +926,7 @@ function getWebControlLayer(props) {
       paused: props.isPaused,
       title: props.title,
       inlinePreview: props.inlinePreview,
+      showLiveBadge: props.showLiveBadge,
       togglePlay: props.togglePlay,
       bottomProps: props.bottomControlProps,
   });
@@ -905,8 +934,8 @@ function getWebControlLayer(props) {
 
 function getWebLoadingNotice(props) {
   if (!props.buffering || props.error) return null;
-  return h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
-    h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…');
+  return h('div', { className: 'cinecrew-player__status' },
+    h('span', { className: 'cinecrew-player__spinner' }), 'Loading stream…');
 }
 
 function getWebAudioCard(props) {
@@ -941,7 +970,7 @@ function getWebPanelNode(props) {
   const drawerLabel = getDrawerLabel(props.activePanel);
   const panel = h('aside', {
     className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}${isModal ? ' is-modal' : ''}`,
-    style: { color: props.theme.controlColor, ...props.drawerStyle },
+    style: props.drawerStyle,
     role: isModal ? 'dialog' : undefined,
     'aria-modal': isModal ? 'true' : undefined,
     'aria-label': drawerLabel,
@@ -986,14 +1015,25 @@ function WebPlayerLayout(props) {
   return h('div', {
     ref: props.playerRef,
     className: getWebPlayerClassName(props),
-    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '70%' },
+    style: {
+      ...props.rootStyle,
+      ...props.style,
+      background: props.theme.backgroundColor,
+      borderRadius: props.theme.borderRadius,
+      '--cinecrew-accent': props.theme.accentColor,
+      '--cinecrew-text': props.theme.controlColor,
+      '--cinecrew-surface': props.theme.surfaceColor,
+      '--cinecrew-control-bg': props.theme.controlBackground,
+      '--cinecrew-control-text': props.theme.controlColor,
+      '--cinecrew-media-width': '70%',
+    },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
   props.mediaSurface,
   getWebBrightnessLayer(props),
   getWebAudioCard(props),
-  h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
+  h('div', { className: 'cinecrew-player__shade' }),
   getWebLoadingNotice(props),
   h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.locked ? () => null : props.renderBackButton }),
   getWebControlLayer(props),
@@ -1056,7 +1096,7 @@ function getPanelRenderer(activePanel, renderLiveChat, renderEpg, integrations) 
 }
 
 function createWebPanelNode({
-  renderer, integration, activePanel, integrations, source, title, theme, icons, onClose,
+  renderer, integration, activePanel, integrations, users, source, title, theme, icons, onClose,
   diagnostics, messagePageSize,
 }) {
   if (activePanel === 'diagnostics') {
@@ -1072,6 +1112,7 @@ function createWebPanelNode({
     kind: activePanel,
     integration,
     integrations,
+    users,
     source,
     title,
     theme,
@@ -1124,7 +1165,6 @@ function WebDiagnosticsPanel({ title, theme, icons, onClose, streamMode, status,
   ];
   return h('section', {
     className: 'cinecrew-player__diagnostics',
-    style: { color: theme.controlColor },
     'aria-label': 'Stream diagnostics',
   },
   h('header', { className: 'cinecrew-player__diagnostics-heading' },
@@ -1137,14 +1177,14 @@ function WebDiagnosticsPanel({ title, theme, icons, onClose, streamMode, status,
       onClick: onClose,
       'aria-label': 'Close stream diagnostics',
       title: 'Close diagnostics',
-    }, h(Icon, { name: 'close', icons, color: theme.controlColor }))),
+    }, h(Icon, { name: 'close', icons }))),
   h('div', { className: 'cinecrew-player__diagnostics-status' },
     h('span', { className: `cinecrew-player__status-dot is-${String(status || 'unknown').toLowerCase()}` }),
     h('span', null, status || 'Unknown'),
     h('span', null, streamMode || 'Unknown format')),
   h('div', { className: 'cinecrew-player__diagnostic-grid' },
     cards.map(({ icon, color, label, value }) => h('article', { className: 'cinecrew-player__diagnostic-card', key: label, style: { '--diagnostic-accent': color } },
-      h('span', { className: 'cinecrew-player__diagnostic-icon' }, h(Icon, { name: icon, icons, color })),
+      h('span', { className: 'cinecrew-player__diagnostic-icon' }, h(Icon, { name: icon, icons })),
       h('span', { className: 'cinecrew-player__diagnostic-label' }, label),
       h('strong', null, value)))),
   h('small', { className: 'cinecrew-player__diagnostics-note' }, 'Network rate and RTT are browser-reported estimates when supported; no extra ping or stream requests are sent.'));
@@ -1160,6 +1200,55 @@ function mergeChatMessages(existing, incoming, prepend = false) {
   const unique = new Map();
   messages.forEach((message, index) => unique.set(getChatMessageKey(message, index), message));
   return [...unique.values()];
+}
+
+function getUserInitial(username = '') {
+  const clean = String(username || '').trim();
+  return clean ? clean.charAt(0).toUpperCase() : 'V';
+}
+
+function findUserMetadata(username = '', userId = '', users = []) {
+  if (!Array.isArray(users) || users.length === 0) return null;
+  const cleanUser = String(username || '').trim().toLowerCase();
+  const cleanId = String(userId || '').trim().toLowerCase();
+  return users.find((u) => {
+    if (!u) return false;
+    const uName = String(u.username || u.name || '').trim().toLowerCase();
+    const uId = String(u.id || u.userId || '').trim().toLowerCase();
+    return (cleanId && uId === cleanId) || (cleanUser && uName === cleanUser);
+  }) || null;
+}
+
+function resolveUserAvatar(author = {}, users = []) {
+  const username = author.username || author.userName || author.name || '';
+  const userId = author.userId || author.id || '';
+  const userMeta = findUserMetadata(username, userId, users);
+
+  const imageUrl = author.avatarUrl
+    || author.avatar
+    || author.image
+    || author.imageUrl
+    || userMeta?.avatarUrl
+    || userMeta?.avatar
+    || userMeta?.image
+    || userMeta?.imageUrl
+    || null;
+
+  const color = author.color
+    || author.avatarColor
+    || author.backgroundColor
+    || userMeta?.color
+    || userMeta?.avatarColor
+    || userMeta?.backgroundColor
+    || '#4A5568';
+
+  const initial = getUserInitial(username);
+
+  return {
+    imageUrl: imageUrl ? String(imageUrl).trim() : null,
+    color,
+    initial,
+  };
 }
 
 function formatChatTimestamp(value) {
@@ -1285,14 +1374,32 @@ function WebChatComposer({ sending, canSend, onSend }) {
       }, h(Icon, { name: 'send', color: '#07111e' }))));
 }
 
-function WebPanelRow({ row, index, isChat }) {
+function WebPanelRow({ row, index, isChat, users = [] }) {
   if (isChat) {
     const timestamp = row.createdAt ?? row.timestamp ?? row.sentAt ?? row.time;
+    const authorName = row.username || row.userName || row.name || 'Viewer';
+    const avatar = resolveUserAvatar(row, users);
+
+    const avatarNode = avatar.imageUrl
+      ? h('img', {
+        className: 'cinecrew-player__chat-avatar',
+        src: avatar.imageUrl,
+        alt: authorName,
+        'aria-hidden': 'true',
+      })
+      : h('span', {
+        className: 'cinecrew-player__chat-avatar',
+        style: { backgroundColor: avatar.color },
+        'aria-hidden': 'true',
+      }, avatar.initial);
+
     return h('article', { key: row.id ?? row.messageId ?? index, className: 'cinecrew-player__chat-message' },
-      h('header', null,
-        h('strong', null, row.username || row.userName || row.name || 'Viewer'),
-        timestamp ? h('time', { dateTime: String(timestamp) }, formatChatTimestamp(timestamp)) : null),
-      h('span', null, row.comment || row.message || row.text || ''));
+      avatarNode,
+      h('div', { className: 'cinecrew-player__chat-content' },
+        h('header', null,
+          h('strong', null, authorName),
+          timestamp ? h('time', { dateTime: String(timestamp) }, formatChatTimestamp(timestamp)) : null),
+        h('span', null, row.comment || row.message || row.text || '')));
   }
   const start = row.startMs ?? row.start ?? row.startTime;
   const end = row.endMs ?? row.end ?? row.endTime;
@@ -1302,7 +1409,7 @@ function WebPanelRow({ row, index, isChat }) {
     row.description ? h('span', null, row.description) : null);
 }
 
-function WebIntegrationPanel({ kind, integration, integrations, source, title, theme, onClose, messagePageSize = 50 }) {
+function WebIntegrationPanel({ kind, integration, integrations, users: usersProp, source, title, theme, onClose, messagePageSize = 50 }) {
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(integrations.user || null);
   const [loading, setLoading] = useState(true);
@@ -1452,9 +1559,10 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
     }
   };
 
+  const resolvedUsers = usersProp || integrations?.users || [];
+
   return h('section', {
     className: 'cinecrew-player__panel-content',
-    style: { color: theme.controlColor },
     'aria-label': isChat ? 'Live chat' : 'Programme guide',
   },
   h('header', { className: 'cinecrew-player__panel-heading' },
@@ -1471,17 +1579,17 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
   !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
-    h('div', {
-      className: 'cinecrew-player__panel-list',
-      ref: panelListRef,
-      'aria-live': isChat ? 'polite' : undefined,
-    },
-      rows.map((row, index) => h(WebPanelRow, { key: getChatMessageKey(row, index), row, index, isChat }))),
-    isChat ? h(WebChatComposer, {
-      sending,
-      canSend: typeof integration.sendMessage === 'function',
-      onSend: send,
-    }) : null);
+  h('div', {
+    className: 'cinecrew-player__panel-list',
+    ref: panelListRef,
+    'aria-live': isChat ? 'polite' : undefined,
+  },
+    rows.map((row, index) => h(WebPanelRow, { key: getChatMessageKey(row, index), row, index, isChat, users: resolvedUsers }))),
+  isChat ? h(WebChatComposer, {
+    sending,
+    canSend: typeof integration.sendMessage === 'function',
+    onSend: send,
+  }) : null);
 }
 
 /**
@@ -1503,6 +1611,9 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     paused: pausedProp,
     showProgressBar = true,
     showBrightnessControl = false,
+    showLiveBadge = false,
+    showLivePill = false,
+    showLiveButton = false,
     controls: controlOverrides = {},
     features = {},
     drawerMode = 'overlay',
@@ -1521,6 +1632,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     renderLiveChat,
     renderEpg,
     integrations = {},
+    users: usersProp,
     onPlayerHostRef,
     onInlinePreviewWheel,
     inlinePreview = false,
@@ -1544,7 +1656,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const resolution = useResolvedPlayerSource(source, url, resolveSource, getWebRuntimePlatform());
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
-  const isLive = liveProp ?? media.isLive ?? false;
+  const declaredLive = liveProp ?? media.isLive ?? (media.mediaType === 'live' || media.mediaType === 'channel');
+  const mpegTsSource = isMpegTsSource(streamUrl, media.type || media.mimeType || props.type || props.mimeType);
+  const mpegTsSourceKey = JSON.stringify([streamUrl, media.type, media.mimeType, props.type, props.mimeType]);
+  const [mpegTsEndState, setMpegTsEndState] = useState(null);
+  const mpegTsHasKnownEnd = mpegTsEndState?.sourceKey === mpegTsSourceKey && mpegTsEndState.hasKnownEnd;
+  const isLive = declaredLive || (mpegTsSource && !mpegTsHasKnownEnd);
   const progressBarVisible = showProgressBar !== false
     && isControlEnabled(controlOverrides, 'seek', true)
     && !isLive;
@@ -1692,7 +1809,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const mpegTs = useWebMpegTsPlayback({
     streamUrl,
     activeUrl,
-    isLive,
+    isLive: declaredLive,
     videoOnly,
     videoRef,
     pausedRef: pausedStateRef,
@@ -1702,7 +1819,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const useFlv = useWebFlvPlayback({
     activeUrl,
     type: media.type || media.mimeType,
-    isLive,
+    isLive: declaredLive,
     videoRef,
     pausedRef: pausedStateRef,
     onErrorRef,
@@ -1714,7 +1831,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   });
   const useHls = useWebHlsPlayback({
     activeUrl,
-    isLive,
+    isLive: declaredLive,
     videoRef,
     pausedRef: pausedStateRef,
     onErrorRef,
@@ -2045,17 +2162,20 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const setVideoOnlyMode = useCallback((next) => action('onVideoOnlyChange', () => setVideoOnly(next), { enabled: next }), [action]);
   const setAudioOnlyMode = useCallback((next) => action('onAudioOnlyChange', () => setAudioOnly(next), { enabled: next }), [action]);
   const setPlaybackRateAction = useCallback((next) => action('onPlaybackRateChange', () => setPlaybackRate(next), { playbackRate: next }), [action]);
-  const seekTo = useCallback((seconds) => action('onSeek', () => {
-    const targetSeconds = Math.max(0, Number(seconds) || 0);
-    const video = videoRef.current;
-    const wasEnded = video?.ended === true;
-    if (video) video.currentTime = targetSeconds;
-    if (wasEnded && video) {
-      setPaused(false);
-      playPlayer(video);
-    }
-    emitProgressBarTime(targetSeconds, progressBarCallback, lastProgressBarSecondRef, { force: true });
-  }, { seconds: Number(seconds) || 0 }), [action, progressBarCallback, setPaused]);
+  const seekTo = useCallback((seconds) => {
+    if (isLive) return;
+    return action('onSeek', () => {
+      const targetSeconds = Math.max(0, Number(seconds) || 0);
+      const video = videoRef.current;
+      const wasEnded = video?.ended === true;
+      if (video) video.currentTime = targetSeconds;
+      if (wasEnded && video) {
+        setPaused(false);
+        playPlayer(video);
+      }
+      emitProgressBarTime(targetSeconds, progressBarCallback, lastProgressBarSecondRef, { force: true });
+    }, { seconds: Number(seconds) || 0 });
+  }, [action, progressBarCallback, setPaused, isLive]);
   const handleBack = useCallback(() => action('onBack', undefined, { title, source: media }), [action, title, media]);
   useImperativeHandle(ref, () => {
     const api = {
@@ -2075,7 +2195,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setVideoOnly: setVideoOnlyMode,
       setPlaybackRate,
       seekTo,
-      seekBy: (delta) => seekTo((Number(videoRef.current?.currentTime) || currentTime) + (Number(delta) || 0)),
+      seekBy: (delta) => isLive ? undefined : seekTo((Number(videoRef.current?.currentTime) || currentTime) + (Number(delta) || 0)),
       back: handleBack,
       setPanel: (panel) => setActivePanel(panel || null),
       closePanel: () => setActivePanel(null),
@@ -2086,7 +2206,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     };
     publicPlayerRef.current = api;
     return api;
-  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnly, setVideoOnlyMode, setPlaybackRate, seekTo, handleBack, availableTracks, tracksProp, currentTime]);
+  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnly, setVideoOnlyMode, setPlaybackRate, seekTo, handleBack, availableTracks, tracksProp, currentTime, isLive]);
 
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
@@ -2094,7 +2214,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const hasRecording = controlOverrides.recording !== false
     && (!!integrations.recording || typeof actions.onRecordingStart === 'function' || canRecordFromBrowser);
   const hasDiagnostics = Boolean(features.diagnostics) || typeof actions.onDiagnosticsOpen === 'function';
-  const sourceType = String(media.type || media.mimeType || '').toLowerCase();
+  const sourceType = String(media.type || media.mimeType || props.type || props.mimeType || '').toLowerCase();
   const directVideoSource = getDirectVideoSource({
     mpegTs: mpegTs.useMpegTs || useFlv,
     useHls,
@@ -2108,13 +2228,31 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const video = videoRef.current;
     if (!video) return undefined;
     const updateTracks = () => setAvailableTracks(normalizeTracks(video, tracksProp));
+    const updateMpegTsEndState = () => {
+      if (!mpegTsSource || video.readyState < 1) return;
+      const mediaDuration = Number(video.duration);
+      const hasKnownEnd = Number.isFinite(mediaDuration) && mediaDuration > 0;
+      setMpegTsEndState((previous) => (
+        previous?.sourceKey === mpegTsSourceKey && previous.hasKnownEnd === hasKnownEnd
+          ? previous
+          : { sourceKey: mpegTsSourceKey, hasKnownEnd }
+      ));
+    };
     const updateTime = () => {
+      updateMpegTsEndState();
       setCurrentTime(Number(video.currentTime) || 0);
-      if (Number.isFinite(video.duration)) setDuration(video.duration);
-      emitProgressBarTime(Number(video.currentTime) || 0, progressBarCallback, lastProgressBarSecondRef);
+      const mediaDuration = Number(video.duration);
+      if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
+      const hasFiniteEnd = Number.isFinite(mediaDuration) && mediaDuration > 0;
+      if (!mpegTsSource || hasFiniteEnd) {
+        emitProgressBarTime(Number(video.currentTime) || 0, progressBarCallback, lastProgressBarSecondRef);
+      }
       onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: (Number(video.duration) || 0) * 1000, target: video.currentTime });
     };
     const onReadyEvent = () => {
+      updateMpegTsEndState();
+      const mediaDuration = Number(video.duration);
+      if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
       setBuffering(false);
       updateTracks();
       onReady?.(video);
@@ -2126,6 +2264,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const onWaitingEvent = () => setBuffering(true);
     video.addEventListener('loadedmetadata', onReadyEvent);
     video.addEventListener('canplay', onReadyEvent);
+    video.addEventListener('durationchange', updateMpegTsEndState);
     video.addEventListener('playing', onPlayingEvent);
     video.addEventListener('waiting', onWaitingEvent);
     video.addEventListener('timeupdate', updateTime);
@@ -2134,12 +2273,13 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     return () => {
       video.removeEventListener('loadedmetadata', onReadyEvent);
       video.removeEventListener('canplay', onReadyEvent);
+      video.removeEventListener('durationchange', updateMpegTsEndState);
       video.removeEventListener('playing', onPlayingEvent);
       video.removeEventListener('waiting', onWaitingEvent);
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('ended', endedHandler);
     };
-  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp]);
+  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType]);
 
   useEffect(() => {
     if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;
@@ -2149,10 +2289,25 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, [selectedAudioTrack, availableTracks]);
 
   useEffect(() => {
-    const onFullscreenChange = () => setFullscreen(document.fullscreenElement === playerRef.current);
+    const onFullscreenChange = () => {
+      const isNowFullscreen = document.fullscreenElement === playerRef.current;
+      setFullscreen(isNowFullscreen);
+      if (!isNowFullscreen && typeof actions.onFullscreen === 'function') {
+        const currentPos = Number.isFinite(videoRef.current?.currentTime)
+          ? videoRef.current.currentTime
+          : (typeof currentTime === 'number' ? currentTime : 0);
+        actions.onFullscreen({
+          isFullscreen: false,
+          currentTime: currentPos,
+          startTime: currentPos,
+          position: currentPos,
+          progressTime: formatTime(currentPos),
+        });
+      }
+    };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
+  }, [actions, currentTime]);
 
   const toggleFullscreen = () => {
     const currentPos = Number.isFinite(videoRef.current?.currentTime)
@@ -2212,6 +2367,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     integration: panelIntegration,
     activePanel,
     integrations,
+    users: usersProp || integrations?.users,
     source: panelSource,
     title,
     theme,
@@ -2331,6 +2487,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     drawerMode,
     drawerStyle,
     showBrightnessControl,
+    showLiveBadge: Boolean(showLiveBadge || showLivePill || showLiveButton),
     brightness,
     onBrightnessChange: updateBrightness,
     onBrightnessChangeEnd,
@@ -2361,7 +2518,11 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   onBrightnessChangeEnd,
   showLiveBadge = false,
   showLivePill = false,
-  showLiveButton = false,
+  integrations = {},
+  users,
+  drawerMode = 'overlay',
+  messagePageSize = 50,
+  drawerStyle,
   onError,
   onPlaying,
   onProgressBarChange,
@@ -2402,6 +2563,11 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     showBrightnessControl,
     onBrightnessChangeEnd,
     showLiveBadge: Boolean(showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton),
+    integrations,
+    users,
+    drawerMode,
+    messagePageSize,
+    drawerStyle,
     onError,
     onPlaying,
     onProgressBarChange,

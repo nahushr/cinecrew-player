@@ -160,6 +160,21 @@ export type PlayerIcons = Partial<Record<
   PlayerIcon
 >>;
 
+export interface ChatUser {
+  id?: string | number;
+  userId?: string | number;
+  username?: string;
+  name?: string;
+  avatarUrl?: string;
+  imageUrl?: string;
+  avatar?: string;
+  image?: string;
+  color?: string;
+  avatarColor?: string;
+  backgroundColor?: string;
+  [key: string]: unknown;
+}
+
 export interface ChatMessage {
   id?: string | number;
   username?: string;
@@ -167,6 +182,12 @@ export interface ChatMessage {
   message?: string;
   createdAt?: string | number;
   timestamp?: string | number;
+  avatarUrl?: string;
+  imageUrl?: string;
+  avatar?: string;
+  image?: string;
+  color?: string;
+  avatarColor?: string;
   [key: string]: unknown;
 }
 
@@ -190,6 +211,7 @@ export interface EpgListing {
 export interface PlayerIntegrations {
   user?: { id?: string | number; username?: string };
   getUser?: () => Promise<{ id?: string | number; username?: string } | null>;
+  users?: ChatUser[];
   liveChat?: {
     loadMessages?: (args: { channelId: string; limit: number; offset?: number }) => Promise<ChatMessage[] | ChatMessagePage>;
     sendMessage?: (args: { channelId: string; userId?: string | number; username?: string; comment: string }) => Promise<unknown>;
@@ -270,6 +292,8 @@ export interface CineCrewPlayerProps {
   /** App callbacks invoked after each corresponding built-in action. */
   actions?: PlayerActions;
   integrations?: PlayerIntegrations;
+  /** Custom user avatar colors and profiles for chat and overlays. */
+  users?: ChatUser[];
   theme?: PlayerTheme;
   icons?: PlayerIcons;
   style?: unknown;
@@ -296,7 +320,8 @@ export interface CineCrewPlayerProps {
   onClose?: () => void;
   /** User-owned back event. The player does not close or navigate on its own. */
   onBack?: PlayerAction;
-  onFullscreen?: (state: { isFullscreen: boolean }) => void;
+  /** Native fullscreen events include the resume timestamp for host-driven player remounts. */
+  onFullscreen?: (state: { isFullscreen: boolean; currentTime?: number; startTime?: number; position?: number; progressTime?: string }) => void;
   /** Invoked after the player applies an aspect ratio selection; actions.onAspectRatioChange takes precedence when both are supplied. */
   onAspectRatioChange?: PlayerAction;
   onPlayerHostRef?: (node: unknown | null) => void;
@@ -349,6 +374,8 @@ export interface InlineLivePlayerProps {
   features?: Pick<NonNullable<CineCrewPlayerProps['features']>, 'diagnostics'>;
   /** Drawer integrations and optional current-user metadata. */
   integrations?: PlayerIntegrations;
+  /** Custom user avatar colors and profiles for chat and overlays. */
+  users?: ChatUser[];
   /** Choose right-side overlay, resized video, or modal drawer presentation. Defaults to overlay. */
   drawerMode?: PlayerDrawerMode;
   /** Chat page size; older messages load automatically as the list is scrolled to the top. Defaults to 50. */

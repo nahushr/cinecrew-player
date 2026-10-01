@@ -9,10 +9,12 @@
   justify-content: center;
   gap: clamp(6px, 2.5cqh, 16px);
   padding: clamp(8px, 4cqh, 24px);
-  border: 1px solid;
+  border: 1px solid var(--cinecrew-accent, #00E5FF);
   border-radius: inherit;
   text-align: center;
   box-shadow: 0 18px 60px rgba(0, 0, 0, .32);
+  background: #07090E;
+  color: var(--cinecrew-text, #fff);
 }
 
 .cinecrew-player--audio-mode .cinecrew-player__controls {
@@ -90,7 +92,8 @@
 
 .cinecrew-player__audio-card button {
   max-width: 100%;
-  border: 1px solid;
+  border: 1px solid var(--cinecrew-accent, #00E5FF);
+  color: var(--cinecrew-accent, #00E5FF);
   border-radius: 999px;
   background: transparent;
   padding: clamp(4px, 1.8cqh, 10px) clamp(10px, 3cqw, 18px);

@@ -6,6 +6,7 @@
   gap: 14px;
   min-width: 0;
   overflow: auto;
+  color: var(--cinecrew-text, #fff);
 }
 
 .cinecrew-player__diagnostics-heading {
@@ -96,7 +97,11 @@
   background: color-mix(in srgb, var(--diagnostic-accent, #fff) 14%, transparent);
 }
 
-.cinecrew-player__diagnostic-icon .cinecrew-player__icon { width: 18px; height: 18px; }
+.cinecrew-player__diagnostic-icon .cinecrew-player__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--diagnostic-accent, inherit);
+}
 .cinecrew-player__diagnostic-label { overflow: hidden; opacity: .7; font-size: .76em; text-overflow: ellipsis; white-space: nowrap; }
 .cinecrew-player__diagnostic-card strong { overflow-wrap: anywhere; font-size: .9em; }
 .cinecrew-player__diagnostics-note { opacity: .65; line-height: 1.35; }

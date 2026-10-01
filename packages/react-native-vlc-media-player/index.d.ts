@@ -19,6 +19,8 @@ export interface VLCPlayerSource {
    * Media source URI to render
    */
   uri: string;
+  /** Initial playback time in seconds; Android queues it until VLC can seek. */
+  startTime?: number;
   /**
    * VLC Player initialization type
    * 
@@ -336,6 +338,9 @@ declare class PlaybackMethods<T> extends Component<T> {
    * @param pos Position to seek to (as a percentage of the full duration)
    */
   seek(pos: number);
+
+  /** Android: seek to seconds, retaining the request while VLC initializes. */
+  seekTo?: (seconds: number) => void;
 
   /**
    * Resume playback

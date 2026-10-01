@@ -308,6 +308,7 @@ export function FullscreenChatLayer(props) {
       title={props.title}
       streamId={props.mediaId}
       integrations={props.integrations}
+      users={props.users || props.integrations?.users}
       colors={props.colors}
       messagePageSize={props.messagePageSize}
       drawerStyle={props.drawerStyle}

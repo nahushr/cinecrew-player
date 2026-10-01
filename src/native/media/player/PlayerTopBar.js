@@ -21,15 +21,27 @@ function shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
 function BackButton({ visible, palette, onClose, compact, scale }) {
   if (!visible) return <View style={{ width: 12 }} />;
   const iconBoost = scale?.iconBoost || 1;
+  const buttonBoost = scale?.buttonBoost || 1;
+  const buttonHeight = Math.round((compact ? 30 : 38) * buttonBoost);
   return (
     <TouchableOpacity
-      style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale)]}
+      style={[
+        styles.pill,
+        styles.backPill,
+        compact && styles.compactPill,
+        {
+          width: Math.round((compact ? 66 : 76) * buttonBoost),
+          height: buttonHeight,
+          borderRadius: buttonHeight / 2,
+        },
+      ]}
       onPress={(event) => { event.stopPropagation(); onClose(); }}
       hitSlop={12}
       accessibilityRole="button"
       accessibilityLabel="Back"
     >
       <PlayerIcon name="arrow-left" size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.controlColor} />
+      <Text style={[styles.backText, { color: palette.controlColor, fontSize: scale?.backFont || (compact ? 12 : 14) }]}>Back</Text>
     </TouchableOpacity>
   );
 }
@@ -435,6 +447,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.18)',
   },
+  backPill: {
+    flexDirection: 'row',
+    gap: 6,
+  },
   compactPill: {
     width: 30,
     height: 30,
@@ -442,6 +458,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     color: '#FFF',
+    fontWeight: '600',
   },
   recActivePill: {
     backgroundColor: 'rgba(255, 82, 82, 0.28)',

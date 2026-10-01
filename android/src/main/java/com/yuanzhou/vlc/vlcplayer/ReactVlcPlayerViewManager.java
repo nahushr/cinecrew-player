@@ -184,7 +184,8 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
         "snapshot", 3,
         "restart", 4,
         "setAudioState", 5,
-        "mergeRecordingSegments", 6);
+        "mergeRecordingSegments", 6,
+        "seekTo", 7);
   }
 
   @Override
@@ -224,6 +225,12 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
 
       case 6:
         root.mergeRecordingSegments(args != null && args.size() > 0 && !args.isNull(0) ? args.getArray(0) : null);
+        break;
+
+      case 7:
+        if (args != null && args.size() > 0 && !args.isNull(0)) {
+          root.seekTo(args.getDouble(0));
+        }
         break;
 
       default:

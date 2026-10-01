@@ -37,6 +37,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64));
 }
 
 .cinecrew-player__title {
@@ -49,6 +50,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-shadow: 0 1px 4px #000;
+  color: var(--cinecrew-text, #fff);
 }
 
 .cinecrew-player__inline-title {
@@ -73,6 +75,7 @@
   justify-content: center;
   gap: 12px;
   text-align: center;
+  color: var(--cinecrew-text, #fff);
 }
 
 .cinecrew-player__status {
@@ -84,6 +87,7 @@
   width: 24px;
   height: 24px;
   border: 3px solid rgba(255,255,255,.25);
+  border-top-color: var(--cinecrew-accent, #00d4ff);
   border-radius: 50%;
   animation: cinecrew-spin .75s linear infinite;
 }
@@ -91,10 +95,12 @@
 .cinecrew-player__error {
   flex-direction: column;
   padding: 24px;
+  background: var(--cinecrew-surface, rgba(13, 26, 44, 0.96));
 }
 
 .cinecrew-player__error strong {
   font-size: 1.1em;
+  color: var(--cinecrew-error, #ff647c);
 }
 
 .cinecrew-player__inline-poster {

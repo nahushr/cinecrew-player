@@ -360,6 +360,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `features` | feature flags | `{}` | Optional player features, including web stream diagnostics with `{ diagnostics: true }`. |
 | `actions` | `PlayerActions` | `{}` | Observe built-in actions. The player performs its core action first, then invokes the callback with the resulting action payload. |
 | `integrations` | `PlayerIntegrations` | `{}` | Inject user identity, chat, EPG, recording, analytics, and presence services. |
+| `users` | `ChatUser[]` | `[]` | Custom user avatar colors and profiles for chat and overlays. |
 | `drawerMode` | `'overlay' \| 'resize' \| 'modal'` | `'overlay'` | `overlay` opens a right-side drawer over video; `resize` places the drawer beside a reduced video; `modal` opens a centered modal on web/Expo Web and a bottom drawer on Android/Electron. |
 | `drawerStyle` | `React.CSSProperties` / React Native `ViewStyle` | — | Platform-specific style overrides for the chat, EPG, and diagnostics drawer. |
 | `messagePageSize` | `number` | `50` | Number of live-chat messages fetched per page; older messages load automatically when the list is scrolled to the top. |
@@ -444,6 +445,7 @@ type PlayerSource = string | {
 | `showLiveChat`, `initialShowLiveChat` | `boolean` | `false` | Control or initially open the shared chat/EPG/diagnostics drawer. When `showLiveChat` is controlled, update it from `onLiveChatChange`. |
 | `onLiveChatChange` | `(isOpen: boolean) => void` | — | Notifies the app when the shared inline drawer opens or closes. |
 | `features`, `integrations` | `PlayerIntegrations`, diagnostics feature | — | Supply live-chat/EPG integrations and opt into diagnostics with `features={{ diagnostics: true }}`. |
+| `users` | `ChatUser[]` | `[]` | Custom user avatar colors and profiles for chat and overlays. |
 | `messagePageSize` | `number` | `50` | Number of chat messages loaded per page; older messages load when the user scrolls to the top. |
 | `mediaId`, `drawerStyle` | `string \| number`, platform style | — | Identify the media channel and customize the drawer container. |
 | `startTime` | `number \| string` | — | Start at this position, specified in seconds or as `HH:MM:SS` (for example, `"00:12:30"`). |

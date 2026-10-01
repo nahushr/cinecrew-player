@@ -6,6 +6,21 @@ export function normalizePlayerSource(source, url) {
   return value && typeof value === 'object' ? value : { uri: '' };
 }
 
+export function isMpegTsSource(url, type) {
+  const normalizedType = String(type || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (['ts', 'mpegts', 'mpeg2transportstream', 'videomp2t'].includes(normalizedType)) return true;
+
+  let path = String(url || '');
+  try {
+    path = new URL(path, 'http://localhost').pathname;
+  } catch {
+    path = path.split(/[?#]/, 1)[0];
+  }
+
+  // Match the raw MPEG-TS URL forms handled by the web playback adapter.
+  return /\.ts$/i.test(path) || (/\/live\//i.test(path) && !/\.m3u8$/i.test(path));
+}
+
 export function getWebRuntimePlatform() {
   if (typeof window === 'undefined') return 'web';
   const electronProcess = Boolean(window.process?.versions?.electron);

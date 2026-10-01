@@ -18,6 +18,7 @@
   box-shadow: 0 10px 30px rgba(0,0,0,.5);
   transform: translateX(-50%);
   pointer-events: auto;
+  color: var(--cinecrew-text, #fff);
 }
 
 .cinecrew-player__recording-overlay.is-error { border-color: var(--cinecrew-accent); }

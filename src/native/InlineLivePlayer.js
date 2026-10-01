@@ -21,8 +21,10 @@ import { getPlayerErrorMessage } from '../utils/playerError.js';
 import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
 import { VerticalVolumeControl } from './media/player/VerticalVolumeControl';
 import { parsePlaybackStartTime } from '../utils/playbackTime.js';
+import { createFullscreenPlaybackState } from '../utils/fullscreenPlaybackState.js';
 import { formatProgressBarTime } from '../utils/progressBarTime.js';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
+import { setAndroidImmersiveNavigationBar } from './media/player/androidSystemUi';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -209,27 +211,27 @@ function InlinePlayerOverlay({
       React.createElement(View, { style: { flex: 1 } }),
       React.createElement(InlinePanelButton, {
         panel: 'chat', actionName: 'onLiveChatOpen', label: 'Live chat', icon: 'comment-text-multiple-outline',
-        visible: isLiveCommentsEnabled && controls.liveChat !== false, active: drawerVisible && drawerTab === 'chat',
+        visible: fullscreen && isLiveCommentsEnabled && controls.liveChat !== false, active: drawerVisible && drawerTab === 'chat',
         palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
       }),
       React.createElement(InlinePanelButton, {
         panel: 'epg', actionName: 'onEpgOpen', label: 'Programme guide', icon: 'television-classic',
-        visible: isEpgEnabled && controls.epg !== false, active: drawerVisible && drawerTab === 'epg',
+        visible: fullscreen && isEpgEnabled && controls.epg !== false, active: drawerVisible && drawerTab === 'epg',
         palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
       }),
       React.createElement(InlinePanelButton, {
         panel: 'diagnostics', actionName: 'onDiagnosticsOpen', label: 'Stream diagnostics', icon: 'pulse',
-        visible: diagnosticsEnabled && controls.diagnostics !== false, active: drawerVisible && drawerTab === 'diagnostics',
+        visible: fullscreen && diagnosticsEnabled && controls.diagnostics !== false, active: drawerVisible && drawerTab === 'diagnostics',
         palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
       }),
       button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
       button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused })),
-      seekControl,
+      fullscreen ? seekControl : null,
       React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
       React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }, fullscreenLandscape && { fontSize: 15 }] }, title),
-      button('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
+      button('fullscreen', 'onFullscreen', fullscreen ? 'Exit full player' : 'Open full player', fullscreen ? 'fullscreen-exit' : 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
 }
 
 function createInlinePlayerLayer(player, visible) {
@@ -293,6 +295,7 @@ function InlineLivePlayerSurface({
   mediaId,
   drawerStyle,
   currentUser,
+  users,
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
@@ -308,6 +311,12 @@ function InlineLivePlayerSurface({
   // Use the window orientation immediately. Waiting for the modal's first
   // layout causes one frame of portrait sizing after entering landscape.
   const fullscreenLandscape = fullscreen && windowWidth > windowHeight;
+  useEffect(() => {
+    const immersiveLandscape = fullscreen && windowWidth > windowHeight;
+    setAndroidImmersiveNavigationBar(immersiveLandscape);
+    return () => setAndroidImmersiveNavigationBar(false);
+  }, [fullscreen, windowWidth, windowHeight]);
+
   const inlineVideoHeight = Math.max(80, Number(height) || 220);
   const portraitResize = drawerVisible && drawerMode === 'resize' && windowHeight >= windowWidth;
   const landscapeResize = drawerVisible && drawerMode === 'resize' && windowWidth > windowHeight;
@@ -338,6 +347,7 @@ function InlineLivePlayerSurface({
     })
     : null;
   const brightnessControl = (visible) => visible && showBrightnessControl
+    && fullscreen
     && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
     ? React.createElement(VerticalBrightnessControl, {
       value: brightness,
@@ -354,6 +364,7 @@ function InlineLivePlayerSurface({
     })
     : null;
   const volumeControl = (visible) => visible && showVolumeControl
+    && fullscreen
     && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
     ? React.createElement(VerticalVolumeControl, {
       value: volume,
@@ -400,6 +411,7 @@ function InlineLivePlayerSurface({
     title,
     streamId: mediaId,
     integrations,
+    users: users || integrations?.users,
     messagePageSize,
     drawerStyle,
     fullscreen: isFullscreen,
@@ -417,7 +429,7 @@ function InlineLivePlayerSurface({
       visible: fullscreen,
       animationType: 'none',
       statusBarTranslucent: true,
-      onRequestClose: () => setFullscreen(false),
+      onRequestClose: () => changeFullscreenWithPosition(false),
     }, React.createElement(View, { style: styles.fullscreenFrame },
       renderPlayerStage(true),
       renderDrawer(true))));
@@ -455,6 +467,7 @@ function InlineLivePlayerView({
   showLiveButton = false,
   features = {},
   integrations = {},
+  users,
   drawerMode = 'overlay',
   messagePageSize = 50,
   mediaId,
@@ -474,6 +487,7 @@ function InlineLivePlayerView({
   const requestedStartTime = parsePlaybackStartTime(startTime);
   const playerRef = useRef(null);
   const playbackPositionRef = useRef(requestedStartTime ?? 0);
+  const playbackPositionSourceRef = useRef(streamUrl);
   const playbackDurationRef = useRef(0);
   const pendingSeekRef = useRef(requestedStartTime);
   const pendingSeekAttemptAtRef = useRef(0);
@@ -530,18 +544,20 @@ function InlineLivePlayerView({
   const applyPendingSeek = useCallback((observedPosition = null) => {
     const target = pendingSeekRef.current;
     const duration = playbackDurationRef.current;
-    if (target === null || target === undefined || duration <= 0) return false;
+    if (target === null || target === undefined) return false;
     const playerInstance = playerRef.current;
-    if (typeof playerInstance?.seek !== 'function') return false;
     if (observedPosition !== null && Math.abs(observedPosition - target) <= 1) {
       pendingSeekRef.current = null;
       pendingSeekAttemptAtRef.current = 0;
       return true;
     }
+    const canSeekToTime = typeof playerInstance?.seekTo === 'function';
+    if (!canSeekToTime && (duration <= 0 || typeof playerInstance?.seek !== 'function')) return false;
     const now = Date.now();
     if (now - pendingSeekAttemptAtRef.current < 400) return false;
     try {
-      playerInstance.seek(Math.max(0, Math.min(1, target / duration)));
+      if (canSeekToTime) playerInstance.seekTo(target);
+      else playerInstance.seek(Math.max(0, Math.min(1, target / duration)));
       pendingSeekAttemptAtRef.current = now;
       playbackPositionRef.current = target;
       return true;
@@ -585,13 +601,22 @@ function InlineLivePlayerView({
     setFullscreen(nextFullscreen);
   }, []);
 
+  const prevRequestedStartTimeRef = useRef(requestedStartTime);
   useEffect(() => {
-    playbackPositionRef.current = requestedStartTime ?? 0;
-    setPlaybackTime(requestedStartTime ?? 0);
-    setPlaybackDuration(0);
-    playbackDurationRef.current = 0;
-    pendingSeekRef.current = requestedStartTime;
-    pendingSeekAttemptAtRef.current = 0;
+    const urlChanged = playbackPositionSourceRef.current !== streamUrl;
+    const startTimeChanged = requestedStartTime !== null && requestedStartTime !== prevRequestedStartTimeRef.current;
+    prevRequestedStartTimeRef.current = requestedStartTime;
+
+    if (urlChanged || startTimeChanged) {
+      const targetTime = requestedStartTime ?? 0;
+      playbackPositionRef.current = targetTime;
+      playbackPositionSourceRef.current = streamUrl;
+      setPlaybackTime(targetTime);
+      setPlaybackDuration(0);
+      playbackDurationRef.current = 0;
+      pendingSeekRef.current = requestedStartTime;
+      pendingSeekAttemptAtRef.current = 0;
+    }
   }, [streamUrl, requestedStartTime]);
 
   useEffect(() => {
@@ -660,13 +685,9 @@ function InlineLivePlayerView({
     event?.stopPropagation?.();
     const currentPos = pendingSeekRef.current ?? playbackPositionRef.current;
     const payload = {
-      isFullscreen: !fullscreen,
+      ...createFullscreenPlaybackState(!fullscreen, currentPos),
       source: sourceObject,
       title,
-      currentTime: currentPos,
-      startTime: currentPos,
-      position: currentPos,
-      progressTime: formatProgressBarTime(currentPos),
     };
     performAction('onFullscreen', () => {
       if (!fullscreen && typeof onPromotePreview === 'function') {
@@ -689,11 +710,14 @@ function InlineLivePlayerView({
     '--network-caching=3000',
   ], []);
   const vlcSource = useMemo(() => {
-    const initialPosition = pendingSeekRef.current ?? requestedStartTime;
+    const initialPosition = playbackPositionSourceRef.current === streamUrl
+      ? pendingSeekRef.current ?? playbackPositionRef.current
+      : requestedStartTime;
     const mediaOptions = sourceObject.mediaOptions || nativeMediaOptions;
     return {
       ...sourceObject,
       uri: streamUrl,
+      startTime: initialPosition ?? 0,
       initType: sourceObject.initType || 1,
       hwDecoderEnabled: sourceObject.hwDecoderEnabled ?? 1,
       hwDecoderForced: sourceObject.hwDecoderForced ?? 1,
@@ -712,7 +736,7 @@ function InlineLivePlayerView({
     paused: pausedNow,
     title,
     vlcSource,
-    startTime: requestedStartTime,
+    startTime: vlcSource.startTime ?? requestedStartTime,
     onPlaying: handlePlaying,
     onProgress: handleProgress,
     onError: handleError,
@@ -745,7 +769,8 @@ function InlineLivePlayerView({
           pendingSeekRef.current = nextTime;
           pendingSeekAttemptAtRef.current = 0;
           setPlaybackTime(nextTime);
-          playerRef.current?.seek?.(playbackDuration > 0 ? nextTime / playbackDuration : 0);
+          if (typeof playerRef.current?.seekTo === 'function') playerRef.current.seekTo(nextTime);
+          else playerRef.current?.seek?.(playbackDuration > 0 ? nextTime / playbackDuration : 0);
         },
       }),
       React.createElement(Text, { style: styles.seekTime }, formatProgressBarTime(playbackDuration)))
@@ -817,6 +842,7 @@ function InlineLivePlayerView({
       mediaId,
       drawerStyle,
       currentUser: integrations.user,
+      users: users || integrations.users,
     }),
   );
 }

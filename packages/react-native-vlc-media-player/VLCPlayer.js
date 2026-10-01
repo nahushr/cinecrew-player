@@ -63,6 +63,11 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
       ]),
       snapshot: (path) => dispatchCommand('snapshot', [path]),
       seek: (position) => setNativeProps({ seek: position }),
+      // Older native binaries and iOS retain their existing ratio-seek path.
+      // Android's queued command also works before the new surface is ready.
+      ...(UIManager.getViewManagerConfig('RCTVLCPlayer')?.Commands?.seekTo != null
+        ? { seekTo: (seconds) => dispatchCommand('seekTo', [seconds]) }
+        : {}),
       resume: (shouldResume) => setNativeProps({ resume: shouldResume }),
       autoAspectRatio: (isAuto) => setNativeProps({ autoAspectRatio: isAuto }),
       changeVideoAspectRatio: (ratio) => setNativeProps({ videoAspectRatio: ratio }),

@@ -98,6 +98,7 @@
   min-height: 24px;
   touch-action: pan-y;
   cursor: ew-resize;
+  accent-color: var(--cinecrew-accent, #00d4ff);
 }
 
 .cinecrew-player__button {
@@ -114,13 +115,20 @@
   font: inherit;
   line-height: 1;
   backdrop-filter: blur(12px);
+  color: var(--cinecrew-control-text, var(--cinecrew-text, #fff));
+  background: var(--cinecrew-control-bg, rgba(5, 11, 20, 0.76));
 }
 
 .cinecrew-player__button:hover,
-.cinecrew-player__button:focus-visible,
+.cinecrew-player__button:focus-visible {
+  outline: none;
+  border-color: var(--cinecrew-accent, #00d4ff);
+}
+
 .cinecrew-player__button.is-active {
   outline: none;
   border-color: var(--cinecrew-accent, #00d4ff);
+  color: var(--cinecrew-accent, #00d4ff);
 }
 
 .cinecrew-player__button:disabled {
@@ -134,6 +142,7 @@
   justify-content: center;
   min-width: 1em;
   font-size: 18px;
+  color: var(--cinecrew-icon-color, currentColor);
 }
 
 .cinecrew-player__menu-wrap {
@@ -150,6 +159,7 @@
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 10px;
+  background: var(--cinecrew-surface, rgba(13, 26, 44, 0.96));
   box-shadow: 0 8px 30px rgba(0,0,0,.4);
 }
 

@@ -41,25 +41,11 @@ export function InlinePreviewTopActions({ controls, muted, videoOnlyMode, handle
   );
 }
 
-export function InlinePreviewCenterAction({ controls, colors, isPlaying, handlePlayPauseAction, handleSeekByAction, isFullscreen, scale }) {
+export function InlinePreviewCenterAction({ controls, colors, isPlaying, handlePlayPauseAction, isFullscreen, scale }) {
   const iconBoost = scale?.iconBoost || (isFullscreen ? 1.1 : 1.0);
   return (
     <View style={styles.inlinePreviewCenterControls} pointerEvents="box-none">
       <View style={styles.inlinePreviewCenterRow}>
-        {controls.seekBack !== false && typeof handleSeekByAction === 'function' ? (
-          <TouchableOpacity
-            style={styles.inlinePreviewSeekButton}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Rewind 10 seconds"
-            onPress={(event) => {
-              event?.stopPropagation?.();
-              handleSeekByAction(-10);
-            }}
-          >
-            <PlayerIcon name="replay-10" size={Math.round(26 * iconBoost)} color="#FFF" />
-          </TouchableOpacity>
-        ) : null}
         {controls.playPause !== false ? (
           <TouchableOpacity
             style={[styles.inlinePreviewCenterButton, { backgroundColor: colors?.brandAccent || (colors?.mode === 'dark' ? '#FF9A86' : '#D95045') }]}
@@ -74,29 +60,14 @@ export function InlinePreviewCenterAction({ controls, colors, isPlaying, handleP
             <PlayerIcon name={isPlaying ? 'pause' : 'play'} size={Math.round(27 * iconBoost)} color="#FFF" />
           </TouchableOpacity>
         ) : null}
-        {controls.seekForward !== false && typeof handleSeekByAction === 'function' ? (
-          <TouchableOpacity
-            style={styles.inlinePreviewSeekButton}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Skip forward 10 seconds"
-            onPress={(event) => {
-              event?.stopPropagation?.();
-              handleSeekByAction(10);
-            }}
-          >
-            <PlayerIcon name="forward-10" size={Math.round(26 * iconBoost)} color="#FFF" />
-          </TouchableOpacity>
-        ) : null}
       </View>
     </View>
   );
 }
 
 export function InlinePreviewBottomActions({
-  controls, title, showInlineChatButton, showLiveChat, handlePanelAction,
-  isFullscreen, handleFullscreenAction, invokeAction, onPromotePreview, mediaId,
-  scale, currentTime,
+  controls, title, isFullscreen, handleFullscreenAction, invokeAction, onPromotePreview,
+  mediaId, scale, currentTime,
 }) {
   const iconBoost = scale?.iconBoost || (isFullscreen ? 1.1 : 1.0);
   const fontBoost = scale?.fontBoost || iconBoost;
@@ -104,21 +75,6 @@ export function InlinePreviewBottomActions({
     <View style={styles.inlinePreviewBottomRow} pointerEvents="box-none">
       <Text style={[styles.inlinePreviewTitle, fontBoost > 1 && { fontSize: Math.round(14 * fontBoost) }]} numberOfLines={1} pointerEvents="none">{title || 'Live TV'}</Text>
       <View style={styles.inlinePreviewActions} pointerEvents="box-none">
-        {controls.liveChat !== false && showInlineChatButton && !showLiveChat ? (
-          <TouchableOpacity
-            style={styles.inlineChatButton}
-            activeOpacity={0.84}
-            accessibilityRole="button"
-            accessibilityLabel="Open live chat"
-            onPress={(event) => {
-              event?.stopPropagation?.();
-              handlePanelAction('chat');
-            }}
-          >
-            <PlayerIcon name="comment-text-outline" size={Math.round(17 * iconBoost)} color="#FFF" />
-            <Text style={[styles.inlineChatButtonText, fontBoost > 1 && { fontSize: Math.round(12 * fontBoost) }]}>Live Chat</Text>
-          </TouchableOpacity>
-        ) : null}
         {controls.fullscreen !== false ? (
           <TouchableOpacity
             style={styles.inlinePreviewIconButton}
@@ -170,9 +126,9 @@ export function InlinePreviewFeedback({ isLoading, errorMessage }) {
 export function InlinePreviewFrame({
   hostRef, isValidPreviewRect, positionStyle, videoPlayer, title, onPromotePreview,
   controls, colors, muted, videoOnlyMode, handleMuteAction, isPlaying,
-  handlePlayPauseAction, handleSeekByAction, showInlineChatButton, showLiveChat,
-  handlePanelAction, isFullscreen, handleFullscreenAction, invokeAction, mediaId,
-  isLoading, errorMessage, showLiveBadge, children, scale, currentTime,
+  handlePlayPauseAction,
+  isFullscreen, handleFullscreenAction, invokeAction, mediaId,
+  isLoading, errorMessage, showLiveBadge, showLiveChat, children, scale, currentTime,
 }) {
   return (
     <View
@@ -199,7 +155,6 @@ export function InlinePreviewFrame({
               colors={colors}
               isPlaying={isPlaying}
               handlePlayPauseAction={handlePlayPauseAction}
-              handleSeekByAction={handleSeekByAction}
               isFullscreen={isFullscreen}
               scale={scale}
             />
@@ -207,9 +162,6 @@ export function InlinePreviewFrame({
           <InlinePreviewBottomActions
             controls={controls}
             title={title}
-            showInlineChatButton={showInlineChatButton}
-            showLiveChat={showLiveChat}
-            handlePanelAction={handlePanelAction}
             isFullscreen={isFullscreen}
             handleFullscreenAction={handleFullscreenAction}
             invokeAction={invokeAction}

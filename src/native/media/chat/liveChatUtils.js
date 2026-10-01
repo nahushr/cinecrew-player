@@ -2,17 +2,53 @@ export const DEFAULT_EPG_LIMIT = 48;
 
 export const QUICK_REACTIONS = ['❤️', '🔥', '😂', '👏', '🙌', '😮', '💯'];
 
-export const USER_COLORS = [
-  '#4FC3F7', '#81D4FA', '#A7FFEB', '#FFD54F', '#FF8A80',
-  '#EA80FC', '#B388FF', '#80D8FF', '#A5D6A7', '#FFE082',
-];
+export function getUserInitial(username = '') {
+  const clean = String(username || '').trim();
+  return clean ? clean.charAt(0).toUpperCase() : 'V';
+}
 
-export function getUserColor(username = '') {
-  let hash = 0;
-  for (let i = 0; i < username.length; i++) {
-    hash = username.codePointAt(i) + ((hash << 5) - hash);
-  }
-  return USER_COLORS[Math.abs(hash) % USER_COLORS.length];
+export function findUserMetadata(username = '', userId = '', users = []) {
+  if (!Array.isArray(users) || users.length === 0) return null;
+  const cleanUser = String(username || '').trim().toLowerCase();
+  const cleanId = String(userId || '').trim().toLowerCase();
+  return users.find((u) => {
+    if (!u) return false;
+    const uName = String(u.username || u.name || '').trim().toLowerCase();
+    const uId = String(u.id || u.userId || '').trim().toLowerCase();
+    return (cleanId && uId === cleanId) || (cleanUser && uName === cleanUser);
+  }) || null;
+}
+
+export function resolveUserAvatar(author = {}, users = []) {
+  const username = author.username || author.userName || author.name || '';
+  const userId = author.userId || author.id || '';
+  const userMeta = findUserMetadata(username, userId, users);
+
+  const imageUrl = author.avatarUrl
+    || author.avatar
+    || author.image
+    || author.imageUrl
+    || userMeta?.avatarUrl
+    || userMeta?.avatar
+    || userMeta?.image
+    || userMeta?.imageUrl
+    || null;
+
+  const color = author.color
+    || author.avatarColor
+    || author.backgroundColor
+    || userMeta?.color
+    || userMeta?.avatarColor
+    || userMeta?.backgroundColor
+    || '#4A5568';
+
+  const initial = getUserInitial(username);
+
+  return {
+    imageUrl: imageUrl ? String(imageUrl).trim() : null,
+    color,
+    initial,
+  };
 }
 
 export function formatMessageTime(timestamp) {

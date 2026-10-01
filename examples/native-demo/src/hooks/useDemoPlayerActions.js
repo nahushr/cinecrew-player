@@ -30,7 +30,7 @@ export function useDemoPlayerActions({ notify, setSelectedAudioTrack, onFullscre
     onFullscreen: (payload) => {
       const isFullscreen = typeof payload === 'boolean' ? payload : (payload?.isFullscreen ?? true);
       notify('Fullscreen', isFullscreen ? 'On' : 'Off');
-      onFullscreenChange?.(isFullscreen);
+      onFullscreenChange?.(isFullscreen, payload);
     },
     onLiveChatOpen: ({ isOpen }) => {
       notify('Live chat drawer', isOpen ? 'Opened' : 'Closed');

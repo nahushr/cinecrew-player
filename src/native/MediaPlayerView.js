@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isWeb, isElectron, isElectronOverlay } from '../utils/runtimePlatform';
@@ -8,7 +8,10 @@ import { isLocalMediaUri } from '../utils/mediaUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
 import { parsePlaybackStartTime } from '../utils/playbackTime.js';
+import { createFullscreenPlaybackState } from '../utils/fullscreenPlaybackState.js';
 import { playPlayer, resumePlayerAfterSeek } from '../utils/playbackRecovery.js';
+import { isMpegTsSource } from '../utils/sourceUtils.js';
+import { setAndroidImmersiveNavigationBar } from './media/player/androidSystemUi';
 import {
   USER_AGENT,
   ASPECT_OPTIONS,
@@ -50,6 +53,8 @@ export const MediaPlayerView = (props) => {
     onBack,
     title,
     mediaType = 'live',
+    isLive: liveProp,
+    sourceType = '',
     onClose,
     colors: initialColors,
     showLiveChat: propShowLiveChat,
@@ -89,6 +94,7 @@ export const MediaPlayerView = (props) => {
     features = {},
     actions = {},
     integrations = {},
+    users: usersProp,
     theme,
     icons,
     videoOnly = false,
@@ -309,7 +315,13 @@ export const MediaPlayerView = (props) => {
     [showLiveChat, onLiveChatChange]
   );
   const [drawerTab, setDrawerTab] = useState('chat');
-  const isLive = mediaType === 'live' || mediaType === 'channel';
+  const declaredLive = liveProp ?? (mediaType === 'live' || mediaType === 'channel');
+  const isMpegTs = isMpegTsSource(streamUrl, sourceType);
+  const mpegTsSourceKey = JSON.stringify([streamUrl, sourceType]);
+  const [mpegTsEndState, setMpegTsEndState] = useState(null);
+  const mpegTsHasKnownEnd = Number(durationSecs) > 0
+    || (mpegTsEndState?.sourceKey === mpegTsSourceKey && mpegTsEndState.hasKnownEnd);
+  const isLive = declaredLive || (isMpegTs && !mpegTsHasKnownEnd);
   const isLiveCommentsEnabled = controls.liveChat ?? Boolean(integrations.liveChat?.loadMessages && integrations.liveChat?.sendMessage);
   const isEpgEnabled = controls.epg ?? Boolean(integrations.epg?.loadListings);
   const diagnosticsOverlayEnabled = Boolean(features.diagnostics);
@@ -567,6 +579,7 @@ export const MediaPlayerView = (props) => {
   const seekCompletedAt = useRef(0);
   const lastProgressBarSecondRef = useRef(null);
   const lastKnownTimeRef = useRef(requestedStartTime ?? 0);
+  const lastKnownTimeSourceRef = useRef(streamUrl);
   const lastKnownDurRef = useRef(Number(durationSecs) || 0);
   const fullscreenSeekRestoreRef = useRef(null);
   const requestedStartTimeAppliedRef = useRef(requestedStartTime === null);
@@ -625,10 +638,14 @@ export const MediaPlayerView = (props) => {
     const syncSystemBars = () => {
       StatusBar.setTranslucent(immersiveLandscape);
       StatusBar.setHidden(immersiveLandscape, 'none');
+      setAndroidImmersiveNavigationBar(immersiveLandscape);
     };
     syncSystemBars();
     const frame = requestAnimationFrame(syncSystemBars);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      setAndroidImmersiveNavigationBar(false);
+    };
   }, [isFullscreen, visible, windowWidth, windowHeight]);
 
   const isInlinePreview = !!inlinePreview;
@@ -661,6 +678,7 @@ export const MediaPlayerView = (props) => {
   const nativeRecordingSegmentsRef = useRef([]);
   const nativeRecordingStopRef = useRef(null);
   const nativeRecordingMergeRef = useRef(null);
+  const recordingNotificationPermissionRef = useRef(true);
   const recordingTimerRef = useRef(null);
   const clearRecordingTimer = useCallback(() => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
@@ -850,6 +868,7 @@ export const MediaPlayerView = (props) => {
     isSeeking.current = false;
     seekCompletedAt.current = 0;
     lastKnownTimeRef.current = requestedStartTime ?? 0;
+    lastKnownTimeSourceRef.current = streamUrl;
     lastKnownDurRef.current = 0;
     fullscreenSeekRestoreRef.current = null;
     requestedStartTimeAppliedRef.current = requestedStartTime === null;
@@ -884,7 +903,7 @@ export const MediaPlayerView = (props) => {
       lastAttemptAt: 0,
       expiresAt: Date.now() + 15000,
     };
-    pendingSeekRef.current = null;
+    pendingSeekRef.current = requestedStartTime;
     sourceRestorePositionRef.current = 0;
     hasResumedRef.current = true;
     if (restoreTimerRef.current) {
@@ -1014,11 +1033,11 @@ export const MediaPlayerView = (props) => {
 
   const handleBackAction = useCallback(() => {
     if (isFullscreen) {
-      toggleFullscreen();
+      handleFullscreenAction();
       return;
     }
     invokeAction('onBack', undefined, { title, streamUrl, mediaId });
-  }, [isFullscreen, toggleFullscreen, invokeAction, title, streamUrl, mediaId]);
+  }, [isFullscreen, handleFullscreenAction, invokeAction, title, streamUrl, mediaId]);
 
   useEffect(() => {
     if (!visible || isWeb()) return undefined;
@@ -1068,6 +1087,40 @@ export const MediaPlayerView = (props) => {
     recNoticeTimer.current = setTimeout(() => setRecNotice(null), 5600);
   }, []);
 
+  const requestRecordingNotificationPermission = useCallback(async () => {
+    if (Platform.OS !== 'android' || Number(Platform.Version) < 33) return true;
+    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS || 'android.permission.POST_NOTIFICATIONS';
+    try {
+      if (await PermissionsAndroid.check(permission)) return true;
+      const status = await PermissionsAndroid.request(permission, {
+        title: 'Recording notifications',
+        message: 'Allow notifications so CineCrew Player can let you know when your recording is saved.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Not now',
+      });
+      return status === PermissionsAndroid.RESULTS.GRANTED;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const postRecordingSavedNotification = useCallback(async (result) => {
+    if (Platform.OS !== 'android' || result?.platform !== 'native') return false;
+    const notificationModule = NativeModules.CineCrewRecordingNotifications;
+    if (typeof notificationModule?.showRecordingNotification !== 'function') return false;
+    const mimeType = String(result.filename || '').toLowerCase().endsWith('.ts') ? 'video/mp2t' : 'video/mp4';
+    try {
+      return await notificationModule.showRecordingNotification(
+        result.filename,
+        result.path,
+        mimeType,
+      );
+    } catch {
+      // Notification delivery is best-effort; it must never invalidate a saved recording.
+      return false;
+    }
+  }, []);
+
   const handleStartRecording = useCallback(
     async (e) => {
       e?.stopPropagation?.();
@@ -1091,6 +1144,7 @@ export const MediaPlayerView = (props) => {
         } else {
           const start = playerApiRef?.current?.startNativeRecording;
           if (typeof start !== 'function') throw new Error('The platform recorder is unavailable in this player build.');
+          recordingNotificationPermissionRef.current = await requestRecordingNotificationPermission();
           const result = await start();
           if (result === false || result == null) throw new Error('The platform could not start recording.');
           recordingClockRef.current = { startedAt: Date.now(), elapsedMs: 0 };
@@ -1118,7 +1172,7 @@ export const MediaPlayerView = (props) => {
         });
       }
     },
-    [canRecord, clearRecordingTimer, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, playerApiRef]
+    [canRecord, clearRecordingTimer, isScreenRecorderEnabled, muted, playbackUrl, requestRecordingNotificationPermission, showRecNotice, streamUrl, title, recording, playerApiRef]
   );
 
   const handlePauseRecording = useCallback(
@@ -1244,6 +1298,12 @@ export const MediaPlayerView = (props) => {
           } else {
             where = `Recording saved: ${result.filename} · ${size} · ${location}`;
           }
+          const notificationPosted = await postRecordingSavedNotification(result);
+          if (result.platform === 'native' && Platform.OS === 'android' && !notificationPosted) {
+            where += recordingNotificationPermissionRef.current
+              ? ' · Android could not show the download notification'
+              : ' · Enable notifications to see it in the notification shade';
+          }
           setRecSaveDialog({ status: 'saved', message: where, filename: result.filename });
           if (result.path) onRecordingComplete?.({ ...result, filename: result.filename });
         } else {
@@ -1264,7 +1324,7 @@ export const MediaPlayerView = (props) => {
         });
       }
     },
-    [clearRecordingTimer, onRecordingComplete, playerApiRef, recording, showRecNotice, waitForNativeRecordingFile, waitForNativeRecordingMerge]
+    [clearRecordingTimer, onRecordingComplete, playerApiRef, postRecordingSavedNotification, recording, showRecNotice, waitForNativeRecordingFile, waitForNativeRecordingMerge]
   );
 
   /**
@@ -1377,12 +1437,13 @@ export const MediaPlayerView = (props) => {
   }, []);
 
   const triggerSeekRipple = useCallback((side, text) => {
+    if (isLive) return;
     if (seekRippleTimer.current) clearTimeout(seekRippleTimer.current);
     setSeekRipple({ side, text });
     seekRippleTimer.current = setTimeout(() => {
       setSeekRipple(null);
     }, 300);
-  }, []);
+  }, [isLive]);
 
   const togglePlayPause = useCallback(
     (nextPlay) => {
@@ -1462,7 +1523,7 @@ export const MediaPlayerView = (props) => {
         restoreTimerRef.current = null;
         if (!visible || !vlcRef.current) return;
         const dur = Number(lastKnownDurRef.current || 0);
-        if (dur <= 0) {
+        if (dur <= 0 && typeof vlcRef.current.seekTo !== 'function') {
           pendingSeekRef.current = target;
           return;
         }
@@ -1471,7 +1532,8 @@ export const MediaPlayerView = (props) => {
         const playerTarget = Math.max(0, target - audioOffset);
         const ratio = Math.max(0, Math.min(1, playerTarget / Math.max(playerDuration, 1)));
         try {
-          vlcRef.current.seek(ratio);
+          if (typeof vlcRef.current.seekTo === 'function') vlcRef.current.seekTo(playerTarget);
+          else vlcRef.current.seek(ratio);
           lastKnownTimeRef.current = target;
           setCurrentTime(target);
           setSliderPos(target);
@@ -1547,6 +1609,17 @@ export const MediaPlayerView = (props) => {
     setErrorMessage(null);
     const audioOffsetSeconds = audioOnlyUsesProxy && !isLive ? Number(audioModeStartPositionRef.current || 0) : 0;
     const progress = normalizeProgressEvent(data, audioOffsetSeconds * 1000);
+    const progressDuration = Number(progress?.durationMs);
+    const hasKnownEnd = (Number.isFinite(progressDuration) && progressDuration > 0)
+      || Number(durationSecs) > 0
+      || (mpegTsEndState?.sourceKey === mpegTsSourceKey && mpegTsEndState.hasKnownEnd);
+    if (isMpegTs && progress) {
+      setMpegTsEndState((previous) => (
+        previous?.sourceKey === mpegTsSourceKey && previous.hasKnownEnd === hasKnownEnd
+          ? previous
+          : { sourceKey: mpegTsSourceKey, hasKnownEnd }
+      ));
+    }
     const fullscreenRestore = fullscreenSeekRestoreRef.current;
     if (fullscreenRestore) {
       // Ignore stale zero/old-position progress while the new VLC surface is
@@ -1580,13 +1653,17 @@ export const MediaPlayerView = (props) => {
         const now = Date.now();
         const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffsetSeconds);
         const playerTarget = Math.max(0, fullscreenRestore.target - audioOffsetSeconds);
+        const player = vlcRef.current;
         if (
-          playerDuration > 0
-          && typeof vlcRef.current?.seek === 'function'
+          (typeof player?.seekTo === 'function' || (playerDuration > 0 && typeof player?.seek === 'function'))
           && now - fullscreenRestore.lastAttemptAt >= 400
         ) {
           try {
-            vlcRef.current.seek(Math.max(0, Math.min(1, playerTarget / playerDuration)));
+            if (typeof player.seekTo === 'function') {
+              player.seekTo(playerTarget);
+            } else {
+              vlcRef.current.seek(Math.max(0, Math.min(1, playerTarget / playerDuration)));
+            }
             fullscreenRestore.lastAttemptAt = now;
             lastKnownTimeRef.current = fullscreenRestore.target;
             setCurrentTime(fullscreenRestore.target);
@@ -1600,7 +1677,10 @@ export const MediaPlayerView = (props) => {
         fullscreenSeekRestoreRef.current = null;
       }
     }
-    if (progress && !fullscreenSeekRestoreRef.current) emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
+    if (progress && !fullscreenSeekRestoreRef.current
+      && (!isMpegTs || hasKnownEnd)) {
+      emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
+    }
   };
 
   const handleNativeOpen = (event) => {
@@ -1750,8 +1830,9 @@ export const MediaPlayerView = (props) => {
       ),
     [invokeAction, handleSeekTo, debouncedSaveProgress, progressBarCallback]
   );
-  const handleSeekByAction = (deltaSeconds) =>
-    invokeAction(
+  const handleSeekByAction = (deltaSeconds) => {
+    if (isLive) return;
+    return invokeAction(
       'onSeek',
       () => {
         handleSeekBy(deltaSeconds);
@@ -1762,6 +1843,7 @@ export const MediaPlayerView = (props) => {
         currentTime: lastKnownTimeRef.current
       }
     );
+  };
   const handleMuteAction = useCallback(() => invokeAction('onMute', toggleMute, { muted: !mutedRef.current }), [invokeAction, toggleMute]);
   const handleLockAction = useCallback(() => invokeAction('onLock', toggleLock, { locked: !isLockedRef.current }), [invokeAction, toggleLock]);
   const handleAudioOnlyAction = useCallback(
@@ -1788,9 +1870,10 @@ export const MediaPlayerView = (props) => {
   );
   const handleFullscreenAction = useCallback(
     () =>
-      invokeAction('onFullscreen', toggleFullscreen, {
-        isFullscreen: !isFullscreen
-      }),
+      invokeAction('onFullscreen', toggleFullscreen, createFullscreenPlaybackState(
+        !isFullscreen,
+        fullscreenSeekRestoreRef.current?.target ?? pendingSeekRef.current ?? lastKnownTimeRef.current
+      )),
     [invokeAction, toggleFullscreen, isFullscreen]
   );
   const handleRecordingAction = useCallback(
@@ -2072,9 +2155,13 @@ export const MediaPlayerView = (props) => {
     () => {
       // Apply the handoff at the demuxer before playback begins. A setPosition
       // command alone can be ignored while a newly mounted VLC view opens.
-      const initialPosition = fullscreenSeekRestoreRef.current?.target ?? requestedStartTime;
+      const initialPosition = lastKnownTimeSourceRef.current === streamUrl
+        ? (fullscreenSeekRestoreRef.current?.target
+          ?? (hasStartedPlaybackRef.current ? lastKnownTimeRef.current : requestedStartTime))
+        : requestedStartTime;
       return {
         uri: playerStreamUrl,
+        startTime: initialPosition ?? 0,
         initType: 1,
         hwDecoderEnabled: 0,
         // Avoid Android's MediaCodec output path on this player surface; its
@@ -2087,7 +2174,7 @@ export const MediaPlayerView = (props) => {
           : nativeMediaOptions
       };
     },
-    [playerStreamUrl, nativeMediaOptions, requestedStartTime, isFullscreen]
+    [playerStreamUrl, streamUrl, nativeMediaOptions, requestedStartTime, isFullscreen, isInlinePreview]
   );
 
   const transparentElectronOverlay = isElectronOverlay();
@@ -2106,7 +2193,9 @@ export const MediaPlayerView = (props) => {
       aspectRatio={aspectRatio}
       title={title}
       posterUrl={posterUrl}
-      isLive={isLive}
+      // Duration-based live detection is for controls only. Passing it into
+      // the playback surface could reload a VLC/Electron session mid-stream.
+      isLive={declaredLive}
       isAudioOnly={isAudioOnly}
       selectedAudioTrack={selectedAudioTrack}
       handleTracksChanged={handleTracksChanged}
@@ -2300,13 +2389,12 @@ export const MediaPlayerView = (props) => {
   const nativeGestureHandlers = !isWeb() && !isElectron() && !recordingInProgress && panResponder?.panHandlers
     ? panResponder.panHandlers
     : null;
-  // Resize mode places the video and drawer side by side in landscape. In
-  // portrait there isn't enough horizontal room, so keep the drawer over video.
+  // Resize mode places the video and drawer side by side in landscape and
+  // stacks them in portrait so the drawer doesn't cover the video.
   const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat && windowWidth >= windowHeight;
-  // A portrait resize drawer is stacked below the embedded player, but when
-  // the player itself is fullscreen the video must keep the entire viewport.
-  // LiveChatDrawer then presents the panel as a bottom-sheet overlay.
-  const portraitResizeOpen = !isFullscreen && drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
+  // Resize mode stacks the video above the drawer in portrait, including when
+  // the player is fullscreen. Only Overlay and Modal should cover the video.
+  const portraitResizeOpen = drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
   const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
   const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
   const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
@@ -2430,6 +2518,7 @@ export const MediaPlayerView = (props) => {
         isEpgEnabled={isEpgEnabled}
         diagnosticsEnabled={diagnosticsOverlayEnabled}
         integrations={integrations}
+        users={usersProp || integrations?.users}
         colors={colors}
         messagePageSize={messagePageSize}
         drawerStyle={drawerStyle}

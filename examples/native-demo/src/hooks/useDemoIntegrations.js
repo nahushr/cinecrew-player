@@ -7,7 +7,15 @@ export function useDemoIntegrations(notify) {
   sampleMessagesRef.current = sampleMessages;
 
   return useMemo(() => ({
-    user: { id: 'demo-viewer', username: 'You' },
+    user: { id: 'demo-viewer', username: 'You', color: '#00E5FF' },
+    users: [
+      { username: 'You', color: '#00E5FF' },
+      { username: 'Maya', color: '#FF4081' },
+      { username: 'Aarav', color: '#7C4DFF' },
+      { username: 'Jordan', color: '#FFAB00' },
+      { username: 'Leo', color: '#00E676' },
+      { username: 'Priya', color: '#FF5252' },
+    ],
     liveChat: {
       pollIntervalMs: 10000,
       loadMessages: async ({ limit, offset = 0 }) => {

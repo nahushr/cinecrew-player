@@ -14,6 +14,7 @@ import android.media.MediaMuxer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.os.PowerManager;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -70,6 +71,8 @@ class ReactVlcPlayerView extends TextureView
   private boolean recordingStopEventEmitted;
   private Runnable recordingStopVerificationRunnable;
   private ReadableMap srcMap;
+  private long pendingSeekTimeMs = -1;
+  private long pendingSeekAttemptAtMs = 0;
   private int mVideoHeight = 0;
   private int mVideoWidth = 0;
   private int mVideoVisibleHeight = 0;
@@ -237,6 +240,7 @@ class ReactVlcPlayerView extends TextureView
 
     mProgressUpdateRunnable =
         () -> {
+          applyPendingSeekTime();
           if (mMediaPlayer != null && !isPaused) {
             WritableMap map = Arguments.createMap();
             map.putBoolean("isPlaying", mMediaPlayer.isPlaying());
@@ -285,6 +289,10 @@ class ReactVlcPlayerView extends TextureView
 
         @Override
         public void onEvent(MediaPlayer.Event event) {
+          if (mMediaPlayer == null) {
+            return;
+          }
+          applyPendingSeekTime();
           boolean isPlaying = mMediaPlayer.isPlaying();
           currentTime = mMediaPlayer.getTime();
           float position = mMediaPlayer.getPosition();
@@ -537,6 +545,9 @@ class ReactVlcPlayerView extends TextureView
     for (String option : getStringOptions("mediaOptions")) {
       media.addOption(option);
     }
+    if (pendingSeekTimeMs > 0) {
+      media.addOption(":start-time=" + (pendingSeekTimeMs / 1000.0));
+    }
     return media;
   }
 
@@ -584,6 +595,13 @@ class ReactVlcPlayerView extends TextureView
     }
 
     if (mMediaPlayer != null) {
+      // TextureView recreation must retain the current timeline, not reopen
+      // the source at zero or at its original startTime.
+      if (pendingSeekTimeMs < 0 && mMediaPlayer.getTime() > 0) {
+        pendingSeekTimeMs = mMediaPlayer.getTime();
+        pendingSeekAttemptAtMs = 0;
+      }
+      mMediaPlayer.setEventListener(null);
       final IVLCVout vout = mMediaPlayer.getVLCVout();
       vout.removeCallback(callback);
       vout.detachViews();
@@ -606,11 +624,52 @@ class ReactVlcPlayerView extends TextureView
    */
   public void setPosition(float position) {
     if (mMediaPlayer != null && position >= 0 && position <= 1) {
+      pendingSeekTimeMs = -1;
+      pendingSeekAttemptAtMs = 0;
       mMediaPlayer.setPosition(position);
     }
   }
 
+  public void seekTo(double seconds) {
+    if (Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds < 0) {
+      return;
+    }
+    long target = Math.round(seconds * 1000);
+    if (pendingSeekTimeMs != target) {
+      pendingSeekTimeMs = target;
+      pendingSeekAttemptAtMs = 0;
+    }
+    applyPendingSeekTime();
+  }
+
+  private void applyPendingSeekTime() {
+    if (mMediaPlayer == null || pendingSeekTimeMs < 0) {
+      return;
+    }
+    long length = mMediaPlayer.getLength();
+    long target = length > 0 ? Math.min(pendingSeekTimeMs, length - 1) : pendingSeekTimeMs;
+    long currentTime = mMediaPlayer.getTime();
+    if (currentTime >= 0 && Math.abs(currentTime - target) <= 500) {
+      pendingSeekTimeMs = -1;
+      pendingSeekAttemptAtMs = 0;
+      return;
+    }
+    // Opening/Playing can arrive before the demuxer permits seeking. Keep
+    // the absolute timestamp until VLC reports it, independent of duration.
+    if (!mMediaPlayer.isSeekable()) {
+      return;
+    }
+    long now = SystemClock.uptimeMillis();
+    if (pendingSeekAttemptAtMs > 0 && now - pendingSeekAttemptAtMs < 500) {
+      return;
+    }
+    pendingSeekAttemptAtMs = now;
+    mMediaPlayer.setTime(target);
+  }
+
   public void restartPlayback() {
+    pendingSeekTimeMs = -1;
+    pendingSeekAttemptAtMs = 0;
     if (mMediaPlayer == null) {
       return;
     }
@@ -657,16 +716,27 @@ class ReactVlcPlayerView extends TextureView
     }
 
     String nextUri = src.getString("uri");
-    if (mMediaPlayer != null
-        && srcMap != null
+    boolean sameSource = srcMap != null
         && srcMap.hasKey("uri")
         && !srcMap.isNull("uri")
         && nextUri != null
-        && nextUri.equals(srcMap.getString("uri"))) {
+        && nextUri.equals(srcMap.getString("uri"));
+    if (mMediaPlayer != null && sameSource) {
       // React Native may resend the source map when an unrelated prop
       // changes (for example volume). Do not restart the media item.
       srcMap = src;
       return;
+    }
+
+    if (!sameSource) {
+      // Release before assigning the new seek so the previous source's
+      // playback time cannot replace this source's requested startTime.
+      releasePlayer();
+      double startTime = src.hasKey("startTime") && !src.isNull("startTime")
+          ? src.getDouble("startTime") : 0;
+      pendingSeekTimeMs = startTime > 0 && !Double.isInfinite(startTime)
+          ? Math.round(startTime * 1000) : -1;
+      pendingSeekAttemptAtMs = 0;
     }
 
     this.srcMap = src;
@@ -1053,6 +1123,10 @@ class ReactVlcPlayerView extends TextureView
         if (publishedPath != null && publishedPath.startsWith("content://")) output.delete();
       } catch (Exception exception) {
         error = exception.getMessage() == null ? "Could not assemble recording segments." : exception.getMessage();
+        if (outputPath != null) {
+          File incompleteOutput = new File(outputPath);
+          if (incompleteOutput.exists()) incompleteOutput.delete();
+        }
       }
       final String completedPath = outputPath;
       final String savedPath = publishedPath;
@@ -1069,7 +1143,7 @@ class ReactVlcPlayerView extends TextureView
         if (failure == null) {
           map.putDouble("size", completedSize);
           if (savedFilename != null) map.putString("filename", savedFilename);
-          map.putString("location", "Movies/CineCrew Recordings");
+          map.putString("location", "Downloads/CineCrew Recordings");
         }
         else map.putString(EVENT_PROP_ERROR, failure);
         eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
@@ -1149,6 +1223,8 @@ class ReactVlcPlayerView extends TextureView
       muxer.start();
       muxerStarted = true;
       long outputBaseUs = 0;
+      long[] lastTrackSampleUs = new long[trackCount];
+      java.util.Arrays.fill(lastTrackSampleUs, -1);
       for (File segment : segments) {
         MediaExtractor extractor = new MediaExtractor();
         extractors.add(extractor);
@@ -1175,6 +1251,9 @@ class ReactVlcPlayerView extends TextureView
           int sourceTrack = extractor.getSampleTrackIndex();
           if (sourceTrack < 0) break;
           long sampleTimeUs = extractor.getSampleTime();
+          if (sampleTimeUs < 0) {
+            throw new IOException("A paused recording segment contains a sample without a valid timestamp.");
+          }
           if (firstSampleUs < 0) firstSampleUs = sampleTimeUs;
           long sampleSize = extractor.getSampleSize();
           if (sampleSize > Integer.MAX_VALUE) throw new IOException("A recording sample is too large to merge.");
@@ -1182,13 +1261,35 @@ class ReactVlcPlayerView extends TextureView
           buffer.clear();
           int read = extractor.readSampleData(buffer, 0);
           if (read < 0) break;
-          long segmentTimeUs = Math.max(0, sampleTimeUs - firstSampleUs);
+          long segmentTimeUs = sampleTimeUs - firstSampleUs;
+          if (segmentTimeUs < 0) {
+            throw new IOException("A paused recording segment has out-of-order media timestamps.");
+          }
           lastSampleUs = Math.max(lastSampleUs, segmentTimeUs);
-          bufferInfo.set(0, read, outputBaseUs + segmentTimeUs, extractor.getSampleFlags());
+          long outputSampleUs = outputBaseUs + segmentTimeUs;
+          if (lastTrackSampleUs[sourceTrack] >= outputSampleUs) {
+            long timestampRegressionUs = lastTrackSampleUs[sourceTrack] - outputSampleUs;
+            if (timestampRegressionUs > 100_000) {
+              throw new IOException(
+                  "The paused recording has a " + trackMimes.get(sourceTrack)
+                      + " timestamp regression of " + timestampRegressionUs
+                      + " microseconds; Android cannot safely mux these segments without losing sync.");
+            }
+            outputSampleUs = lastTrackSampleUs[sourceTrack] + 1;
+          }
+          bufferInfo.set(0, read, outputSampleUs, extractor.getSampleFlags());
           muxer.writeSampleData(outputTrackIndices[sourceTrack], buffer, bufferInfo);
+          lastTrackSampleUs[sourceTrack] = outputSampleUs;
           extractor.advance();
         }
-        outputBaseUs += Math.max(declaredDurationUs, lastSampleUs + 40_000);
+        if (firstSampleUs < 0) {
+          throw new IOException("A paused recording segment contains no media samples.");
+        }
+        // Use the samples' actual timestamp span rather than container duration metadata.
+        // VLC segment duration metadata can include timestamp offsets that are not part of
+        // the recorded segment, which otherwise creates gaps at pause/resume boundaries.
+        outputBaseUs += Math.max(lastSampleUs + 40_000, declaredDurationUs > 0
+            && declaredDurationUs <= lastSampleUs + 250_000 ? declaredDurationUs : 0);
       }
       muxer.stop();
       muxerStarted = false;
@@ -1214,10 +1315,10 @@ class ReactVlcPlayerView extends TextureView
     ContentValues values = new ContentValues();
     values.put(MediaStore.Video.Media.DISPLAY_NAME, recordingFile.getName());
     values.put(MediaStore.Video.Media.MIME_TYPE, extension.equals(".ts") ? "video/mp2t" : "video/mp4");
-    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/CineCrew Recordings");
+    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/CineCrew Recordings");
     values.put(MediaStore.MediaColumns.IS_PENDING, 1);
-    Uri uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
-    if (uri == null) throw new IOException("Android could not add the recording to Movies.");
+    Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+    if (uri == null) throw new IOException("Android could not add the recording to Downloads.");
     try (FileInputStream input = new FileInputStream(recordingFile);
          OutputStream output = resolver.openOutputStream(uri, "w")) {
       if (output == null) throw new IOException("Android could not open the saved recording destination.");

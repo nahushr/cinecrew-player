@@ -34,6 +34,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     features,
     actions,
     integrations,
+    users,
     theme,
     icons,
     style,
@@ -48,7 +49,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const resolution = useResolvedPlayerSource(source, url, resolveSource, platform);
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
-  const resolvedIsLive = isLive ?? media.isLive ?? (media.mediaType === 'live');
+  const resolvedIsLive = isLive ?? media.isLive ?? (media.mediaType === 'live' || media.mediaType === 'channel');
   const resolvedMediaType = mediaType || media.mediaType || (resolvedIsLive ? 'live' : 'movie');
   const isVisible = visible ?? Boolean(streamUrl);
 
@@ -78,6 +79,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       title: title || media.title || '',
       posterUrl: poster || posterUrl || media.poster || media.posterUrl || '',
       mediaType: resolvedMediaType,
+      isLive: resolvedIsLive,
+      sourceType: media.type || media.mimeType || metadata.sourceType || metadata.type || metadata.mimeType || '',
       onClose: onClose || (() => {}),
       initialPaused: paused ?? initialPaused ?? !autoPlay,
       initialMuted: muted ?? initialMuted ?? false,
@@ -88,6 +91,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       features: features || {},
       actions: actions || {},
       integrations: integrations || {},
+      users,
       theme,
       icons,
       style,
