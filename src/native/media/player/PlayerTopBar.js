@@ -11,8 +11,9 @@ function shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
   return Boolean(episode && title !== episode && !title.includes(episode));
 }
 
-function BackButton({ visible, palette, onClose, compact }) {
+function BackButton({ visible, palette, onClose, compact, scale }) {
   if (!visible) return <View style={{ width: 12 }} />;
+  const iconBoost = scale?.iconBoost || 1;
   return (
     <TouchableOpacity
       style={[styles.pill, compact && styles.compactPill]}
@@ -21,17 +22,18 @@ function BackButton({ visible, palette, onClose, compact }) {
       accessibilityRole="button"
       accessibilityLabel="Back"
     >
-      <PlayerIcon name="arrow-left" size={compact ? 18 : 20} color={palette.controlColor} />
+      <PlayerIcon name="arrow-left" size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.controlColor} />
     </TouchableOpacity>
   );
 }
 
-function RecordingControls({ canRecord, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette, compact }) {
+function RecordingControls({ canRecord, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette, compact, scale }) {
   if (!canRecord || controls.recording === false || enabled === false) return null;
+  const iconBoost = scale?.iconBoost || 1;
   if (status === 'idle') {
     return (
       <TouchableOpacity style={[styles.pill, compact && styles.compactPill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
-        <PlayerIcon name="record-rec" size={compact ? 18 : 22} color={palette.errorColor} />
+        <PlayerIcon name="record-rec" size={Math.round((compact ? 18 : 22) * iconBoost)} color={palette.errorColor} />
       </TouchableOpacity>
     );
   }
@@ -39,18 +41,19 @@ function RecordingControls({ canRecord, enabled, status, loading, controls, onSt
   return (
     <>
       <TouchableOpacity style={[styles.pill, compact && styles.compactPill, isPaused ? styles.recPausePill : styles.recActivePill]} onPress={isPaused ? onResume : onPause} hitSlop={12} accessibilityLabel={isPaused ? 'Resume recording' : 'Pause recording'}>
-        <PlayerIcon name={isPaused ? 'play' : 'pause'} size={compact ? 18 : 20} color={palette.controlColor} />
+        <PlayerIcon name={isPaused ? 'play' : 'pause'} size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.controlColor} />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.pill, compact && styles.compactPill, styles.recStopPill]} onPress={onStop} hitSlop={12} accessibilityLabel="Stop recording">
-        <PlayerIcon name="stop" size={compact ? 18 : 20} color={palette.errorColor} />
+        <PlayerIcon name="stop" size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.errorColor} />
       </TouchableOpacity>
     </>
   );
 }
 
-function ServiceActionButton({ name, tab, enabled, controls, showLiveChat, drawerTab, onToggle, activeIcon, inactiveIcon, label, palette, compact }) {
+function ServiceActionButton({ name, tab, enabled, controls, showLiveChat, drawerTab, onToggle, activeIcon, inactiveIcon, label, palette, compact, scale }) {
   if (!enabled || controls[name] === false) return null;
   const active = showLiveChat && drawerTab === tab;
+  const iconBoost = scale?.iconBoost || 1;
   return (
     <TouchableOpacity
       key={tab}
@@ -70,15 +73,16 @@ function ServiceActionButton({ name, tab, enabled, controls, showLiveChat, drawe
     >
       <PlayerIcon
         name={active ? activeIcon : inactiveIcon}
-        size={compact ? 18 : 20}
+        size={Math.round((compact ? 18 : 20) * iconBoost)}
         color={active ? palette.accentColor : palette.controlColor}
       />
     </TouchableOpacity>
   );
 }
 
-function SessionActionButton({ visible, compact, onPress, icon, color, accessibilityLabel }) {
+function SessionActionButton({ visible, compact, onPress, icon, color, accessibilityLabel, scale }) {
   if (!visible) return null;
+  const iconBoost = scale?.iconBoost || 1;
   return (
     <TouchableOpacity
       style={[styles.pill, compact && styles.compactPill]}
@@ -87,16 +91,17 @@ function SessionActionButton({ visible, compact, onPress, icon, color, accessibi
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <PlayerIcon name={icon} size={compact ? 18 : 20} color={color} />
+      <PlayerIcon name={icon} size={Math.round((compact ? 18 : 20) * iconBoost)} color={color} />
     </TouchableOpacity>
   );
 }
 
 export const PlayerLockButton = forwardRef(function PlayerLockButton(
-  { locked = false, onPress, onLayout, compact = false, style },
+  { locked = false, onPress, onLayout, compact = false, style, scale },
   ref,
 ) {
   const palette = usePlayerColors();
+  const iconBoost = scale?.iconBoost || 1;
   const stateStyle = {
     backgroundColor: palette.controlBackground,
     borderWidth: 1,
@@ -115,7 +120,7 @@ export const PlayerLockButton = forwardRef(function PlayerLockButton(
     >
       <PlayerIcon
         name={locked ? 'lock' : 'lock-open-variant'}
-        size={compact ? 18 : 20}
+        size={Math.round((compact ? 18 : 20) * iconBoost)}
         color={locked ? palette.accentColor : palette.controlColor}
       />
     </TouchableOpacity>
@@ -144,10 +149,11 @@ function PortraitPlayerTitle({ isPortrait, compact, displayTitle, episodeLabel, 
   );
 }
 
-function CompactLandscapeTitle({ compact, displayTitle, palette }) {
+function CompactLandscapeTitle({ compact, displayTitle, palette, scale }) {
   if (!compact) return null;
+  const fontSize = scale?.titleFont ? Math.min(scale.titleFont, 14) : 12;
   return (
-    <Text style={[styles.compactLandscapeTitle, { color: palette.controlColor }]} numberOfLines={1}>
+    <Text style={[styles.compactLandscapeTitle, { color: palette.controlColor, fontSize }]} numberOfLines={1}>
       {displayTitle}
     </Text>
   );
@@ -261,7 +267,7 @@ export const PlayerTopBar = ({
         ]}
         onLayout={onHeaderLayout}
       >
-        <BackButton visible={!locked && controls.back !== false} palette={palette} onClose={onClose} compact={compact} />
+        <BackButton visible={!locked && controls.back !== false} palette={palette} onClose={onClose} compact={compact} scale={scale} />
         {!locked && (isPortrait || shouldShowLandscapeTitle) ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
 
         <View style={[
@@ -270,20 +276,20 @@ export const PlayerTopBar = ({
           compact && styles.compactTopRightActions,
           compactAndroidLandscape && styles.compactAndroidTopRightActions,
         ]}>
-          {locked ? <PlayerLockButton locked onPress={onToggleLock} compact={compact} /> : (
+          {locked ? <PlayerLockButton locked onPress={onToggleLock} compact={compact} scale={scale} /> : (
             <>
-              <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} />
-              <ServiceActionButton name="liveChat" tab="chat" enabled={isLiveCommentsEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="comment-text-multiple" inactiveIcon="comment-text-multiple-outline" label="Live chat" palette={palette} compact={compact} />
-              <ServiceActionButton name="epg" tab="epg" enabled={isEpgEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="television-guide" inactiveIcon="television-classic" label="Programme guide" palette={palette} compact={compact} />
-              <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" />
-              <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onToggleMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} />
-              <ServiceActionButton name="diagnostics" tab="diagnostics" enabled={diagnosticsOverlayEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="pulse" inactiveIcon="pulse" label="Stream diagnostics" palette={palette} compact={compact} />
-              {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onToggleLock} /> : null}
+              <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} scale={scale} />
+              <ServiceActionButton name="liveChat" tab="chat" enabled={isLiveCommentsEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="comment-text-multiple" inactiveIcon="comment-text-multiple-outline" label="Live chat" palette={palette} compact={compact} scale={scale} />
+              <ServiceActionButton name="epg" tab="epg" enabled={isEpgEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="television-guide" inactiveIcon="television-classic" label="Programme guide" palette={palette} compact={compact} scale={scale} />
+              <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" scale={scale} />
+              <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onToggleMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} scale={scale} />
+              <ServiceActionButton name="diagnostics" tab="diagnostics" enabled={diagnosticsOverlayEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="pulse" inactiveIcon="pulse" label="Stream diagnostics" palette={palette} compact={compact} scale={scale} />
+              {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onToggleLock} scale={scale} /> : null}
             </>
           )}
         </View>
       </View>
-      {!locked && shouldShowLandscapeTitle ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} /> : null}
+      {!locked && shouldShowLandscapeTitle ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} scale={scale} /> : null}
       {!locked ? <PortraitPlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
     </View>
   );

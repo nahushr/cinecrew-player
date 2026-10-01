@@ -80,7 +80,7 @@ flowchart LR
   G --> H
   K --> H
   H --> I[Theme · icons · callbacks]
-  H --> J[Optional app adapters: chat · EPG · recording]
+  H --> J[Optional app adapters: chat · EPG]
 ```
 
 <p align="center"><sub>CineCrew Player handles the player surface and platform playback path. Your app remains in charge of authorization, link resolution, CORS, and service backends.</sub></p>
@@ -92,7 +92,7 @@ flowchart LR
 | 🎞️ **Playback** | On-demand and live direct media URLs and local URIs; HLS and MPEG-TS paths on web; native VLC path | Movies, episodes, and channels |
 | 🎛️ **Player controls** | Play/pause, seek, restart, mute, aspect ratio, lock, audio-only mode, audio tracks, playback speed, fullscreen, back | A complete control surface without hard-wiring your app navigation |
 | 🎨 **Branding** | Theme colors, radius, platform styles, replaceable icons, custom panel render slots | Match your app without forking the player |
-| 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; recording adapter hooks | Channel browsing and live-viewing workflows |
+| 📡 **Live TV extensions** | Inline preview component; optional chat and EPG panels; built-in player recording | Channel browsing and live-viewing workflows |
 | 🔌 **App integration** | Per-action callbacks, imperative ref API, source resolver, progress/presence/events hooks, sleep timer callback | Keep account, IPTV, analytics, and storage logic in your app |
 | 🧭 **Playback lifecycle** | Ready, playing, buffering, progress, ended, error, fullscreen, next-episode, and playback-route callbacks | App-owned navigation, telemetry, and resume state |
 
@@ -174,7 +174,7 @@ flowchart LR
 |---|---|
 | 🔐 User accounts, subscriptions, authorization, and provider credentials | 🎛️ Shared player UI and default controls |
 | 🔗 Turning provider/share links into playable sources; CORS and networking policy | 🔀 Platform-aware browser/native playback adapters |
-| 💬 Chat service, 📅 EPG service, and ⏺️ recording implementation | 🧩 Integration surfaces and optional built-in presentation |
+| 💬 Chat service and 📅 EPG data | 🧩 Integration surfaces and built-in presentation |
 | 🗃️ Catalog, favorites, watch history, and backend storage | 🎨 Customizable theme, icons, control visibility, callbacks, and lifecycle events |
 
 **The result:** one player integration can serve movie and Live TV product flows across web, Electron, and native mobile, while provider-specific and account-specific code stays in the host app.
@@ -495,7 +495,7 @@ Every control can be hidden with `false`. Defaults are designed to be useful out
 | `audioTracks` | Audio-track picker when tracks are exposed. |
 | `playbackRate` | On-demand playback speed. |
 | `fullscreen` | Fullscreen button on web and inline previews. Native player opens full-screen. |
-| `recording` | Recording controls; web has a built-in MediaRecorder flow where supported, while native requires an app recording adapter. |
+| `recording` | Built-in recording controls for supported web, Android, iOS, and Electron players; optional app adapters can override the implementation. |
 | `liveChat` | Chat drawer/panel; requires a chat adapter or render slot. |
 | `epg` | EPG drawer/panel; requires an EPG adapter or render slot. |
 | `diagnostics` | Stream diagnostics button; enable with `features={{ diagnostics: true }}`. |
@@ -525,7 +525,7 @@ const playerRef = React.useRef(null);
 
 Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
 
-The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported. Native VLC builds additionally expose `startNativeRecording(path?)` and `stopNativeRecording()`; omitting the path selects an app-owned recording folder. Expo Go does not include the bundled VLC recorder.
+The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported. Native VLC builds additionally expose `startNativeRecording(path?)` and `stopNativeRecording()`; the built-in recording controls handle pause/resume and merge resumed segments without pausing playback. Omitting the path selects an app-owned recording folder. Expo Go does not include the bundled VLC recorder.
 
 ## Integrations
 
@@ -571,7 +571,7 @@ The EPG drawer uses `integrations.epg.loadListings`, which returns entries with 
 
 ### Web recording
 
-Recording is a player feature, not demo logic. On supported browsers, the built-in control captures media audio/video, shows an in-player timer with pause/resume and stop actions, and downloads the WebM file. Android and iOS use the bundled VLC module to write a transport-stream recording into the app's recordings folder; Electron uses LibVLC to save into the user's Videos/CineCrew Recordings folder. The optional `onRecordingComplete` callback receives `{ path, filename, size?, platform? }` after a native or Electron file is finalized. An `integrations.recording` adapter remains available only when an application needs to replace the built-in implementation. `controls.recording: false` hides the control.
+Recording is a player feature, not demo logic. On supported browsers, the built-in control captures media audio/video, shows an in-player timer with pause/resume and stop actions, and downloads the WebM file. Android and iOS use the bundled VLC module to write transport-stream segments into the app's recordings folder; pausing capture leaves playback running, and resumed segments are assembled into one file. Electron uses the package's LibVLC recorder to save into the user's Videos/CineCrew Recordings folder with the same pause/resume behavior. After stop, the player shows a notification with the filename, size, and save location. The optional `onRecordingComplete` callback receives `{ path, filename, size?, platform? }` after a native or Electron file is finalized. An `integrations.recording` adapter remains available only when an application needs to replace the built-in implementation. `controls.recording: false` hides the control.
 
 For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` only to provide an intentional custom recorder override.
 

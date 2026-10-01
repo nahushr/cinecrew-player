@@ -14,6 +14,7 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
   onLiveChatChange,
   playerStyle,
   inline,
+  startTime,
   showBrightnessControl,
   brightnessColor,
   onBrightnessChangeEnd,
@@ -42,6 +43,7 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
         isActive
         paused={false}
         style={playerStyle}
+        startTime={startTime}
         showBrightnessControl={showBrightnessControl}
         brightnessColor={brightnessColor}
         onBrightnessChangeEnd={onBrightnessChangeEnd}
@@ -49,6 +51,8 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
         volumeColor={volumeColor}
         onVolumeChangeEnd={onVolumeChangeEnd}
         showLiveBadge={showLiveBadge}
+        actions={actions}
+        onProgressBarChange={onProgressBarChange}
         onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
@@ -61,6 +65,7 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
       ref={ref}
       title={active.title}
       style={playerStyle}
+      startTime={startTime}
       showLiveChat={showLiveChat}
       onLiveChatChange={onLiveChatChange}
       showBrightnessControl={showBrightnessControl}

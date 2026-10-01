@@ -29,6 +29,14 @@ test('the package-owned Electron recorder starts, finalizes, and returns its fil
     getPlayer: () => player,
     sendEvent: (type, values) => events.push({ type, ...values }),
   });
+  const ipcChannels = new Set();
+  controller.registerIpc({ handle: (channel) => ipcChannels.add(channel) });
+  assert.deepEqual([...ipcChannels].sort(), [
+    'cinecrew:vlc:record-pause',
+    'cinecrew:vlc:record-resume',
+    'cinecrew:vlc:record-start',
+    'cinecrew:vlc:record-stop',
+  ]);
 
   try {
     const started = await controller.start();
@@ -52,11 +60,15 @@ test('pausing the package-owned Electron recorder keeps playback running and joi
   const source = 'https://example.test/live.ts';
   const contents = [];
   let currentTime = 12000;
+  let playbackPauseCalls = 0;
+  let playbackResumeCalls = 0;
   const player = {
     source,
     isEmbedded: () => true,
     isPaused: () => false,
     getTime: () => currentTime,
+    pause: () => { playbackPauseCalls += 1; },
+    play: () => { playbackResumeCalls += 1; },
     setSource: (nextSource, options) => {
       assert.equal(nextSource, source);
       const sout = options.mediaOptions.find((option) => option.startsWith(':sout='));
@@ -78,8 +90,10 @@ test('pausing the package-owned Electron recorder keeps playback running and joi
     currentTime = 25000;
     await controller.pause();
     assert.equal(controller.isActive(), true);
+    assert.equal(playbackPauseCalls, 0, 'pausing capture must not pause the player');
     currentTime = 41000;
     await controller.resume();
+    assert.equal(playbackResumeCalls, 0, 'resuming capture must not change player playback state');
     currentTime = 53000;
     const completed = await controller.stop();
     const expected = Buffer.concat(contents);

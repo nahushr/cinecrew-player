@@ -106,7 +106,7 @@ test('native fullscreen video taps dismiss controls and landscape drawers overla
   const nativeDrawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
 
   assert.match(nativePlayer, /const handleFullscreenTouchEnd = useCallback/);
-  assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \|\| \(drawerMode === 'resize' && showLiveChat\) \? handleFullscreenTouchEnd : undefined\}/);
+  assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \? handleFullscreenTouchEnd : undefined\}/);
   assert.match(nativePlayer, /onTouchStart=\{markControlSurfaceTouch\}/);
   assert.match(nativeDrawer, /fullscreenLandscapeStyle = fullscreenLandscape/);
   assert.match(nativeDrawer, /width: Math\.max\(0, windowWidth - fullscreenLeftInset - fullscreenRightInset\)/);

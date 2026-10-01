@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (file) => readFileSync(path.join(root, file), 'utf8');
+
+test('native inline fullscreen retries the saved position until VLC reports it resumed', () => {
+  const inline = read('src/native/InlineLivePlayer.js');
+
+  assert.match(inline, /pendingSeekRef\.current = playbackPositionRef\.current/);
+  assert.match(inline, /applyPendingSeek\(current\)/);
+  assert.match(inline, /Math\.abs\(observedPosition - target\) <= 1/);
+  assert.match(inline, /now - pendingSeekAttemptAtRef\.current < 400/);
+});
+
+test('native full-player fullscreen captures current playback and restores it after surface recreation', () => {
+  const player = read('src/native/MediaPlayerView.js');
+
+  assert.match(player, /const position = Number\(lastKnownTimeRef\.current \|\| 0\)/);
+  assert.match(player, /fullscreenSeekRestoreRef\.current = \{[\s\S]*?target: position/);
+  assert.match(player, /const observedTime = progress\.seconds/);
+  assert.match(player, /vlcRef\.current\.seek\(Math\.max\(0, Math\.min\(1, playerTarget \/ playerDuration\)\)\)/);
+});
+
+test('web inline fullscreen keeps the existing media element and its playback timeline', () => {
+  const web = read('src/web/index.js');
+  const surfaceStart = web.indexOf('function WebPlayerSurface(');
+  const surfaceEnd = web.indexOf('function WebAudioOnlyCard(', surfaceStart);
+  const surface = web.slice(surfaceStart, surfaceEnd);
+  const inlineStart = web.indexOf('export const InlineLivePlayer = React.memo(');
+  const inlinePlayer = web.slice(inlineStart);
+
+  assert.match(web, /\(\) => toggleBrowserFullscreen\(playerRef\.current\)/);
+  assert.match(surface, /key: directVideoSource \?/);
+  assert.doesNotMatch(surface, /key:[^\n]*fullscreen/);
+  assert.match(inlinePlayer, /startTime,/);
+  assert.match(inlinePlayer, /inlinePreview: true/);
+});

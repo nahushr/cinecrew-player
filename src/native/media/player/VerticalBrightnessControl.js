@@ -126,8 +126,8 @@ export function VerticalBrightnessControl({
               styles.sunIcon,
               responsiveCompact && styles.compactSunIcon,
               fullscreenLandscape && {
-                fontSize: (responsiveCompact ? 14 : 20) * 1.05,
-                lineHeight: (responsiveCompact ? 16 : 22) * 1.05,
+                fontSize: (responsiveCompact ? 14 : 20) * 1.1,
+                lineHeight: (responsiveCompact ? 16 : 22) * 1.1,
               },
               { color: accentColor },
             ]}
@@ -152,8 +152,8 @@ export function VerticalBrightnessControl({
               styles.valueLabel,
               responsiveCompact && styles.compactValueLabel,
               fullscreenLandscape && {
-                fontSize: (responsiveCompact ? 10 : 11) * 1.05,
-                lineHeight: (responsiveCompact ? 12 : 13) * 1.05,
+                fontSize: (responsiveCompact ? 10 : 11) * 1.1,
+                lineHeight: (responsiveCompact ? 12 : 13) * 1.1,
               },
             ]}
           >{displayPercent}</Text>

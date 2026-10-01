@@ -11,6 +11,7 @@ export function PlayerViewport({
   source,
   drawerMode,
   inline,
+  startTime,
   showBrightnessControl,
   onBrightnessChangeEnd,
   muted,
@@ -35,7 +36,10 @@ export function PlayerViewport({
         height={360}
         isActive
         paused={false}
+        startTime={startTime}
         controls={{ playPause: true, mute: true, fullscreen: true }}
+        actions={actions}
+        onProgressBarChange={onProgressBarChange}
         showBrightnessControl={showBrightnessControl}
         onBrightnessChangeEnd={onBrightnessChangeEnd}
         onError={reportPlaybackError}
@@ -49,6 +53,7 @@ export function PlayerViewport({
       key={active.url}
       source={source}
       title={active.title}
+      startTime={startTime}
       showBrightnessControl={showBrightnessControl}
       onBrightnessChangeEnd={onBrightnessChangeEnd}
       poster={active.poster}

@@ -27,7 +27,8 @@ export function useDemoPlayerActions({ notify, setSelectedAudioTrack }) {
     onRestart: () => {
       notify('Play from beginning', 'Playback restarted');
     },
-    onFullscreen: ({ isFullscreen }) => {
+    onFullscreen: (payload) => {
+      const isFullscreen = typeof payload === 'boolean' ? payload : (payload?.isFullscreen ?? true);
       notify('Fullscreen', isFullscreen ? 'On' : 'Off');
     },
     onLiveChatOpen: ({ isOpen }) => {

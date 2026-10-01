@@ -8,15 +8,20 @@ export const CenterControls = ({
   isPlaying,
   onSeekBy,
   onTogglePlayPause,
+  scale,
 }) => {
   const palette = usePlayerColors();
   if (!visible) return null;
+
+  const iconBoost = scale?.iconBoost || 1;
+  const iconSize = Math.round((compact ? 24 : 28) * iconBoost);
+  const btnSize = Math.round((compact ? 44 : 52) * iconBoost);
 
   return (
     <View style={[styles.centerContainer, compact && styles.compactCenterContainer]} pointerEvents="box-none">
       <View style={[styles.centerRow, compact && styles.compactCenterRow]} pointerEvents="box-none">
         <TouchableOpacity
-          style={[styles.bigPlayBtn, compact && styles.compactBigPlayBtn]}
+          style={[styles.bigPlayBtn, compact && styles.compactBigPlayBtn, iconBoost > 1 && { width: btnSize, height: btnSize, borderRadius: Math.round(btnSize / 2) }]}
           onPress={(e) => {
             e.stopPropagation();
             onTogglePlayPause();
@@ -27,7 +32,7 @@ export const CenterControls = ({
         >
           <PlayerIcon
             name={isPlaying ? 'pause' : 'play'}
-            size={compact ? 24 : 28}
+            size={iconSize}
             color={palette.controlColor}
           />
         </TouchableOpacity>

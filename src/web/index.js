@@ -2054,11 +2054,22 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
-  const toggleFullscreen = () => action(
-    'onFullscreen',
-    () => toggleBrowserFullscreen(playerRef.current),
-    { isFullscreen: !fullscreen },
-  );
+  const toggleFullscreen = () => {
+    const currentPos = Number.isFinite(videoRef.current?.currentTime)
+      ? videoRef.current.currentTime
+      : (typeof currentTime === 'number' ? currentTime : 0);
+    return action(
+      'onFullscreen',
+      () => toggleBrowserFullscreen(playerRef.current),
+      {
+        isFullscreen: !fullscreen,
+        currentTime: currentPos,
+        startTime: currentPos,
+        position: currentPos,
+        progressTime: formatTime(currentPos),
+      },
+    );
+  };
   const openPanel = (panel) => {
     const isOpen = activePanel !== panel;
     return action(
@@ -2251,6 +2262,8 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   showLiveButton = false,
   onError,
   onPlaying,
+  onProgressBarChange,
+  onPromotePreview,
 }) {
   installCoreStyles();
   const media = getSource(source, url);
@@ -2289,6 +2302,8 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     showLiveBadge: Boolean(showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton),
     onError,
     onPlaying,
+    onProgressBarChange,
+    onPromotePreview,
     inlinePreview: true,
     style: { width: '100%', height, aspectRatio: '16 / 9', ...style },
   });

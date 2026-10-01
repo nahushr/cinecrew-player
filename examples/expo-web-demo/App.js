@@ -34,16 +34,40 @@ export default function App() {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
 
+  const [startTime, setStartTime] = useState(undefined);
+
   useEffect(() => {
     setProgressTime('00:00:00');
+    setStartTime(undefined);
   }, [active.url]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
+  const handleFullscreenChange = useCallback((isFullscreen, payload) => {
+    if (inline && isFullscreen) {
+      const resumeAt = payload?.startTime ?? payload?.currentTime ?? progressTime;
+      setInline(false);
+      if (resumeAt) {
+        setStartTime(resumeAt);
+      }
+    }
+  }, [inline, progressTime]);
+
+  const handleInlineChange = useCallback((nextInline) => {
+    setInline(nextInline);
+    if (progressTime && progressTime !== '00:00:00') {
+      setStartTime(progressTime);
+    }
+  }, [progressTime]);
+
   const integrations = useDemoIntegrations(notify);
-  const actions = useDemoPlayerActions({ notify, setSelectedAudioTrack });
+  const actions = useDemoPlayerActions({
+    notify,
+    setSelectedAudioTrack,
+    onFullscreenChange: handleFullscreenChange,
+  });
 
   const reportPlaybackError = useCallback((error) => {
     notify(
@@ -110,7 +134,7 @@ export default function App() {
           onLoadUrl={loadUrl}
           onChooseFile={loadFile}
           onClearFile={clearFile}
-          onInlineChange={setInline}
+          onInlineChange={handleInlineChange}
           onBrightnessControlChange={setBrightnessControl}
           onDrawerModeChange={setDrawerMode}
           progressTime={progressTime}
@@ -124,6 +148,7 @@ export default function App() {
             source={source}
             drawerMode={drawerMode}
             inline={inline}
+            startTime={startTime}
             showBrightnessControl={brightnessControl}
             onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
             selectedAudioTrack={selectedAudioTrack}

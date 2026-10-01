@@ -133,7 +133,7 @@ export function VerticalVolumeControl({
           <View style={styles.iconWrap}>
             <PlayerIcon
               name={volumeIcon}
-              size={(responsiveCompact ? 16 : 20) * (fullscreenLandscape ? 1.05 : 1)}
+              size={(responsiveCompact ? 16 : 20) * (fullscreenLandscape ? 1.1 : 1)}
               color={accentColor}
             />
           </View>
@@ -156,8 +156,8 @@ export function VerticalVolumeControl({
               styles.valueLabel,
               responsiveCompact && styles.compactValueLabel,
               fullscreenLandscape && {
-                fontSize: (responsiveCompact ? 10 : 11) * 1.05,
-                lineHeight: (responsiveCompact ? 12 : 13) * 1.05,
+                fontSize: (responsiveCompact ? 10 : 11) * 1.1,
+                lineHeight: (responsiveCompact ? 12 : 13) * 1.1,
               },
             ]}
           >{displayPercent}</Text>

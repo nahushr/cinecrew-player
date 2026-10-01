@@ -62,8 +62,11 @@ export default function App() {
     if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
   }, [active]);
 
+  const [startTime, setStartTime] = useState(undefined);
+
   useEffect(() => {
     setProgressTime('00:00:00');
+    setStartTime(undefined);
   }, [active.url]);
 
   useEffect(() => {
@@ -96,8 +99,20 @@ export default function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
+  const isImmersive = isLandscape;
+
+  const handleInlineChange = useCallback((nextInline) => {
+    setInline(nextInline);
+    if (progressTime && progressTime !== '00:00:00') {
+      setStartTime(progressTime);
+    }
+  }, [progressTime]);
+
   const integrations = useDemoIntegrations(notify);
-  const actions = useDemoPlayerActions({ notify, setSelectedAudioTrack });
+  const actions = useDemoPlayerActions({
+    notify,
+    setSelectedAudioTrack,
+  });
 
   const reportPlaybackError = useCallback((error) => {
     notify(
@@ -142,55 +157,61 @@ export default function App() {
 
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
+  const playerCardWidth = Math.max(1, Math.min(width, 1060) - horizontalPadding * 2);
+  const playerCardHeight = Math.round(playerCardWidth * (9 / 16));
   const effectiveDrawerMode = drawerMode;
-  const landscapePlayerStyle = isLandscape
-    ? {
-        width: '100%',
-        maxWidth: '100%',
-        height: height,
-        aspectRatio: undefined,
-        borderRadius: 0,
-        alignSelf: 'stretch',
-      }
-    : undefined;
+  const landscapePlayerStyle = {
+    width: '100%',
+    maxWidth: '100%',
+    height: isImmersive ? height : '100%',
+    aspectRatio: undefined,
+    borderRadius: 0,
+    alignSelf: 'stretch',
+    flex: 1,
+  };
   const pageContent = (
     <>
-      <View nativeID="cinecrew-electron-demo-header" style={styles.pageHeader}>
-        <View>
-          <Text style={styles.eyebrow}>PLAYGROUND</Text>
-          <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
+      {!isImmersive && (
+        <View nativeID="cinecrew-electron-demo-header" style={styles.pageHeader}>
+          <View>
+            <Text style={styles.eyebrow}>PLAYGROUND</Text>
+            <Text style={[styles.title, { fontSize: width < 600 ? 30 : 38 }]}>CineCrew Player</Text>
+          </View>
+          <View style={styles.platformTag}>
+            <Text style={styles.platformTagText}>{isElectronDemo ? 'Electron · LibVLC' : Platform.OS === 'ios' ? 'iOS Demo' : 'Android Demo'}</Text>
+          </View>
         </View>
-        <View style={styles.platformTag}>
-          <Text style={styles.platformTagText}>{isElectronDemo ? 'Electron · LibVLC' : Platform.OS === 'ios' ? 'iOS Demo' : 'Android Demo'}</Text>
-        </View>
-      </View>
+      )}
 
-      <View nativeID="cinecrew-electron-demo-source-controls" style={{ position: 'relative', zIndex: 100, elevation: 100 }}>
-        <SourceControls
-          active={active}
-          draftUrl={draftUrl}
-          fileInputRef={fileInputRef}
-          inline={inline}
-          drawerMode={effectiveDrawerMode}
-          onSelectSample={selectSample}
-          onDraftUrlChange={setDraftUrl}
-          onLoadUrl={loadUrl}
-          onChooseFile={loadFile}
-          onClearFile={clearFile}
-          onInlineChange={setInline}
-          liveBadge={liveBadge}
-          onLiveBadgeChange={setLiveBadge}
-          onDrawerModeChange={setDrawerMode}
-          progressTime={progressTime}
-          status={status}
-          viewportWidth={width}
-        />
-      </View>
+      {!isImmersive && (
+        <View nativeID="cinecrew-electron-demo-source-controls" style={{ position: 'relative', zIndex: 100, elevation: 100 }}>
+          <SourceControls
+            active={active}
+            draftUrl={draftUrl}
+            fileInputRef={fileInputRef}
+            inline={inline}
+            drawerMode={effectiveDrawerMode}
+            onSelectSample={selectSample}
+            onDraftUrlChange={setDraftUrl}
+            onLoadUrl={loadUrl}
+            onChooseFile={loadFile}
+            onClearFile={clearFile}
+            onInlineChange={handleInlineChange}
+            liveBadge={liveBadge}
+            onLiveBadgeChange={setLiveBadge}
+            onDrawerModeChange={setDrawerMode}
+            progressTime={progressTime}
+            status={status}
+            viewportWidth={width}
+          />
+        </View>
+      )}
 
       <View
         style={[
           styles.playerCard,
-          isLandscape && styles.landscapePlayerCard,
+          !isImmersive && { height: playerCardHeight },
+          isImmersive && styles.landscapePlayerCard,
           isElectronOverlay && styles.electronOverlayPlayerCard,
         ]}
         nativeID="cinecrew-electron-demo-player-card"
@@ -206,6 +227,7 @@ export default function App() {
           onLiveChatChange={setShowLiveChat}
           playerStyle={landscapePlayerStyle}
           inline={inline}
+          startTime={startTime}
           showBrightnessControl={true}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
           showVolumeControl={true}
@@ -220,25 +242,27 @@ export default function App() {
         />
       </View>
 
-      <Text nativeID="cinecrew-electron-demo-footnote" style={styles.footnote}>
-        The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
-        Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
-        with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
-      </Text>
+      {!isImmersive && (
+        <Text nativeID="cinecrew-electron-demo-footnote" style={styles.footnote}>
+          The chat drawer contains 15 sample messages and loads 5 per page; production defaults to 50.
+          Overlay opens from the right, resize places video beside the drawer, and modal is centered on web or bottom-sheet on native. Audio-track selection is demonstrated
+          with Test 1 and Test 2. Progress reports the exact HH:MM:SS position.
+        </Text>
+      )}
     </>
   );
   const pageContentStyle = [
     styles.content,
-    isLandscape
-      ? { width: '100%', maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }
+    isImmersive
+      ? { width: '100%', maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, flex: 1 }
       : { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 },
   ];
 
   return (
     <SafeAreaProvider>
       <SafeAreaView
-        style={[styles.screen, isLandscape && { backgroundColor: '#000' }, isElectronOverlay && styles.electronOverlayScreen]}
-        edges={isLandscape ? [] : ['top', 'right', 'bottom', 'left']}
+        style={[styles.screen, isImmersive && { backgroundColor: '#000' }, isElectronOverlay && styles.electronOverlayScreen]}
+        edges={isImmersive ? [] : ['top', 'right', 'bottom', 'left']}
       >
       {Platform.OS === 'web' ? (
         <ScrollView
@@ -254,11 +278,12 @@ export default function App() {
       ) : (
         <FlatList
           ref={scrollViewRef}
-          style={styles.scroll}
-          contentContainerStyle={pageContentStyle}
+          style={[styles.scroll, isImmersive && { height: '100%' }]}
+          contentContainerStyle={[pageContentStyle, isImmersive && { flex: 1, height: '100%' }]}
           data={[]}
           ListHeaderComponent={pageContent}
           keyboardShouldPersistTaps="handled"
+          scrollEnabled={!isImmersive}
           onContentSizeChange={revealLandscapePlayer}
         />
       )}
@@ -278,8 +303,8 @@ const styles = StyleSheet.create({
   title: { color: '#f3f7fc', fontWeight: '800', marginTop: 2 },
   platformTag: { borderWidth: 1, borderColor: '#29415d', borderRadius: 999, backgroundColor: '#12243a', paddingHorizontal: 15, paddingVertical: 9 },
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
-  playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
+  playerCard: { minHeight: 0, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 0, marginBottom: 10, overflow: 'hidden' },
   electronOverlayPlayerCard: { backgroundColor: 'transparent' },
-  landscapePlayerCard: { minHeight: 0, padding: 0, marginBottom: 0, borderWidth: 0, borderRadius: 0, backgroundColor: '#000', width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
+  landscapePlayerCard: { aspectRatio: undefined, minHeight: 0, padding: 0, marginBottom: 0, borderWidth: 0, borderRadius: 0, backgroundColor: '#000', width: '100%', maxWidth: '100%', height: '100%', flex: 1, alignSelf: 'stretch' },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

@@ -8,12 +8,23 @@ export function parsePlaybackStartTime(value) {
   }
   if (typeof value !== 'string') return null;
 
-  const match = value.trim().match(/^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/);
-  if (!match) return null;
+  const trimmed = value.trim();
+  const matchHms = trimmed.match(/^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/);
+  if (matchHms) {
+    const hours = Number(matchHms[1]);
+    const minutes = Number(matchHms[2]);
+    const seconds = Number(matchHms[3]);
+    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    return Number.isFinite(totalSeconds) ? totalSeconds : null;
+  }
 
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  const seconds = Number(match[3]);
-  const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-  return Number.isFinite(totalSeconds) ? totalSeconds : null;
+  const matchMs = trimmed.match(/^([0-5]?\d):([0-5]\d(?:\.\d+)?)$/);
+  if (matchMs) {
+    const minutes = Number(matchMs[1]);
+    const seconds = Number(matchMs[2]);
+    const totalSeconds = minutes * 60 + seconds;
+    return Number.isFinite(totalSeconds) ? totalSeconds : null;
+  }
+
+  return null;
 }

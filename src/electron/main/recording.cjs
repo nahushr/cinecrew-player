@@ -21,22 +21,6 @@ function createVlcRecordingController({ app, getPlayer, sendEvent }) {
     throw new Error('LibVLC finished without writing a recording file.');
   }
 
-  async function waitForRecordingFile(filePath) {
-    let lastSize = 0;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      try {
-        const file = await fs.stat(filePath);
-        if (file.size > 0 && file.size === lastSize) return file;
-        lastSize = file.size;
-      } catch {
-        // LibVLC can take a moment to close and flush its output file.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    if (lastSize > 0) return fs.stat(filePath);
-    throw new Error('LibVLC finished without writing a recording file.');
-  }
-
   async function mergeSegments(recording) {
     const outputPath = recording.finalPath;
     const output = await fs.open(outputPath, 'w');
@@ -155,6 +139,8 @@ function createVlcRecordingController({ app, getPlayer, sendEvent }) {
 
   function registerIpc(ipcMain) {
     ipcMain.handle('cinecrew:vlc:record-start', start);
+    ipcMain.handle('cinecrew:vlc:record-pause', pause);
+    ipcMain.handle('cinecrew:vlc:record-resume', resume);
     ipcMain.handle('cinecrew:vlc:record-stop', stop);
   }
 

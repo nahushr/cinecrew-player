@@ -133,6 +133,21 @@ export const mediaPlayerStyles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.82)',
   },
+  inlinePreviewCenterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  inlinePreviewSeekButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12, 18, 28, 0.60)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
   inlineLiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -234,9 +249,9 @@ export const mediaPlayerStyles = StyleSheet.create({
     fontWeight: '700',
   },
   videoWrapFullscreen: {
+    ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    flex: 1,
   },
   video: {
     width: '100%',

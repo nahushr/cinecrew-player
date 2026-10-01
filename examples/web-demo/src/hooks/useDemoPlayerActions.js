@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-export function useDemoPlayerActions({ notify, setSelectedAudioTrack }) {
+export function useDemoPlayerActions({ notify, setSelectedAudioTrack, onFullscreenChange }) {
   return useMemo(() => ({
     onBack: ({ title }) => {
       notify('Back', title ? `Back pressed for ${title}` : 'Back pressed');
@@ -27,7 +27,9 @@ export function useDemoPlayerActions({ notify, setSelectedAudioTrack }) {
     onRestart: () => {
       notify('Play from beginning', 'Playback restarted');
     },
-    onFullscreen: ({ isFullscreen }) => {
+    onFullscreen: (payload) => {
+      const isFullscreen = typeof payload === 'boolean' ? payload : (payload?.isFullscreen ?? true);
+      onFullscreenChange?.(isFullscreen, payload);
       notify('Fullscreen', isFullscreen ? 'On' : 'Off');
     },
     onLiveChatOpen: ({ isOpen }) => {

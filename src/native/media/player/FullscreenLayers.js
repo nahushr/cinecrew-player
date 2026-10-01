@@ -24,7 +24,6 @@ export function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, tran
       collapsable={false}
       pointerEvents="none"
       style={[
-        styles.videoContainer,
         styles.videoWrapFullscreen,
         transparent && { backgroundColor: 'transparent' },
         zoomScale !== 1 && { transform: [{ scale: zoomScale }] },
@@ -169,6 +168,7 @@ export function FullscreenControlsPanel(props) {
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
         onTogglePlayPause={props.handlePlayPauseAction}
+        scale={props.scale}
       /> : null}
       {!props.isLocked ? <PlayerBottomBar
         compact={compact}

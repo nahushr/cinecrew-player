@@ -19,9 +19,10 @@ function SeekControls({ isLive, controls, insets, scale, compact, edgePadding, i
   );
 }
 
-function AspectRatioControl({ controls, open, aspectRatio, aspectRatios = ASPECT_OPTIONS, onToggle, onSelect, compact }) {
+function AspectRatioControl({ controls, open, aspectRatio, aspectRatios = ASPECT_OPTIONS, onToggle, onSelect, compact, scale }) {
   const palette = usePlayerColors();
   if (controls.aspectRatio === false) return null;
+  const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
     <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
@@ -30,27 +31,29 @@ function AspectRatioControl({ controls, open, aspectRatio, aspectRatios = ASPECT
         {aspectRatios.map((option) => {
           const selected = aspectRatio === option.value;
           return <TouchableOpacity key={option.label} style={[styles.speedOption, compact && styles.compactSpeedOption]} onPress={(event) => { event.stopPropagation(); onSelect(option.value); }} activeOpacity={0.7}>
-            <PlayerIcon name="check" size={compact ? 12 : 15} color={selected ? palette.accentColor : 'transparent'} />
+            <PlayerIcon name="check" size={Math.round((compact ? 12 : 15) * iconBoost)} color={selected ? palette.accentColor : 'transparent'} />
             <Text style={[styles.speedOptionText, compact && styles.compactSpeedOptionText, { color: selected ? palette.accentColor : palette.controlColor }, selected && styles.speedOptionTextActive]}>{option.label}</Text>
           </TouchableOpacity>;
         })}
       </View> : null}
       <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, open && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }}>
-        <PlayerIcon pack="material" name="aspect-ratio" size={compact ? 16 : 18} color={palette.controlColor} />
+        <PlayerIcon pack="material" name="aspect-ratio" size={Math.round((compact ? 16 : 18) * iconBoost)} color={palette.controlColor} />
       </TouchableOpacity>
     </View>
   );
 }
 
-function AudioOnlyModeControl({ isAudioOnly, onToggle, compact }) {
+function AudioOnlyModeControl({ isAudioOnly, onToggle, compact, scale }) {
   const palette = usePlayerColors();
+  const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = isAudioOnly ? { backgroundColor: palette.surfaceColor, borderWidth: 1, borderColor: palette.accentColor } : null;
-  return <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} accessibilityLabel="Audio-Only Mode"><PlayerIcon name="headphones" size={compact ? 16 : 18} color={isAudioOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
+  return <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} accessibilityLabel="Audio-Only Mode"><PlayerIcon name="headphones" size={Math.round((compact ? 16 : 18) * iconBoost)} color={isAudioOnly ? palette.accentColor : palette.controlColor} /></TouchableOpacity>;
 }
 
-function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect, compact }) {
+function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect, compact, scale }) {
   const palette = usePlayerColors();
   if (!enabled) return null;
+  const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
     <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
@@ -59,23 +62,24 @@ function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect, compact
         {[...PLAYBACK_SPEEDS].reverse().map((speed) => {
           const selected = playbackRate === speed;
           return <TouchableOpacity key={speed} style={[styles.speedOption, compact && styles.compactSpeedOption]} onPress={(event) => { event.stopPropagation(); onSelect(speed); }} activeOpacity={0.7}>
-            <PlayerIcon name="check" size={compact ? 12 : 15} color={selected ? palette.accentColor : 'transparent'} />
+            <PlayerIcon name="check" size={Math.round((compact ? 12 : 15) * iconBoost)} color={selected ? palette.accentColor : 'transparent'} />
             <Text style={[styles.speedOptionText, compact && styles.compactSpeedOptionText, { color: selected ? palette.accentColor : palette.controlColor }, selected && styles.speedOptionTextActive]}>{speed === 1 ? 'Normal' : `${speed}x`}</Text>
           </TouchableOpacity>;
         })}
       </View> : null}
       <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, open && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }}>
         <View style={styles.speedButtonInner}>
-          <Text style={[styles.speedButtonText, { color: palette.controlColor, fontSize: compact ? 12 : undefined }]}>{playbackRate}x</Text>
-          <PlayerIcon name="chevron-down" size={compact ? 12 : 14} color={palette.controlColor} />
+          <Text style={[styles.speedButtonText, { color: palette.controlColor, fontSize: compact ? Math.round(12 * iconBoost) : undefined }]}>{playbackRate}x</Text>
+          <PlayerIcon name="chevron-down" size={Math.round((compact ? 12 : 14) * iconBoost)} color={palette.controlColor} />
         </View>
       </TouchableOpacity>
     </View>
   );
 }
 
-function AudioTrackMenu({ open, audioTracks, selectedAudioTrack, onSelect, palette, compact }) {
+function AudioTrackMenu({ open, audioTracks, selectedAudioTrack, onSelect, palette, compact, scale }) {
   if (!open) return null;
+  const iconBoost = scale?.iconBoost || 1;
   if (audioTracks.length === 0) return <View style={[styles.speedPickerPopup, compact && styles.compactPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}><Text style={[styles.speedOptionText, compact && styles.compactSpeedOptionText, { color: palette.controlColor }]}>No audio tracks available</Text></View>;
   return (
     <View style={[styles.speedPickerPopup, compact && styles.compactPickerPopup, { backgroundColor: palette.surfaceColor, borderColor: palette.borderColor }]}>
@@ -83,7 +87,7 @@ function AudioTrackMenu({ open, audioTracks, selectedAudioTrack, onSelect, palet
       {audioTracks.map((track) => {
         const selected = String(track.id) === String(selectedAudioTrack);
         return <TouchableOpacity key={`audio-${track.id}`} style={[styles.speedOption, compact && styles.compactSpeedOption]} onPress={(event) => { event.stopPropagation(); onSelect(track.id); }} activeOpacity={0.7}>
-          <PlayerIcon name="check" size={compact ? 12 : 15} color={selected ? palette.accentColor : 'transparent'} />
+          <PlayerIcon name="check" size={Math.round((compact ? 12 : 15) * iconBoost)} color={selected ? palette.accentColor : 'transparent'} />
           <Text style={[styles.speedOptionText, compact && styles.compactSpeedOptionText, { color: selected ? palette.accentColor : palette.controlColor }, selected && styles.speedOptionTextActive]} numberOfLines={1}>{track.name || track.language || `Track ${track.id}`}</Text>
         </TouchableOpacity>;
       })}
@@ -91,25 +95,27 @@ function AudioTrackMenu({ open, audioTracks, selectedAudioTrack, onSelect, palet
   );
 }
 
-function AudioTracksControl({ enabled, open, audioTracks, selectedAudioTrack, onToggle, onSelect, compact }) {
+function AudioTracksControl({ enabled, open, audioTracks, selectedAudioTrack, onToggle, onSelect, compact, scale }) {
   const palette = usePlayerColors();
   if (!enabled) return null;
+  const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
   return (
     <View style={[styles.speedButtonContainer, open && styles.openPickerContainer, open && Platform.OS === 'android' && { elevation: 20 }]}>
-      <AudioTrackMenu open={open} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onSelect={onSelect} palette={palette} compact={compact} />
+      <AudioTrackMenu open={open} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onSelect={onSelect} palette={palette} compact={compact} scale={scale} />
       <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, open && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }}>
-        <PlayerIcon pack="material" name="audiotrack" size={compact ? 16 : 18} color={palette.controlColor} />
+        <PlayerIcon pack="material" name="audiotrack" size={Math.round((compact ? 16 : 18) * iconBoost)} color={palette.controlColor} />
       </TouchableOpacity>
     </View>
   );
 }
 
-function FullscreenControl({ enabled, isFullscreen, onToggle, compact }) {
+function FullscreenControl({ enabled, isFullscreen, onToggle, compact, scale }) {
   const palette = usePlayerColors();
   if (!enabled) return null;
+  const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
-  return <TouchableOpacity style={[styles.fullscreenButton, compact && styles.compactFullscreenButton, { backgroundColor: palette.controlBackground }, isFullscreen && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} hitSlop={10}><PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={compact ? 17 : 20} color={palette.controlColor} /></TouchableOpacity>;
+  return <TouchableOpacity style={[styles.fullscreenButton, compact && styles.compactFullscreenButton, { backgroundColor: palette.controlBackground }, isFullscreen && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} hitSlop={10}><PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={Math.round((compact ? 17 : 20) * iconBoost)} color={palette.controlColor} /></TouchableOpacity>;
 }
 
 export const PlayerBottomBar = ({
@@ -171,20 +177,20 @@ export const PlayerBottomBar = ({
       {/* ASPECT RATIO PICKER & RIGHT ACTIONS (PLAYBACK SPEED & FULLSCREEN) */}
       <View style={[styles.bottomControlsRow, compact && styles.compactBottomControlsRow, electronFullscreen && { paddingHorizontal: 0 }, anyPickerOpen && styles.openPickerRow, anyPickerOpen && android && { elevation: 12 }]} pointerEvents="box-none">
         <View style={[styles.leftActionsContainer, leftPickerOpen && styles.openPickerActions, leftPickerOpen && android && { elevation: 16 }]}>
-          {isAudioOnlyFeatureEnabled && controls.audioOnly !== false ? <AudioOnlyModeControl compact={compact} isAudioOnly={isAudioOnly} onToggle={onToggleAudioOnly} /> : null}
-          <AspectRatioControl compact={compact} controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} aspectRatios={aspectRatios} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} />
+          {isAudioOnlyFeatureEnabled && controls.audioOnly !== false ? <AudioOnlyModeControl compact={compact} isAudioOnly={isAudioOnly} onToggle={onToggleAudioOnly} scale={scale} /> : null}
+          <AspectRatioControl compact={compact} controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} aspectRatios={aspectRatios} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} scale={scale} />
         </View>
 
         {/* RIGHT ACTIONS: Audio, Playback Speed, Fullscreen */}
         <View style={[styles.rightActionsContainer, rightPickerOpen && styles.openPickerActions, rightPickerOpen && android && { elevation: 16 }]}>
           {/* Audio Tracks Picker */}
-          <AudioTracksControl compact={compact} enabled={controls.audioTracks !== false && !isLive} open={showAudioPicker} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onToggle={onToggleAudioPicker} onSelect={onSelectAudioTrack} />
+          <AudioTracksControl compact={compact} enabled={controls.audioTracks !== false && !isLive} open={showAudioPicker} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onToggle={onToggleAudioPicker} onSelect={onSelectAudioTrack} scale={scale} />
 
           {/* Playback Speed */}
-          <SpeedControl compact={compact} enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} />
+          <SpeedControl compact={compact} enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} scale={scale} />
 
           {/* Fullscreen Button - available across platforms */}
-          <FullscreenControl compact={compact} enabled={controls.fullscreen !== false} isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
+          <FullscreenControl compact={compact} enabled={controls.fullscreen !== false} isFullscreen={isFullscreen} onToggle={onToggleFullscreen} scale={scale} />
         </View>
       </View>
     </View>

@@ -129,12 +129,25 @@ export function useMediaPlayerGestures({
       // The player-level responder handles taps/swipes on the video surface.
       // When a drawer is open, let its FlatList/ScrollView own the gesture;
       // otherwise the parent can claim the touch before a list starts scrolling.
-      onStartShouldSetPanResponder: (event) => !drawerOpenRef.current && !(showControlsRef.current && !isLockedRef.current) && !isSeekScrubGesture(event),
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (event, gestureState) => {
-        if (drawerOpenRef.current) return false;
+      onStartShouldSetPanResponder: (event) => {
         if (showControlsRef.current && !isLockedRef.current) return false;
         if (isSeekScrubGesture(event)) return false;
+        if (drawerOpenRef.current) {
+          const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);
+          const width = windowWidthRef.current || 0;
+          if (width > 0 && x > width * 0.7) return false;
+        }
+        return true;
+      },
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (event, gestureState) => {
+        if (showControlsRef.current && !isLockedRef.current) return false;
+        if (isSeekScrubGesture(event)) return false;
+        if (drawerOpenRef.current) {
+          const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);
+          const width = windowWidthRef.current || 0;
+          if (width > 0 && x > width * 0.7) return false;
+        }
         return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
       },
       onMoveShouldSetPanResponderCapture: () => false,

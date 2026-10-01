@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, Platform } from 'react-native';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isWeb, isElectron, isElectronOverlay } from '../utils/runtimePlatform';
@@ -432,7 +432,32 @@ export const MediaPlayerView = (props) => {
       setIsFullscreen(next);
       void vlcRef.current?.setFullscreen?.(next);
     } else {
-      setIsFullscreen((prev) => !prev);
+      const next = !isFullscreen;
+      const position = Number(lastKnownTimeRef.current || 0);
+      if (Number.isFinite(position) && position > 0) {
+        fullscreenSeekRestoreRef.current = {
+          target: position,
+          lastAttemptAt: 0,
+          expiresAt: Date.now() + 8000
+        };
+        lastKnownTimeRef.current = position;
+        setCurrentTime(position);
+        setSliderPos(position);
+        seekCompletedAt.current = Date.now();
+      }
+      setIsFullscreen(next);
+      // Imperatively hide/show status bar so Android extends layout into the
+      // camera cutout (notch) area when entering fullscreen.
+      if (!isWeb() && !isElectron()) {
+        StatusBar.setHidden(next, 'none');
+        if (Platform.OS === 'android') {
+          // Request short-edges cutout mode so the window draws behind the
+          // front-facing camera hole punch / notch in fullscreen.
+          try {
+            NativeModules.StatusBarManager?.setStyle?.('dark-content');
+          } catch (_) {}
+        }
+      }
     }
     badgeService.emit('player.fullscreen', {}).catch(() => {});
   }, [exitFullscreen, isFullscreen, badgeService]);
@@ -447,16 +472,24 @@ export const MediaPlayerView = (props) => {
     return aspectRatio;
   }, [aspectRatio, windowWidth, windowHeight]);
 
-  const scale = useMemo(
-    () => ({
-      backFont: getFontSize(14, windowWidth, windowHeight),
-      titleFont: getFontSize(16, windowWidth, windowHeight),
-      lockTextFont: getFontSize(14, windowWidth, windowHeight),
-      timeFont: getFontSize(13, windowWidth, windowHeight),
-      aspectBubbleFont: getFontSize(13, windowWidth, windowHeight),
-      loadingFont: getFontSize(14, windowWidth, windowHeight),
-      errorTitleFont: getFontSize(18, windowWidth, windowHeight),
-      errorMsgFont: getFontSize(14, windowWidth, windowHeight),
+  const isHorizontalFullscreen = isFullscreen && windowWidth >= windowHeight;
+
+  const scale = useMemo(() => {
+    const fontBoost = isHorizontalFullscreen ? 1.1 : 1.0;
+    const iconBoost = isHorizontalFullscreen ? 1.1 : 1.0;
+    return {
+      isHorizontalFullscreen,
+      fontBoost,
+      iconBoost,
+      scaleIcon: (base) => Math.round(base * iconBoost),
+      backFont: Math.round(getFontSize(14, windowWidth, windowHeight) * fontBoost),
+      titleFont: Math.round(getFontSize(16, windowWidth, windowHeight) * fontBoost),
+      lockTextFont: Math.round(getFontSize(14, windowWidth, windowHeight) * fontBoost),
+      timeFont: Math.round(getFontSize(13, windowWidth, windowHeight) * fontBoost),
+      aspectBubbleFont: Math.round(getFontSize(13, windowWidth, windowHeight) * fontBoost),
+      loadingFont: Math.round(getFontSize(14, windowWidth, windowHeight) * fontBoost),
+      errorTitleFont: Math.round(getFontSize(18, windowWidth, windowHeight) * fontBoost),
+      errorMsgFont: Math.round(getFontSize(14, windowWidth, windowHeight) * fontBoost),
       backWeight: getFontWeight('600', windowWidth, windowHeight),
       titleWeight: getFontWeight('700', windowWidth, windowHeight),
       lockTextWeight: getFontWeight('700', windowWidth, windowHeight),
@@ -467,9 +500,8 @@ export const MediaPlayerView = (props) => {
       loadingWeight: getFontWeight('600', windowWidth, windowHeight),
       errorTitleWeight: getFontWeight('800', windowWidth, windowHeight),
       errorBtnWeight: getFontWeight('800', windowWidth, windowHeight)
-    }),
-    [windowWidth, windowHeight]
-  );
+    };
+  }, [windowWidth, windowHeight, isHorizontalFullscreen]);
 
   const handleSelectAspectRatio = useCallback(
     (val) => {
@@ -524,6 +556,7 @@ export const MediaPlayerView = (props) => {
   const lastProgressBarSecondRef = useRef(null);
   const lastKnownTimeRef = useRef(0);
   const lastKnownDurRef = useRef(Number(durationSecs) || 0);
+  const fullscreenSeekRestoreRef = useRef(null);
   const hasResumedRef = useRef(false);
   const hasStartedPlaybackRef = useRef(false);
   const restoreTimerRef = useRef(null);
@@ -784,6 +817,7 @@ export const MediaPlayerView = (props) => {
     seekCompletedAt.current = 0;
     lastKnownTimeRef.current = 0;
     lastKnownDurRef.current = 0;
+    fullscreenSeekRestoreRef.current = null;
     hasResumedRef.current = false;
     hasStartedPlaybackRef.current = false;
     pendingSeekRef.current = null;
@@ -825,7 +859,8 @@ export const MediaPlayerView = (props) => {
     }
   }, [visible, streamUrl, defaultAspectRatio]);
 
-  // Auto-hide controls 4 seconds after inactivity
+  const controlsShownAtRef = useRef(0);
+  // Auto-hide controls after 5 seconds of inactivity
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
@@ -833,7 +868,7 @@ export const MediaPlayerView = (props) => {
       setShowSpeedPicker(false);
       setShowAspectPicker(false);
       setShowAudioPicker(false);
-    }, 4000);
+    }, 5000);
   }, []);
 
   useEffect(() => {
@@ -1236,7 +1271,12 @@ export const MediaPlayerView = (props) => {
     setShowAspectPicker(false);
     setShowAudioPicker(false);
     setShowControls((prev) => {
-      if (!prev && isPlaying) scheduleHide();
+      if (!prev) {
+        // Stamp the time controls became visible so that any residual onTouchEnd
+        // event from the same gesture cannot immediately dismiss them again.
+        controlsShownAtRef.current = Date.now();
+        if (isPlaying) scheduleHide();
+      }
       return !prev;
     });
   }, [isPlaying, scheduleHide]);
@@ -1264,12 +1304,12 @@ export const MediaPlayerView = (props) => {
     const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat;
     if (wasControlTouch || (!isFullscreen && !resizeDrawerOpen) || isLocked) return;
     if (showControls) {
+      // Don't dismiss controls if they were just shown (within 800ms) — prevents
+      // the same touch that reveals controls from immediately hiding them again.
+      if (Date.now() - controlsShownAtRef.current < 800) return;
       dismissControlsFromVideoTap();
-      return;
     }
-    setShowControls(true);
-    if (isPlaying) scheduleHide();
-  }, [dismissControlsFromVideoTap, drawerMode, isFullscreen, isLocked, isPlaying, scheduleHide, setShowControls, showControls, showLiveChat]);
+  }, [dismissControlsFromVideoTap, drawerMode, isFullscreen, isLocked, showControls, showLiveChat]);
   const handleFullscreenTouchCancel = useCallback(() => {
     controlsTouchActiveRef.current = false;
   }, []);
@@ -1460,6 +1500,35 @@ export const MediaPlayerView = (props) => {
       lastKnownTimeRef,
       setSliderPosition: setSliderPos
     });
+    const fullscreenRestore = fullscreenSeekRestoreRef.current;
+    if (fullscreenRestore && progress) {
+      const observedTime = progress.seconds;
+      if (Math.abs(observedTime - fullscreenRestore.target) <= 1) {
+        fullscreenSeekRestoreRef.current = null;
+      } else if (Date.now() < fullscreenRestore.expiresAt) {
+        const now = Date.now();
+        const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffsetSeconds);
+        const playerTarget = Math.max(0, fullscreenRestore.target - audioOffsetSeconds);
+        if (
+          playerDuration > 0
+          && typeof vlcRef.current?.seek === 'function'
+          && now - fullscreenRestore.lastAttemptAt >= 400
+        ) {
+          try {
+            vlcRef.current.seek(Math.max(0, Math.min(1, playerTarget / playerDuration)));
+            fullscreenRestore.lastAttemptAt = now;
+            lastKnownTimeRef.current = fullscreenRestore.target;
+            setCurrentTime(fullscreenRestore.target);
+            setSliderPos(fullscreenRestore.target);
+            seekCompletedAt.current = now;
+          } catch {
+            // Retry on the next native progress event while the fullscreen surface settles.
+          }
+        }
+      } else {
+        fullscreenSeekRestoreRef.current = null;
+      }
+    }
     if (progress) emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
   };
 
@@ -2006,6 +2075,7 @@ export const MediaPlayerView = (props) => {
         handleMuteAction={handleMuteAction}
         isPlaying={isPlaying}
         handlePlayPauseAction={handlePlayPauseAction}
+        handleSeekByAction={handleSeekByAction}
         showInlineChatButton={showInlineChatButton}
         showLiveChat={showLiveChat}
         handlePanelAction={handlePanelAction}
@@ -2016,6 +2086,8 @@ export const MediaPlayerView = (props) => {
         isLoading={isLoading}
         errorMessage={errorMessage}
         showLiveBadge={showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton}
+        scale={scale}
+        currentTime={lastKnownTimeRef.current}
       >
         {liveChatDrawer}
       </InlinePreviewFrame>
@@ -2142,9 +2214,10 @@ export const MediaPlayerView = (props) => {
           width: '100%'
         }
       : null;
-  const isEndToEnd = windowWidth >= windowHeight;
-  // In landscape the player should be truly edge-to-edge (covers camera notch).
-  const hideSysUI = isFullscreen || isEndToEnd;
+  // Landscape orientation alone must not turn an embedded player into a
+  // screen-sized surface or hide system UI. The host controls inline bounds;
+  // the fullscreen Modal handles edge-to-edge playback separately.
+  const hideSysUI = isFullscreen;
 
   const fullscreenContent = (
     <View
@@ -2160,9 +2233,9 @@ export const MediaPlayerView = (props) => {
         collapsable={false}
         style={[styles.mediaFrame, mediaFrameStyle]}
         onLayout={handleMediaFrameLayout}
-        onTouchStartCapture={isFullscreen || (drawerMode === 'resize' && showLiveChat) ? handleFullscreenTouchStartCapture : undefined}
-        onTouchEnd={isFullscreen || (drawerMode === 'resize' && showLiveChat) ? handleFullscreenTouchEnd : undefined}
-        onTouchCancel={isFullscreen || (drawerMode === 'resize' && showLiveChat) ? handleFullscreenTouchCancel : undefined}
+        onTouchStartCapture={isFullscreen ? handleFullscreenTouchStartCapture : undefined}
+        onTouchEnd={isFullscreen ? handleFullscreenTouchEnd : undefined}
+        onTouchCancel={isFullscreen ? handleFullscreenTouchCancel : undefined}
       >
         <FullscreenVideoLayer videoPlayer={videoPlayer} zoomScale={zoomScale} isAudioOnly={isAudioOnly} transparent={transparentElectronOverlay} />
         <FullscreenVisualFeedback isAudioOnly={isAudioOnly} brightness={brightness} zoomBadgeText={zoomBadgeText} seekRipple={seekRipple} />
@@ -2273,6 +2346,24 @@ export const MediaPlayerView = (props) => {
 
   if (!isWeb()) {
     if (isFullscreen) {
+      if (Platform.OS === 'android') {
+        return (
+          <View
+            collapsable={false}
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: '#000',
+                zIndex: 9999,
+                elevation: 9999,
+              },
+            ]}
+          >
+            {fullscreenContent}
+          </View>
+        );
+      }
+
       return (
         <Modal
           visible={visible}
@@ -2285,7 +2376,13 @@ export const MediaPlayerView = (props) => {
           onRequestClose={handleBackAction}
           supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         >
-          <View collapsable={false} style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000' }]}>
+          <View
+            collapsable={false}
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: '#000' },
+            ]}
+          >
             {fullscreenContent}
           </View>
         </Modal>
@@ -2298,25 +2395,11 @@ export const MediaPlayerView = (props) => {
         collapsable={false}
         style={[
           styles.inlinePlayerContainer,
-          isEndToEnd
-            ? {
-                // Truly edge-to-edge in landscape: fill 100% screen, no border radius,
-                // extend under camera notch / status-bar area.
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: '100%',
-                height: '100%',
-                maxWidth: undefined,
-                borderRadius: 0,
-                zIndex: 9999,
-                elevation: 9999,
-              }
-            : [portraitResizeOpen ? { height: portraitResizeContainerHeight, aspectRatio: undefined } : styles.inlineAspectRatio, landscapeInlineStyle],
+          portraitResizeOpen
+            ? { height: portraitResizeContainerHeight, aspectRatio: undefined }
+            : [styles.inlineAspectRatio, landscapeInlineStyle],
           transparentElectronOverlay && { backgroundColor: 'transparent' },
-          !isEndToEnd && style,
+          style,
         ]}
       >
         {fullscreenContent}

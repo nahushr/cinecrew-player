@@ -19,6 +19,7 @@ import { getPlayerErrorMessage } from '../utils/playerError.js';
 import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
 import { VerticalVolumeControl } from './media/player/VerticalVolumeControl';
 import { parsePlaybackStartTime } from '../utils/playbackTime.js';
+import { formatProgressBarTime } from '../utils/progressBarTime.js';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -99,6 +100,7 @@ function InlineControlButton({
   controls,
   actions,
   palette,
+  iconSize = 19,
 }) {
   if (controls[controlName] === false) return null;
   return React.createElement(Pressable, {
@@ -110,7 +112,7 @@ function InlineControlButton({
       invokePlayerAction(fallback, callback, payload, { player: null });
     },
     style: [styles.button, { backgroundColor: palette.controlBackground }, active && { borderColor: palette.accentColor, borderWidth: 1 }],
-  }, React.createElement(PlayerIcon, { name: icon, size: 19, color: palette.controlColor }));
+  }, React.createElement(PlayerIcon, { name: icon, size: iconSize, color: palette.controlColor }));
 }
 
 function InlinePlayerOverlay({
@@ -127,7 +129,9 @@ function InlinePlayerOverlay({
   onMute,
   onPlay,
   onFullscreen,
+  fullscreenLandscape = false,
 }) {
+  const iconSize = fullscreenLandscape ? 21 : 19;
   const button = (controlName, actionName, label, icon, fallback, payload, active = false) => React.createElement(InlineControlButton, {
     key: controlName,
     controlName,
@@ -140,6 +144,7 @@ function InlinePlayerOverlay({
     controls,
     actions: controls.actions || {},
     palette,
+    iconSize,
   });
   const muteLabel = muted ? 'Unmute' : 'Mute';
   const muteIcon = muted ? 'mute' : 'unmute';
@@ -154,14 +159,14 @@ function InlinePlayerOverlay({
     }),
     showControls ? React.createElement(React.Fragment, null,
       React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
-      showLiveBadge ? React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')) : null,
+      showLiveBadge ? React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: [styles.liveText, fullscreenLandscape && { fontSize: 11 }] }, 'LIVE')) : null,
       React.createElement(View, { style: { flex: 1 } }),
       button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
       button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused })),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
-      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }] }, title),
+      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }, fullscreenLandscape && { fontSize: 15 }] }, title),
       button('fullscreen', 'onFullscreen', 'Open full player', 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
 }
 
@@ -197,6 +202,7 @@ function InlineLivePlayerSurface({
   setFullscreen,
   player,
   shouldRenderVideo,
+  showControls,
   artwork,
   loading,
   error,
@@ -265,7 +271,7 @@ function InlineLivePlayerSurface({
     brightnessOverlay(!fullscreen && shouldRenderVideo),
     createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
     createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
-    fullscreen ? null : renderOverlay(),
+    fullscreen ? null : renderOverlay(false),
     fullscreen ? null : brightnessControl(showControls && shouldRenderVideo),
     fullscreen ? null : volumeControl(showControls && shouldRenderVideo),
     React.createElement(Modal, {
@@ -277,7 +283,7 @@ function InlineLivePlayerSurface({
       createInlinePlayerLayer(player, true),
       brightnessOverlay(shouldRenderVideo),
       createInlineStatusLayer(loading, error, palette),
-      renderOverlay(),
+      renderOverlay(fullscreenLandscape),
       brightnessControl(showControls && shouldRenderVideo),
       volumeControl(showControls && shouldRenderVideo))));
 }
@@ -314,6 +320,7 @@ function InlineLivePlayerView({
   showLiveButton = false,
   onError,
   onPlaying,
+  onProgressBarChange,
 }) {
   const sourceValue = source ?? url ?? '';
   const sourceObject = typeof sourceValue === 'string' ? { uri: sourceValue } : sourceValue || {};
@@ -376,9 +383,12 @@ function InlineLivePlayerView({
       : (progress.position !== null && playbackDurationRef.current > 0
         ? progress.position * playbackDurationRef.current
         : null);
-    if (current !== null) playbackPositionRef.current = current;
+    if (current !== null) {
+      playbackPositionRef.current = current;
+      onProgressBarChange?.(formatProgressBarTime(current));
+    }
     applyPendingSeek(current);
-  }, [applyPendingSeek]);
+  }, [applyPendingSeek, onProgressBarChange]);
 
   const changeFullscreenWithPosition = useCallback((nextFullscreen) => {
     // The native preview is re-parented into a Modal. Preserve the latest
@@ -462,10 +472,15 @@ function InlineLivePlayerView({
 
   const openFullscreen = (event) => {
     event?.stopPropagation?.();
+    const currentPos = playbackPositionRef.current;
     performAction('onFullscreen', () => changeFullscreenWithPosition(!fullscreen), {
       isFullscreen: !fullscreen,
       source: sourceObject,
       title,
+      currentTime: currentPos,
+      startTime: currentPos,
+      position: currentPos,
+      progressTime: formatProgressBarTime(currentPos),
     });
   };
 
@@ -508,7 +523,7 @@ function InlineLivePlayerView({
   const displayLiveBadge = Boolean(
     showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton
   );
-  const renderOverlay = () => React.createElement(InlinePlayerOverlay, {
+  const renderOverlay = (fullscreenLandscape = false) => React.createElement(InlinePlayerOverlay, {
     showControls,
     controls: { ...controls, actions },
     palette,
@@ -522,6 +537,7 @@ function InlineLivePlayerView({
     onMute: toggleMute,
     onPlay: togglePlay,
     onFullscreen: openFullscreen,
+    fullscreenLandscape,
   });
 
   return React.createElement(
@@ -535,6 +551,7 @@ function InlineLivePlayerView({
       setFullscreen: changeFullscreenWithPosition,
       player,
       shouldRenderVideo,
+      showControls,
       artwork,
       loading,
       error,
