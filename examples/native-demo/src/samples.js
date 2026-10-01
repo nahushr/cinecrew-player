@@ -11,8 +11,8 @@ export const sampleSources = [
   {
     id: 'dash',
     label: 'MPEG-DASH',
-    title: 'Big Buck Bunny (MPEG-DASH Stream)',
-    url: 'https://dash.akamaized.net/dash264/TestCases/1a/qualcomm/1/MultiRate.mpd',
+    title: 'Angel One (MPEG-DASH Stream)',
+    url: 'https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd',
     type: 'application/dash+xml',
   },
   {

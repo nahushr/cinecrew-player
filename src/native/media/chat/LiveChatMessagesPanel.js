@@ -15,6 +15,7 @@ export function LiveChatPanel({
   styles,
   messagesLoading,
   messages,
+  hasMoreMessages,
   flatListRef,
   renderMessageItem,
   loadOlderMessages,
@@ -39,28 +40,36 @@ export function LiveChatPanel({
           <Text style={styles.epgStatusText}>Loading live chat…</Text>
         </View>
       ) : (
-        <FlatList
-          ref={flatListRef}
-          style={styles.chatFlatList}
-          nestedScrollEnabled
-          data={messages}
-          keyExtractor={(item, index) => chatMessageKey(item, index)}
-          renderItem={renderMessageItem}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={loadingOlderMessages ? (
-            <View style={styles.loadingOlderMessages}>
-              <ActivityIndicator size="small" color="#00E5FF" />
-              <Text style={styles.loadingOlderMessagesText}>Loading older messages…</Text>
-            </View>
+        <>
+          {hasMoreMessages ? (
+            <TouchableOpacity
+              style={styles.loadMoreMessagesButton}
+              onPress={loadOlderMessages}
+              disabled={loadingOlderMessages}
+              accessibilityRole="button"
+              accessibilityLabel="Load more messages"
+            >
+              {loadingOlderMessages ? (
+                <ActivityIndicator size="small" color="#00E5FF" />
+              ) : (
+                <Text style={styles.loadMoreMessagesText}>Load more</Text>
+              )}
+            </TouchableOpacity>
           ) : null}
-          onScroll={(event) => {
-            if (event.nativeEvent.contentOffset.y <= 24) loadOlderMessages();
-          }}
-          scrollEventThrottle={16}
-          ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
-        />
+          <FlatList
+            ref={flatListRef}
+            style={styles.chatFlatList}
+            nestedScrollEnabled
+            data={messages}
+            keyExtractor={(item, index) => chatMessageKey(item, index)}
+            renderItem={renderMessageItem}
+            contentContainerStyle={styles.messagesList}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
+          />
+        </>
       )}
       {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
 

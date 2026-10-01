@@ -352,6 +352,14 @@ export const MediaPlayerView = (props) => {
   const aspectRatioRef = useRef(defaultAspectRatio || DEFAULT_ASPECT_RATIO);
   const aspectOptions = useMemo(() => normalizeAspectOptions(aspectRatios), [aspectRatios]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const landscapeFullWidth = windowWidth >= windowHeight && (
+    isFullscreen
+    || (consumerHasWidth && (
+      flattenedStyle.height === '100%'
+      || Number(flattenedStyle.height) >= windowHeight * 0.85
+      || Number(flattenedStyle.flex) >= 1
+    ))
+  );
 
   useEffect(() => {
     if (!isElectron() || typeof document === 'undefined') return undefined;
@@ -433,7 +441,7 @@ export const MediaPlayerView = (props) => {
       void vlcRef.current?.setFullscreen?.(next);
     } else {
       const next = !isFullscreen;
-      const position = Number(lastKnownTimeRef.current || 0);
+      const position = Number(fullscreenSeekRestoreRef.current?.target ?? lastKnownTimeRef.current ?? requestedStartTime ?? 0);
       if (Number.isFinite(position) && position > 0) {
         fullscreenSeekRestoreRef.current = {
           target: position,
@@ -446,13 +454,15 @@ export const MediaPlayerView = (props) => {
         seekCompletedAt.current = Date.now();
       }
       setIsFullscreen(next);
-      // Imperatively hide/show status bar so Android extends layout into the
-      // camera cutout (notch) area when entering fullscreen.
+      // Keep portrait fullscreen below the notification/status bar. Only
+      // landscape fullscreen uses the immersive, cutout-edge-to-edge layout.
       if (!isWeb() && !isElectron()) {
-        StatusBar.setHidden(next, 'none');
+        const immersiveLandscape = next && windowWidth >= windowHeight;
+        StatusBar.setTranslucent(immersiveLandscape);
+        StatusBar.setHidden(immersiveLandscape, 'none');
         if (Platform.OS === 'android') {
           // Request short-edges cutout mode so the window draws behind the
-          // front-facing camera hole punch / notch in fullscreen.
+          // front-facing camera hole punch / notch in landscape fullscreen.
           try {
             NativeModules.StatusBarManager?.setStyle?.('dark-content');
           } catch (_) {}
@@ -460,7 +470,7 @@ export const MediaPlayerView = (props) => {
       }
     }
     badgeService.emit('player.fullscreen', {}).catch(() => {});
-  }, [exitFullscreen, isFullscreen, badgeService]);
+  }, [exitFullscreen, isFullscreen, windowWidth, windowHeight, badgeService, requestedStartTime]);
 
   const computedAspectRatio = useMemo(() => {
     if (aspectRatio === 'FIT') {
@@ -475,12 +485,14 @@ export const MediaPlayerView = (props) => {
   const isHorizontalFullscreen = isFullscreen && windowWidth >= windowHeight;
 
   const scale = useMemo(() => {
-    const fontBoost = isHorizontalFullscreen ? 1.1 : 1.0;
-    const iconBoost = isHorizontalFullscreen ? 1.1 : 1.0;
+    const controlBoost = isFullscreen ? 1.25 : 1.0;
+    const fontBoost = isFullscreen ? 1.12 : 1.0;
+    const iconBoost = controlBoost;
     return {
       isHorizontalFullscreen,
       fontBoost,
       iconBoost,
+      buttonBoost: controlBoost,
       scaleIcon: (base) => Math.round(base * iconBoost),
       backFont: Math.round(getFontSize(14, windowWidth, windowHeight) * fontBoost),
       titleFont: Math.round(getFontSize(16, windowWidth, windowHeight) * fontBoost),
@@ -501,7 +513,7 @@ export const MediaPlayerView = (props) => {
       errorTitleWeight: getFontWeight('800', windowWidth, windowHeight),
       errorBtnWeight: getFontWeight('800', windowWidth, windowHeight)
     };
-  }, [windowWidth, windowHeight, isHorizontalFullscreen]);
+  }, [windowWidth, windowHeight, isHorizontalFullscreen, isFullscreen]);
 
   const handleSelectAspectRatio = useCallback(
     (val) => {
@@ -546,17 +558,18 @@ export const MediaPlayerView = (props) => {
     [windowWidth, windowHeight, mediaType]
   );
 
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(requestedStartTime ?? 0);
   const [duration, setDuration] = useState(Number(durationSecs) || 0);
-  const [sliderPos, setSliderPos] = useState(0);
+  const [sliderPos, setSliderPos] = useState(requestedStartTime ?? 0);
 
   const isSeeking = useRef(false);
   const bufferingTimerRef = useRef(null);
   const seekCompletedAt = useRef(0);
   const lastProgressBarSecondRef = useRef(null);
-  const lastKnownTimeRef = useRef(0);
+  const lastKnownTimeRef = useRef(requestedStartTime ?? 0);
   const lastKnownDurRef = useRef(Number(durationSecs) || 0);
   const fullscreenSeekRestoreRef = useRef(null);
+  const requestedStartTimeAppliedRef = useRef(requestedStartTime === null);
   const hasResumedRef = useRef(false);
   const hasStartedPlaybackRef = useRef(false);
   const restoreTimerRef = useRef(null);
@@ -597,6 +610,26 @@ export const MediaPlayerView = (props) => {
 
   const [showControls, setShowControls] = useState(true);
   const hideTimer = useRef(null);
+  const fullscreenOrientationRef = useRef(windowWidth >= windowHeight);
+
+  useEffect(() => {
+    const isLandscape = windowWidth >= windowHeight;
+    if (fullscreenOrientationRef.current === isLandscape) return;
+    fullscreenOrientationRef.current = isLandscape;
+    if (isFullscreen && visible) setShowControls(true);
+  }, [isFullscreen, visible, windowWidth, windowHeight]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const immersiveLandscape = Boolean(visible && isFullscreen && windowWidth >= windowHeight);
+    const syncSystemBars = () => {
+      StatusBar.setTranslucent(immersiveLandscape);
+      StatusBar.setHidden(immersiveLandscape, 'none');
+    };
+    syncSystemBars();
+    const frame = requestAnimationFrame(syncSystemBars);
+    return () => cancelAnimationFrame(frame);
+  }, [isFullscreen, visible, windowWidth, windowHeight]);
 
   const isInlinePreview = !!inlinePreview;
   const progressBarVisible = showProgressBar !== false && controls.seek !== false && !isLive && !isInlinePreview;
@@ -620,6 +653,7 @@ export const MediaPlayerView = (props) => {
   const [recStatus, setRecStatus] = useState('idle');
   const [recElapsedMs, setRecElapsedMs] = useState(0);
   const [recNotice, setRecNotice] = useState(null);
+  const [recSaveDialog, setRecSaveDialog] = useState(null);
   const recNoticeTimer = useRef(null);
   const recStatusRef = useRef('idle');
   recStatusRef.current = recStatus;
@@ -658,7 +692,7 @@ export const MediaPlayerView = (props) => {
         const timeout = setTimeout(() => {
           nativeRecordingMergeRef.current = null;
           reject(new Error('VLC did not finish assembling the recording.'));
-        }, 30000);
+        }, 120000);
         nativeRecordingMergeRef.current = {
           resolve: (file) => {
             clearTimeout(timeout);
@@ -808,16 +842,17 @@ export const MediaPlayerView = (props) => {
     audioOnlyFallbackRef.current = false;
     sourceRestorePositionRef.current = 0;
     audioModeStartPositionRef.current = 0;
-    setCurrentTime(0);
+    setCurrentTime(requestedStartTime ?? 0);
     setDuration(0);
-    setSliderPos(0);
+    setSliderPos(requestedStartTime ?? 0);
     setPlaybackRate(clampNumber(initialPlaybackRate, 0.25, 4, 1));
     setShowControls(true);
     isSeeking.current = false;
     seekCompletedAt.current = 0;
-    lastKnownTimeRef.current = 0;
+    lastKnownTimeRef.current = requestedStartTime ?? 0;
     lastKnownDurRef.current = 0;
     fullscreenSeekRestoreRef.current = null;
+    requestedStartTimeAppliedRef.current = requestedStartTime === null;
     hasResumedRef.current = false;
     hasStartedPlaybackRef.current = false;
     pendingSeekRef.current = null;
@@ -836,9 +871,20 @@ export const MediaPlayerView = (props) => {
 
   useEffect(() => {
     if (requestedStartTime === null) return;
-    // Use the shared progress handler to seek once each backend reports its
-    // duration. This covers VLC, Electron, Expo web, and the native fallback.
-    pendingSeekRef.current = requestedStartTime;
+    requestedStartTimeAppliedRef.current = false;
+    lastKnownTimeRef.current = requestedStartTime;
+    setCurrentTime(requestedStartTime);
+    setSliderPos(requestedStartTime);
+    // Keep retrying the requested position until the new player reports that
+    // it actually reached it. A single seek on the first progress event can
+    // arrive before VLC's new surface is ready and silently leave playback at
+    // the beginning (notably when promoting the inline player).
+    fullscreenSeekRestoreRef.current = {
+      target: requestedStartTime,
+      lastAttemptAt: 0,
+      expiresAt: Date.now() + 15000,
+    };
+    pendingSeekRef.current = null;
     sourceRestorePositionRef.current = 0;
     hasResumedRef.current = true;
     if (restoreTimerRef.current) {
@@ -1027,6 +1073,9 @@ export const MediaPlayerView = (props) => {
       e?.stopPropagation?.();
       if (!isScreenRecorderEnabled || !canRecord || recStatusRef.current !== 'idle') return;
       try {
+        setRecSaveDialog(null);
+        setRecNotice(null);
+        setShowLiveChat(false);
         nativeRecordingSegmentsRef.current = [];
         if (recording?.start) {
           await recording.start({
@@ -1119,7 +1168,7 @@ export const MediaPlayerView = (props) => {
           const slashIndex = Math.max(firstPath.lastIndexOf('/'), firstPath.lastIndexOf('\\'));
           const directory = firstPath.slice(0, slashIndex + 1);
           const filename = firstPath.slice(slashIndex + 1);
-          const nextPath = `${directory}${filename.replace(/\.ts$/i, '')}-segment-${nativeRecordingSegmentsRef.current.length + 1}.ts`;
+          const nextPath = `${directory}${filename.replace(/\.[^.]+$/, '')}-segment-${nativeRecordingSegmentsRef.current.length + 1}`;
           const result = await playerApiRef?.current?.startNativeRecording?.(nextPath);
           if (result === false || result == null) throw new Error('VLC could not resume recording.');
         }
@@ -1138,7 +1187,9 @@ export const MediaPlayerView = (props) => {
   const handleStopRecording = useCallback(
     async (e) => {
       e?.stopPropagation?.();
-      showRecNotice({ type: 'info', message: 'Finalizing recording and preparing the saved file…' });
+      setRecNotice(null);
+      setRecSaveDialog({ status: 'saving' });
+      let nativeStopAccepted = recStatusRef.current === 'paused' && nativeRecordingSegmentsRef.current.length > 0;
       try {
         let result;
         if (recording?.stop) {
@@ -1152,20 +1203,21 @@ export const MediaPlayerView = (props) => {
             const completedFile = waitForNativeRecordingFile();
             const accepted = await playerApiRef?.current?.stopNativeRecording?.();
             if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
+            nativeStopAccepted = true;
             const file = await completedFile;
             if (!file?.path) throw new Error('VLC did not return the completed recording segment.');
             segments.push(file);
           }
           if (!segments.length) throw new Error('No recording segments were saved.');
-          if (segments.length === 1) {
-            result = { ...segments[0], filename: String(segments[0].path).split(/[\\/]/).pop(), platform: 'native' };
-          } else {
-            const completedFile = waitForNativeRecordingMerge();
-            const accepted = await playerApiRef?.current?.mergeNativeRecordingSegments?.(segments.map((segment) => segment.path));
-            if (accepted === false || accepted == null) throw new Error('VLC could not assemble the paused recording segments.');
-            const file = await completedFile;
-            result = { ...file, filename: String(file.path).split(/[\\/]/).pop(), platform: 'native' };
-          }
+          const completedFile = waitForNativeRecordingMerge();
+          const accepted = await playerApiRef?.current?.mergeNativeRecordingSegments?.(segments.map((segment) => segment.path));
+          if (accepted === false || accepted == null) throw new Error('VLC could not assemble the recording segments.');
+          const file = await completedFile;
+          result = {
+            ...file,
+            filename: file.filename || String(file.path).split(/[\\/]/).pop(),
+            platform: 'native',
+          };
         }
         clearRecordingTimer();
         recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
@@ -1179,7 +1231,7 @@ export const MediaPlayerView = (props) => {
             : bytes < 1024 * 1024
               ? `${Math.max(1, Math.round(bytes / 1024))} KB`
               : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-          const location = result.path || 'the app recording folder';
+          const location = result.location || result.path || 'the app recording folder';
           let where;
           if (result.platform === 'web') {
             if (result.saveMethod === 'share') {
@@ -1192,10 +1244,20 @@ export const MediaPlayerView = (props) => {
           } else {
             where = `Recording saved: ${result.filename} · ${size} · ${location}`;
           }
-          showRecNotice({ type: 'saved', message: where });
+          setRecSaveDialog({ status: 'saved', message: where, filename: result.filename });
           if (result.path) onRecordingComplete?.({ ...result, filename: result.filename });
+        } else {
+          setRecSaveDialog(null);
         }
       } catch (err) {
+        setRecSaveDialog(null);
+        if (nativeStopAccepted) {
+          clearRecordingTimer();
+          recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
+          nativeRecordingSegmentsRef.current = [];
+          setRecStatus('idle');
+          setRecElapsedMs(0);
+        }
         showRecNotice({
           type: 'error',
           message: err?.message || 'Could not save the recording.'
@@ -1485,6 +1547,12 @@ export const MediaPlayerView = (props) => {
     setErrorMessage(null);
     const audioOffsetSeconds = audioOnlyUsesProxy && !isLive ? Number(audioModeStartPositionRef.current || 0) : 0;
     const progress = normalizeProgressEvent(data, audioOffsetSeconds * 1000);
+    const fullscreenRestore = fullscreenSeekRestoreRef.current;
+    if (fullscreenRestore) {
+      // Ignore stale zero/old-position progress while the new VLC surface is
+      // opening; it must not overwrite the position handed off by the preview.
+      seekCompletedAt.current = Date.now();
+    }
     applyProgressState(progress, {
       hasStartedPlaybackRef,
       clearAudioOnlyFallbackTimer,
@@ -1500,11 +1568,14 @@ export const MediaPlayerView = (props) => {
       lastKnownTimeRef,
       setSliderPosition: setSliderPos
     });
-    const fullscreenRestore = fullscreenSeekRestoreRef.current;
     if (fullscreenRestore && progress) {
       const observedTime = progress.seconds;
       if (Math.abs(observedTime - fullscreenRestore.target) <= 1) {
         fullscreenSeekRestoreRef.current = null;
+        requestedStartTimeAppliedRef.current = true;
+        lastKnownTimeRef.current = observedTime;
+        setCurrentTime(observedTime);
+        setSliderPos(observedTime);
       } else if (Date.now() < fullscreenRestore.expiresAt) {
         const now = Date.now();
         const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffsetSeconds);
@@ -1529,7 +1600,7 @@ export const MediaPlayerView = (props) => {
         fullscreenSeekRestoreRef.current = null;
       }
     }
-    if (progress) emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
+    if (progress && !fullscreenSeekRestoreRef.current) emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
   };
 
   const handleNativeOpen = (event) => {
@@ -1547,9 +1618,17 @@ export const MediaPlayerView = (props) => {
       setTimeout(() => handleSelectAspectRatio(aspectRatio), 400);
     }
 
-    if (requestedStartTime !== null) {
-      // The explicit position is queued and applied by the shared progress
-      // handler as soon as the active backend reports its duration.
+    if (requestedStartTime !== null && !requestedStartTimeAppliedRef.current) {
+      // Start the retry window after VLC opens as well: the requested seek
+      // must survive player-surface initialization instead of being lost on
+      // the first progress tick.
+      const restore = fullscreenSeekRestoreRef.current;
+      fullscreenSeekRestoreRef.current = {
+        target: restore?.target ?? requestedStartTime,
+        lastAttemptAt: restore?.lastAttemptAt ?? 0,
+        expiresAt: Date.now() + 15000,
+      };
+      pendingSeekRef.current = null;
       hasResumedRef.current = true;
       sourceRestorePositionRef.current = 0;
       return;
@@ -1766,6 +1845,12 @@ export const MediaPlayerView = (props) => {
       seekTo: handleSeekTo,
       seekBy: handleSeekBy,
       setPlaybackRate: (rate) => setPlaybackRate(clampNumber(rate, 0.25, 4, 1)),
+      enterFullscreen: () => {
+        if (!isFullscreen) toggleFullscreen();
+      },
+      exitFullscreen: () => {
+        if (isFullscreen) toggleFullscreen();
+      },
       back: handleBackAction,
       getVideoElement: () => vlcRef.current?.getVideoElement?.() || null,
       getAudioTracks: () => audioTracks,
@@ -1809,6 +1894,8 @@ export const MediaPlayerView = (props) => {
     handleSeekTo,
     handleSeekBy,
     handleBackAction,
+    isFullscreen,
+    toggleFullscreen,
     audioTracks,
     vlcRef,
     isLiveCommentsEnabled,
@@ -1833,7 +1920,12 @@ export const MediaPlayerView = (props) => {
         if (state.requestAccepted === false || state.error) {
           nativeRecordingMergeRef.current?.reject?.(new Error(state.error || 'VLC could not assemble the recording segments.'));
         } else {
-          nativeRecordingMergeRef.current?.resolve?.({ path: state.recordPath, size: state.size });
+          nativeRecordingMergeRef.current?.resolve?.({
+            path: state.recordPath,
+            size: state.size,
+            filename: state.filename,
+            location: state.location,
+          });
         }
         nativeRecordingMergeRef.current = null;
         return;
@@ -1977,18 +2069,25 @@ export const MediaPlayerView = (props) => {
   );
 
   const nativeSource = useMemo(
-    () => ({
-      uri: playerStreamUrl,
-      initType: 1,
-      hwDecoderEnabled: 0,
-      // Avoid Android's MediaCodec output path on this player surface; its
-      // resolution-switch buffer errors leave translucent stale tiles behind.
-      hwDecoderForced: 0,
-      // Keep this source object stable while Android audio mode is toggled so
-      // VLC does not release and reopen the active stream.
-      mediaOptions: nativeMediaOptions
-    }),
-    [playerStreamUrl, nativeMediaOptions]
+    () => {
+      // Apply the handoff at the demuxer before playback begins. A setPosition
+      // command alone can be ignored while a newly mounted VLC view opens.
+      const initialPosition = fullscreenSeekRestoreRef.current?.target ?? requestedStartTime;
+      return {
+        uri: playerStreamUrl,
+        initType: 1,
+        hwDecoderEnabled: 0,
+        // Avoid Android's MediaCodec output path on this player surface; its
+        // resolution-switch buffer errors leave translucent stale tiles behind.
+        hwDecoderForced: 0,
+        // Keep this source object stable while Android audio mode is toggled so
+        // VLC does not release and reopen the active stream.
+        mediaOptions: initialPosition > 0
+          ? [...nativeMediaOptions, `:start-time=${initialPosition}`]
+          : nativeMediaOptions
+      };
+    },
+    [playerStreamUrl, nativeMediaOptions, requestedStartTime, isFullscreen]
   );
 
   const transparentElectronOverlay = isElectronOverlay();
@@ -2194,11 +2293,20 @@ export const MediaPlayerView = (props) => {
     handleVideoOnlyAction
   };
 
-  const nativeGestureHandlers = !isWeb() && !isElectron() && panResponder?.panHandlers ? panResponder.panHandlers : null;
+  // Keep the player-level PanResponder off the native view while the recording
+  // transport is visible. Its capture phase otherwise steals pause/stop taps
+  // from the recording overlay and top-bar controls when normal controls hide.
+  const recordingInProgress = recStatus === 'recording' || recStatus === 'paused';
+  const nativeGestureHandlers = !isWeb() && !isElectron() && !recordingInProgress && panResponder?.panHandlers
+    ? panResponder.panHandlers
+    : null;
   // Resize mode places the video and drawer side by side in landscape. In
   // portrait there isn't enough horizontal room, so keep the drawer over video.
   const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat && windowWidth >= windowHeight;
-  const portraitResizeOpen = drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
+  // A portrait resize drawer is stacked below the embedded player, but when
+  // the player itself is fullscreen the video must keep the entire viewport.
+  // LiveChatDrawer then presents the panel as a bottom-sheet overlay.
+  const portraitResizeOpen = !isFullscreen && drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
   const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
   const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
   const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
@@ -2217,7 +2325,7 @@ export const MediaPlayerView = (props) => {
   // Landscape orientation alone must not turn an embedded player into a
   // screen-sized surface or hide system UI. The host controls inline bounds;
   // the fullscreen Modal handles edge-to-edge playback separately.
-  const hideSysUI = isFullscreen;
+  const hideSysUI = isHorizontalFullscreen;
 
   const fullscreenContent = (
     <View
@@ -2226,7 +2334,7 @@ export const MediaPlayerView = (props) => {
       style={[styles.fullscreenPlayerContainer, transparentElectronOverlay && { backgroundColor: 'transparent' }, !isWeb() && !isFullscreen && styles.boundedInlinePlayerContent]}
       {...(nativeGestureHandlers || {})}
     >
-      <StatusBar hidden={hideSysUI} translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar hidden={hideSysUI} translucent={hideSysUI} backgroundColor="transparent" barStyle="light-content" />
 
       <View
         ref={mediaFrameRef}
@@ -2260,7 +2368,7 @@ export const MediaPlayerView = (props) => {
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls
             are hidden if the elevated overlay remains mounted. */}
-        {showControls && !isAudioOnly && !(drawerMode === 'overlay' && showLiveChat) && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
+        {!recordingInProgress && showControls && !isAudioOnly && !(drawerMode === 'overlay' && showLiveChat) && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
           <View style={styles.controlsShell} pointerEvents="box-none" onTouchStart={markControlSurfaceTouch}>
             <FullscreenControlsPanel {...fullscreenControlsProps} frameSize={mediaFrameSize} />
           </View>
@@ -2296,6 +2404,8 @@ export const MediaPlayerView = (props) => {
           handleStopRecording={handleStopRecording}
           recNotice={recNotice}
           onDismissNotice={() => setRecNotice(null)}
+          saveDialog={recSaveDialog}
+          onDismissSaveDialog={() => setRecSaveDialog(null)}
         />
       </View>
 
@@ -2309,7 +2419,7 @@ export const MediaPlayerView = (props) => {
         currentUser={currentUser}
         onClose={() => setShowLiveChat(false)}
         isLandscape={windowWidth >= windowHeight}
-        landscapeFullWidth={props.isLandscape}
+        landscapeFullWidth={landscapeFullWidth}
         drawerTab={drawerTab}
         drawerMode={drawerMode}
         portraitVideoHeight={portraitVideoHeight}
@@ -2370,7 +2480,7 @@ export const MediaPlayerView = (props) => {
           animationType="none"
           transparent={false}
           presentationStyle="fullScreen"
-          statusBarTranslucent={true}
+          statusBarTranslucent={isHorizontalFullscreen}
           navigationBarTranslucent={true}
           hardwareAccelerated={true}
           onRequestClose={handleBackAction}

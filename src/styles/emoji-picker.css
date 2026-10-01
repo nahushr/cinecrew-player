@@ -21,6 +21,40 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, .42);
 }
 
+.cinecrew-player__emoji-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+}
+
+.cinecrew-player__emoji-header strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-close {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(255, 255, 255, .1);
+  font-size: 23px;
+  line-height: 1;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-close:hover {
+  background: rgba(255, 255, 255, .18);
+}
+
 @supports (width: 1cqw) {
   .cinecrew-player__emoji-picker { width: min(560px, 100cqw); }
 }
@@ -128,6 +162,13 @@
 .cinecrew-player__emoji-picker .cinecrew-player__emoji-grid button:hover {
   background: rgba(255, 255, 255, .12);
   transform: scale(1.12);
+}
+
+.cinecrew-player__emoji-grid button:focus-visible,
+.cinecrew-player__emoji-categories button:focus-visible,
+.cinecrew-player__emoji-close:focus-visible {
+  outline: 2px solid var(--cinecrew-accent);
+  outline-offset: 2px;
 }
 
 .cinecrew-player__emoji-picker .cinecrew-player__emoji-grid .cinecrew-player__emoji-load-more {

@@ -24,6 +24,7 @@ import {
   formatMessageTime,
   normalizeChatMessage,
   normalizeChatPage,
+  chatPageHasMore,
   chatMessageKey,
   mergeChatMessages,
   extractHostname,
@@ -36,6 +37,19 @@ import {
   LiveChatPanel,
   DiagnosticsTab,
 } from './chat';
+
+function ChatPanelContent(props) {
+  if (props.activeTab !== 'chat') return null;
+  if (!props.chatAvailable) {
+    return (
+      <View style={props.styles.epgStatusWrap}>
+        <PlayerIcon name="comment-text-outline" size={28} color="rgba(255,255,255,0.45)" />
+        <Text style={props.styles.epgStatusText}>Live chat is enabled, but no chat integration was provided.</Text>
+      </View>
+    );
+  }
+  return <LiveChatPanel {...props.panelProps} />;
+}
 
 export const LiveChatDrawer = ({
   videoId,
@@ -97,6 +111,7 @@ export const LiveChatDrawer = ({
 
   // --- Live Chat State ---
   const [messages, setMessages] = useState([]);
+  const messagesRef = useRef([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -127,6 +142,7 @@ export const LiveChatDrawer = ({
 
     let isMounted = true;
     let initialLoad = true;
+    messagesRef.current = [];
     setMessages([]);
     setHasMoreMessages(false);
     setChatError('');
@@ -138,16 +154,21 @@ export const LiveChatDrawer = ({
     const poll = async () => {
       try {
         const response = await integrations.liveChat.loadMessages({ channelId: String(videoId), limit: pageSize, offset: 0 });
-        const msgs = normalizeChatPage(response);
+        const msgs = normalizeChatPage(response, { limit: pageSize, offset: 0 });
         if (isMounted) {
-          setMessages((current) => loadedInitialPageRef.current
-            ? mergeChatMessages(current, msgs)
-            : msgs);
           if (!loadedInitialPageRef.current) {
+            messagesRef.current = msgs;
+            setMessages(msgs);
             loadedInitialPageRef.current = true;
             messageOffsetRef.current = msgs.length;
-            const explicitHasMore = response?.hasMore ?? response?.pagination?.hasMore;
-            setHasMoreMessages(explicitHasMore === undefined ? msgs.length >= pageSize : Boolean(explicitHasMore));
+            setHasMoreMessages(chatPageHasMore(response, { limit: pageSize, offset: 0 }));
+          } else {
+            const current = messagesRef.current;
+            const merged = mergeChatMessages(current, msgs);
+            const addedCount = merged.length - current.length;
+            messagesRef.current = merged;
+            setMessages(merged);
+            if (addedCount > 0) messageOffsetRef.current += addedCount;
           }
           setChatError('');
         }
@@ -183,15 +204,17 @@ export const LiveChatDrawer = ({
         limit: pageSize,
         offset,
       });
-      const olderMessages = normalizeChatPage(response);
+      const olderMessages = normalizeChatPage(response, { limit: pageSize, offset });
+      let addedCount = 0;
       if (olderMessages.length) {
-        setMessages((current) => mergeChatMessages(current, olderMessages, true));
+        const current = messagesRef.current;
+        const merged = mergeChatMessages(current, olderMessages, true);
+        addedCount = merged.length - current.length;
+        messagesRef.current = merged;
+        setMessages(merged);
         messageOffsetRef.current += olderMessages.length;
       }
-      const explicitHasMore = response?.hasMore ?? response?.pagination?.hasMore;
-      setHasMoreMessages(explicitHasMore === undefined
-        ? olderMessages.length >= pageSize
-        : Boolean(explicitHasMore));
+      setHasMoreMessages(addedCount > 0 && chatPageHasMore(response, { limit: pageSize, offset }));
     } catch (error) {
       setChatError(error?.message || 'Could not load older messages.');
     } finally {
@@ -349,8 +372,13 @@ export const LiveChatDrawer = ({
       });
       const response = await integrations.liveChat?.loadMessages?.({ channelId: String(videoId), limit: pageSize, offset: 0 }).catch?.(() => null);
       if (response) {
-        const msgs = normalizeChatPage(response);
-        setMessages((current) => mergeChatMessages(current, msgs));
+        const msgs = normalizeChatPage(response, { limit: pageSize, offset: 0 });
+        const current = messagesRef.current;
+        const merged = mergeChatMessages(current, msgs);
+        const addedCount = merged.length - current.length;
+        messagesRef.current = merged;
+        setMessages(merged);
+        if (addedCount > 0) messageOffsetRef.current += addedCount;
       }
       // Do not rely only on the messages-length effect: some integrations return
       // the same page length after a send, even though the newest row is updated.
@@ -370,7 +398,6 @@ export const LiveChatDrawer = ({
 
   const handleSelectEmoji = useCallback((emoji) => {
     setInputText((prev) => prev + emoji);
-    setShowEmojiPicker(false);
   }, []);
 
   const handleQuickReaction = useCallback((emoji) => {
@@ -455,13 +482,21 @@ export const LiveChatDrawer = ({
   const calculatedPortraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
   const portraitVideoHeight = propPortraitVideoHeight || calculatedPortraitVideoHeight;
   const resizeWidth = '30%';
+  // Android's fullscreen player is already drawn edge-to-edge with system UI
+  // hidden. Applying the app's normal safe-area insets here makes the drawer
+  // start below (and end before) the video surface, leaving visible gaps.
+  // The native demo also presents its landscape immersive stage edge-to-edge
+  // without opening the player's own fullscreen Modal. Keep the right drawer
+  // aligned with that video surface rather than offsetting it below system
+  // safe-area insets.
+  const androidFullscreen = (fullscreen || landscapeFullWidth) && Platform.OS === 'android' && !isPortrait;
   const fullscreenTopInset = Math.max(
-    Number(safeAreaInsets?.top) || 0,
-    Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    androidFullscreen ? 0 : Number(safeAreaInsets?.top) || 0,
+    !androidFullscreen && Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   );
-  const fullscreenBottomInset = Number(safeAreaInsets?.bottom) || 0;
-  const fullscreenLeftInset = Number(safeAreaInsets?.left) || 0;
-  const fullscreenRightInset = Number(safeAreaInsets?.right) || 0;
+  const fullscreenBottomInset = androidFullscreen ? 0 : Number(safeAreaInsets?.bottom) || 0;
+  const fullscreenLeftInset = androidFullscreen ? 0 : Number(safeAreaInsets?.left) || 0;
+  const fullscreenRightInset = androidFullscreen ? 0 : Number(safeAreaInsets?.right) || 0;
   const fullscreenLandscape = (fullscreen || landscapeFullWidth)
     && drawerMode !== 'resize'
     && windowWidth >= windowHeight;
@@ -510,6 +545,27 @@ export const LiveChatDrawer = ({
       }
     : null;
 
+  const fullscreenPortraitResizeStyle = fullscreen && isPortrait && drawerMode === 'resize' && !popupMode
+    ? {
+        position: 'absolute',
+        top: undefined,
+        bottom: fullscreenBottomInset,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxWidth: '100%',
+        height: '75%',
+        maxHeight: '75%',
+        borderLeftWidth: 0,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.2)',
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
+        backgroundColor: 'rgba(7, 14, 26, 0.9)',
+        zIndex: 160,
+      }
+    : null;
+
   const compactOverlayStyle = compactOverlay && !popupMode
     ? {
         position: 'absolute',
@@ -532,36 +588,17 @@ export const LiveChatDrawer = ({
         shadowOpacity: 0.55,
         shadowRadius: 18,
         elevation: 20,
-      }
+    }
     : null;
 
-  // In overlay mode the panel owns the video surface, not just a narrow
-  // side-drawer. On fullscreen phones, inset it inside the system safe area;
-  // inline players instead use their own measured bounds with no device inset.
-  const overlayVideoSurfaceStyle = drawerMode === 'overlay' && !popupMode && !compactOverlay
-    ? {
-        position: 'absolute',
-        top: fullscreen ? fullscreenTopInset : 0,
-        right: fullscreen ? fullscreenRightInset : 0,
-        bottom: fullscreen ? fullscreenBottomInset : 0,
-        left: fullscreen ? fullscreenLeftInset : 0,
-        width: fullscreen
-          ? Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset)
-          : '100%',
-        maxWidth: fullscreen
-          ? Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset)
-          : '100%',
-        height: fullscreen
-          ? Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset)
-          : '100%',
-        maxHeight: fullscreen
-          ? Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset)
-          : '100%',
-        borderLeftWidth: 0,
-        borderTopWidth: 0,
-        borderRadius: 0,
-        backgroundColor: 'rgba(7, 14, 26, 0.78)',
-      }
+  // Landscape overlay drawers stay anchored to the right edge of the player;
+  // don't stretch the drawer over the full video surface. Portrait overlay
+  // continues to use the compact bottom-sheet presentation above.
+  const landscapeOverlayPanelStyle = drawerMode === 'overlay'
+    && !popupMode
+    && !compactOverlay
+    && !isPortrait
+    ? { backgroundColor: 'rgba(7, 14, 26, 0.88)' }
     : null;
 
   const drawerContent = (
@@ -584,8 +621,9 @@ export const LiveChatDrawer = ({
         fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
         fullscreenLandscapeStyle,
         portraitResizeStyle,
+        fullscreenPortraitResizeStyle,
         compactOverlayStyle,
-        overlayVideoSurfaceStyle,
+        landscapeOverlayPanelStyle,
         drawerStyle,
       ]}
     >
@@ -603,33 +641,32 @@ export const LiveChatDrawer = ({
       </View>
 
       {/* --- Tab 1: Live Chat --- */}
-      {activeTab === 'chat' && chatAvailable ? (
-        <LiveChatPanel
-          styles={styles}
-          messagesLoading={messagesLoading}
-          messages={messages}
-          flatListRef={flatListRef}
-          renderMessageItem={renderMessageItem}
-          loadOlderMessages={loadOlderMessages}
-          loadingOlderMessages={loadingOlderMessages}
-          chatError={chatError}
-          handleQuickReaction={handleQuickReaction}
-          inputText={inputText}
-          setInputText={setInputText}
-          handleSend={handleSend}
-          isSending={isSending}
-          setShowEmojiPicker={setShowEmojiPicker}
-          showEmojiPicker={showEmojiPicker}
-          handleSelectEmoji={handleSelectEmoji}
-          colors={colors}
-          bottomInset={bottomModal ? fullscreenBottomInset : 0}
-        />
-      ) : activeTab === 'chat' ? (
-        <View style={styles.epgStatusWrap}>
-          <PlayerIcon name="comment-text-outline" size={28} color="rgba(255,255,255,0.45)" />
-          <Text style={styles.epgStatusText}>Live chat is enabled, but no chat integration was provided.</Text>
-        </View>
-      ) : null}
+      <ChatPanelContent
+        activeTab={activeTab}
+        chatAvailable={chatAvailable}
+        styles={styles}
+        panelProps={{
+          styles,
+          messagesLoading,
+          messages,
+          hasMoreMessages,
+          flatListRef,
+          renderMessageItem,
+          loadOlderMessages,
+          loadingOlderMessages,
+          chatError,
+          handleQuickReaction,
+          inputText,
+          setInputText,
+          handleSend,
+          isSending,
+          setShowEmojiPicker,
+          showEmojiPicker,
+          handleSelectEmoji,
+          colors,
+          bottomInset: bottomModal ? fullscreenBottomInset : 0,
+        }}
+      />
 
       {activeTab === 'epg' && epgAvailable && (
         <>
@@ -909,6 +946,24 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
+  },
+  loadMoreMessagesButton: {
+    minHeight: 30,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 2,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 229, 255, 0.28)',
+  },
+  loadMoreMessagesText: {
+    color: '#00E5FF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   chatFlatList: {
     flex: 1,

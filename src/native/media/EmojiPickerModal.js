@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -18,6 +18,7 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [activeGroup, setActiveGroup] = useState(EMOJI_GROUPS[0].name);
   const [query, setQuery] = useState('');
+  const emojiListRef = useRef(null);
   const isDark = colors?.mode ? colors.mode === 'dark' : systemScheme !== 'light';
 
   // Generous modal sizing for mobile and electron: expands horizontally and vertically
@@ -33,6 +34,11 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
     () => query.trim() ? searchEmojis(query) : activeGroupData.items,
     [activeGroupData, query],
   );
+
+  useEffect(() => {
+    emojiListRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [activeGroup, query]);
+
   const palette = {
     surface: colors?.surfaceColor || (isDark ? '#17212B' : '#FFFFFF'),
     text: colors?.controlColor || (isDark ? '#F5F7FA' : '#202124'),
@@ -50,18 +56,17 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={close}
+      onRequestClose={() => null}
       statusBarTranslucent
     >
-      <Pressable style={[styles.backdrop, { backgroundColor: palette.backdrop }]} onPress={close}>
-        <Pressable
+      <View style={[styles.backdrop, { backgroundColor: palette.backdrop }]}>
+        <View
           style={[styles.sheet, {
             width: sheetWidth,
             height: sheetHeight,
             backgroundColor: palette.surface,
             borderColor: palette.outline,
           }]}
-          onPress={(event) => event.stopPropagation()}
         >
           <View style={styles.header}>
             <Text style={[styles.title, { color: palette.text }]}>Choose an emoji</Text>
@@ -100,7 +105,10 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
                   accessibilityRole="button"
                   accessibilityLabel={`${group.name} emojis`}
                   accessibilityState={{ selected }}
-                  onPress={() => setActiveGroup(group.name)}
+                  onPress={() => {
+                    setQuery('');
+                    setActiveGroup(group.name);
+                  }}
                   style={[styles.categoryButton, { borderColor: selected ? palette.accent : 'transparent' }]}
                 >
                   <Text style={styles.categoryIcon}>{group.icon}</Text>
@@ -112,24 +120,28 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
             {query.trim() ? `Search results · ${emojis.length}` : activeGroupData.name}
           </Text>
           <FlatList
-            key={`${numColumns}-${query.trim() ? 'search' : activeGroup}`}
+            ref={emojiListRef}
+            key={numColumns}
             data={emojis}
             keyExtractor={(item) => item.codepoints}
             numColumns={numColumns}
             style={styles.emojiList}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.grid}
-            initialNumToRender={numColumns * 7}
-            maxToRenderPerBatch={numColumns * 8}
-            windowSize={7}
+            getItemLayout={(_, index) => ({
+              length: itemSize,
+              offset: itemSize * index,
+              index,
+            })}
+            initialNumToRender={numColumns * 4}
+            maxToRenderPerBatch={numColumns * 5}
+            updateCellsBatchingPeriod={24}
+            windowSize={5}
             renderItem={({ item }) => (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Insert ${item.short_name}`}
-                onPress={() => {
-                  onSelectEmoji?.(item.emoji);
-                  close();
-                }}
+                onPress={() => onSelectEmoji?.(item.emoji)}
                 style={({ pressed }) => [styles.emojiButton, pressed && { backgroundColor: `${palette.accent}24` }]}
               >
                 <Text style={styles.emoji}>{item.emoji}</Text>
@@ -137,8 +149,8 @@ export const EmojiPickerModal = ({ visible, onClose, onSelectEmoji, colors }) =>
             )}
             ListEmptyComponent={<Text style={[styles.empty, { color: palette.muted }]}>No emojis found.</Text>}
           />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 };

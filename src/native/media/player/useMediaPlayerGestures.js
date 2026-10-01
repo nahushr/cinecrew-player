@@ -130,7 +130,10 @@ export function useMediaPlayerGestures({
       // When a drawer is open, let its FlatList/ScrollView own the gesture;
       // otherwise the parent can claim the touch before a list starts scrolling.
       onStartShouldSetPanResponder: (event) => {
-        if (showControlsRef.current && !isLockedRef.current) return false;
+        // The lock button remains available while controls are locked. Never
+        // let the video responder claim a touch while the controls are shown,
+        // or it can swallow the unlock press (especially in landscape).
+        if (showControlsRef.current) return false;
         if (isSeekScrubGesture(event)) return false;
         if (drawerOpenRef.current) {
           const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);
@@ -139,9 +142,17 @@ export function useMediaPlayerGestures({
         }
         return true;
       },
-      onStartShouldSetPanResponderCapture: () => false,
+      onStartShouldSetPanResponderCapture: (event) => {
+        // VLC's native video surface can intercept the initial touch before
+        // the player-level responder gets a chance to reveal auto-hidden
+        // controls. Capture only while controls are hidden; when a drawer is
+        // open, leave its scrollable/content area entirely to the drawer.
+        if (showControlsRef.current) return false;
+        if (drawerOpenRef.current) return false;
+        return !isSeekScrubGesture(event);
+      },
       onMoveShouldSetPanResponder: (event, gestureState) => {
-        if (showControlsRef.current && !isLockedRef.current) return false;
+        if (showControlsRef.current) return false;
         if (isSeekScrubGesture(event)) return false;
         if (drawerOpenRef.current) {
           const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);

@@ -30,11 +30,34 @@ export function normalizeChatMessage(message) {
   };
 }
 
-export function normalizeChatPage(value) {
+function getChatRows(value) {
   const rows = Array.isArray(value)
     ? value
     : value?.messages || value?.items || value?.comments || value?.data || [];
-  return Array.isArray(rows) ? rows.map(normalizeChatMessage) : [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+export function normalizeChatPage(value, { limit, offset = 0 } = {}) {
+  const rows = getChatRows(value).map(normalizeChatMessage);
+  const pageLimit = Math.floor(Number(limit));
+  if (!Number.isFinite(pageLimit) || pageLimit < 1 || rows.length <= pageLimit) return rows;
+
+  // Some integrations return their full in-memory history even when limit and
+  // offset are supplied. Keep the player paged in that case as well. Offsets
+  // count backward from the newest message, matching the chat adapter API.
+  const pageEnd = Math.max(0, rows.length - Math.max(0, Math.floor(Number(offset) || 0)));
+  return rows.slice(Math.max(0, pageEnd - pageLimit), pageEnd);
+}
+
+export function chatPageHasMore(value, { limit, offset = 0 } = {}) {
+  const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
+  if (explicitHasMore !== undefined) return Boolean(explicitHasMore);
+
+  const pageLimit = Math.max(1, Math.floor(Number(limit) || 1));
+  const pageOffset = Math.max(0, Math.floor(Number(offset) || 0));
+  const count = getChatRows(value).length;
+  if (count > pageLimit) return count > pageOffset + pageLimit;
+  return count >= pageLimit;
 }
 
 export function chatMessageKey(message, index) {

@@ -9,8 +9,8 @@ export const sampleSources = [
   {
     id: 'dash',
     label: 'MPEG-DASH',
-    title: 'Envivio (MPEG-DASH Stream)',
-    url: 'https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd',
+    title: 'Angel One (MPEG-DASH Stream)',
+    url: 'https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd',
     type: 'application/dash+xml',
   },
   {

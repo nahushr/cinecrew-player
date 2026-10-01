@@ -351,10 +351,11 @@ function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPa
   if (status === 'finalizing') {
     return h('strong', { className: 'cinecrew-player__recording-ready' }, 'Preparing recording…');
   }
-  if (error) return h('span', null, error);
+  if (error && status !== 'recording' && status !== 'paused') return h('span', null, error);
 
   const isPaused = status === 'paused';
   return h(React.Fragment, null,
+    error ? h('span', { className: 'cinecrew-player__recording-error-text', title: error }, error) : null,
     h('span', { className: 'cinecrew-player__recording-indicator' }, 'REC'),
     h('strong', { className: 'cinecrew-player__recording-timer' }, formatTime(elapsed / 1000)),
     h('div', { className: 'cinecrew-player__recording-actions' },
@@ -374,6 +375,33 @@ function WebRecordingOverlay(props) {
     style: { color: theme.controlColor },
     role: error ? 'alert' : 'status',
   }, getRecordingOverlayContent(props), dismissButton);
+}
+
+function WebRecordingSaveDialog({ saveDialog, onDismiss }) {
+  const status = saveDialog?.status;
+  if (status !== 'saving' && status !== 'saved') return null;
+  installRecordingStyles();
+  const saving = status === 'saving';
+  return h('div', { className: 'cinecrew-player__recording-dialog-backdrop' },
+    h('section', {
+      className: 'cinecrew-player__recording-dialog',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-labelledby': 'cinecrew-recording-dialog-title',
+      'aria-live': 'polite',
+    },
+    saving
+      ? h(React.Fragment, null,
+        h('div', { className: 'cinecrew-player__recording-saving-glyph', 'aria-hidden': 'true' }),
+        h('h2', { id: 'cinecrew-recording-dialog-title' }, 'Saving recording'),
+        h('p', null, 'Preparing and saving your video. Larger recordings can take a little longer.'),
+        h('div', { className: 'cinecrew-player__recording-progress', role: 'progressbar', 'aria-label': 'Saving recording' },
+          h('span', null)))
+      : h(React.Fragment, null,
+        h('div', { className: 'cinecrew-player__recording-success-mark', 'aria-hidden': 'true' }),
+        h('h2', { id: 'cinecrew-recording-dialog-title' }, 'Recording saved'),
+        h('p', null, saveDialog.message || 'Your video recording is ready.'),
+        h('button', { type: 'button', onClick: onDismiss, className: 'cinecrew-player__recording-dialog-done' }, 'Done'))));
 }
 
 function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
@@ -465,6 +493,20 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
 
 function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
   installControlsStyles();
+  if (bottomProps.recordingStatus === 'finalizing') return null;
+  if (bottomProps.recordingStatus === 'recording' || bottomProps.recordingStatus === 'paused') {
+    return h('div', { className: 'cinecrew-player__controls is-recording', style: { color: theme.controlColor } },
+      h(WebRecordingOverlay, {
+        status: bottomProps.recordingStatus,
+        elapsed: bottomProps.recordingElapsed,
+        error: bottomProps.recordingError,
+        theme,
+        onPause: bottomProps.pauseRecording,
+        onResume: bottomProps.resumeRecording,
+        onStop: bottomProps.stopRecording,
+        onDismiss: bottomProps.clearRecordingError,
+      }));
+  }
   let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -839,17 +881,9 @@ function getPlaybackStatus(error, buffering, paused) {
   return paused ? 'Paused' : 'Playing';
 }
 
-function WebPlayerLayout(props) {
-  installCoreStyles();
-  if (props.brightness !== undefined && props.brightness < 1) {
-    installBrightnessStyles();
-  }
-  if (props.activePanel && props.webPanel) {
-    installPanelStyles();
-  }
-  let controlLayer = null;
-  if (!props.error) {
-    controlLayer = h(WebPlayerControls, {
+function getWebControlLayer(props) {
+  if (props.error) return null;
+  return h(WebPlayerControls, {
       locked: props.locked,
       buffering: props.buffering,
       overrides: props.controlOverrides,
@@ -866,16 +900,18 @@ function WebPlayerLayout(props) {
       inlinePreview: props.inlinePreview,
       togglePlay: props.togglePlay,
       bottomProps: props.bottomControlProps,
-    });
-  }
-  let loadingNotice = null;
-  if (props.buffering && !props.error) {
-    loadingNotice = h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
-      h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…');
-  }
-  let audioCard = null;
-  if (props.audioOnly) {
-    audioCard = h(WebAudioOnlyCard, {
+  });
+}
+
+function getWebLoadingNotice(props) {
+  if (!props.buffering || props.error) return null;
+  return h('div', { className: 'cinecrew-player__status', style: { color: props.theme.controlColor } },
+    h('span', { className: 'cinecrew-player__spinner', style: { borderTopColor: props.theme.accentColor } }), 'Loading stream…');
+}
+
+function getWebAudioCard(props) {
+  if (!props.audioOnly) return null;
+  return h(WebAudioOnlyCard, {
       poster: props.poster,
       title: props.title,
       theme: props.theme,
@@ -883,57 +919,86 @@ function WebPlayerLayout(props) {
       onSwitchToVideo: props.onSwitchToVideo,
       hasVideo: props.hasVideo,
       isPaused: props.isPaused,
-    });
-  }
-  let panelNode = null;
-  if (props.activePanel && props.webPanel) {
-    const panel = h('aside', {
-      className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}${props.drawerMode === 'modal' ? ' is-modal' : ''}`,
-      style: { color: props.theme.controlColor, ...props.drawerStyle },
-      role: props.drawerMode === 'modal' ? 'dialog' : undefined,
-      'aria-modal': props.drawerMode === 'modal' ? 'true' : undefined,
-      'aria-label': getDrawerLabel(props.activePanel),
-      onClick: props.drawerMode === 'modal' ? (event) => event.stopPropagation() : undefined,
-    }, props.webPanel);
-    panelNode = props.drawerMode === 'modal'
-      ? h('div', {
-        className: 'cinecrew-player__modal-backdrop',
-        role: 'presentation',
-        onClick: props.onClosePanel,
-      }, panel)
-      : props.drawerMode === 'overlay'
-        ? h('div', { className: 'cinecrew-player__overlay-layer' },
-          h('button', {
-            type: 'button',
-            className: 'cinecrew-player__overlay-backdrop',
-            onClick: props.onClosePanel,
-            'aria-label': `Close ${getDrawerLabel(props.activePanel)}`,
-          }),
-          panel)
-        : panel;
-  }
+  });
+}
+
+function getWebBrightnessLayer(props) {
+  if (props.audioOnly || props.brightness >= 1) return null;
   return h('div', {
-    ref: props.playerRef,
-    className: `cinecrew-player${props.audioOnly ? ' cinecrew-player--audio-mode' : ''}${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''}${props.drawerMode === 'modal' && props.activePanel ? ' cinecrew-player--drawer-modal' : ''} ${props.className}`.trim(),
-    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '70%' },
-    onWheel: props.onWheel,
-    'data-stream-mode': props.streamMode,
-  },
-  props.mediaSurface,
-  !props.audioOnly && props.brightness < 1 ? h('div', {
     className: 'cinecrew-player__brightness-dim',
     style: {
       opacity: 1 - props.brightness,
       ...(props.drawerMode === 'resize' && props.activePanel ? { right: 'auto', width: 'var(--cinecrew-media-width, 70%)' } : {}),
     },
     'aria-hidden': true,
-  }) : null,
-  audioCard,
+  });
+}
+
+function getWebPanelNode(props) {
+  if (!props.activePanel || !props.webPanel) return null;
+  const isModal = props.drawerMode === 'modal';
+  const isOverlay = props.drawerMode === 'overlay';
+  const drawerLabel = getDrawerLabel(props.activePanel);
+  const panel = h('aside', {
+    className: `cinecrew-player__panel${props.drawerMode === 'resize' ? ' is-resizing' : ''}${isModal ? ' is-modal' : ''}`,
+    style: { color: props.theme.controlColor, ...props.drawerStyle },
+    role: isModal ? 'dialog' : undefined,
+    'aria-modal': isModal ? 'true' : undefined,
+    'aria-label': drawerLabel,
+    onClick: isModal ? (event) => event.stopPropagation() : undefined,
+  }, props.webPanel);
+  if (isModal) {
+    return h('div', {
+      className: 'cinecrew-player__modal-backdrop',
+      role: 'presentation',
+      onClick: props.onClosePanel,
+    }, panel);
+  }
+  if (!isOverlay) return panel;
+  return h('div', { className: 'cinecrew-player__overlay-layer' },
+    h('button', {
+      type: 'button',
+      className: 'cinecrew-player__overlay-backdrop',
+      onClick: props.onClosePanel,
+      'aria-label': `Close ${drawerLabel}`,
+    }),
+    panel);
+}
+
+function getWebPlayerClassName(props) {
+  const classes = ['cinecrew-player'];
+  if (props.audioOnly) classes.push('cinecrew-player--audio-mode');
+  if (props.inlinePreview) classes.push('cinecrew-player--inline-preview');
+  if (props.drawerMode === 'resize' && props.activePanel) classes.push('cinecrew-player--drawer-resize');
+  if (props.drawerMode === 'modal' && props.activePanel) classes.push('cinecrew-player--drawer-modal');
+  if (props.className) classes.push(props.className);
+  return classes.join(' ');
+}
+
+function installWebLayoutStyles(props) {
+  installCoreStyles();
+  if (props.brightness !== undefined && props.brightness < 1) installBrightnessStyles();
+  if (props.activePanel && props.webPanel) installPanelStyles();
+}
+
+function WebPlayerLayout(props) {
+  installWebLayoutStyles(props);
+  return h('div', {
+    ref: props.playerRef,
+    className: getWebPlayerClassName(props),
+    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '70%' },
+    onWheel: props.onWheel,
+    'data-stream-mode': props.streamMode,
+  },
+  props.mediaSurface,
+  getWebBrightnessLayer(props),
+  getWebAudioCard(props),
   h('div', { className: 'cinecrew-player__shade', style: { background: 'linear-gradient(180deg, rgba(0,0,0,.48), transparent 28%, transparent 68%, rgba(0,0,0,.64))' } }),
-  loadingNotice,
+  getWebLoadingNotice(props),
   h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.locked ? () => null : props.renderBackButton }),
-  controlLayer,
-  panelNode);
+  getWebControlLayer(props),
+  h(WebRecordingSaveDialog, { saveDialog: props.recordingSaveDialog, onDismiss: props.onDismissRecordingSave }),
+  getWebPanelNode(props));
 }
 
 function getStreamMode({ mpegTs, isFlv, useHls, useDash, useOgv }) {
@@ -961,6 +1026,20 @@ function responseRows(value, keys) {
   for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
   if (Array.isArray(value?.data)) return value.data;
   return [];
+}
+
+function chatRowsPage(value, limit, offset = 0) {
+  const rows = responseRows(value, ['messages', 'items', 'comments']);
+  if (rows.length <= limit) return rows;
+  const pageEnd = Math.max(0, rows.length - Math.max(0, offset));
+  return rows.slice(Math.max(0, pageEnd - limit), pageEnd);
+}
+
+function chatRowsHaveMore(value, limit, offset = 0) {
+  const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
+  if (explicitHasMore !== undefined) return Boolean(explicitHasMore);
+  const count = responseRows(value, ['messages', 'items', 'comments']).length;
+  return count > limit ? count > offset + limit : count >= limit;
 }
 
 function formatListingTime(value) {
@@ -1093,7 +1172,7 @@ function formatChatTimestamp(value) {
 
 const EMOJI_BATCH_SIZE = 96;
 
-function WebEmojiPicker({ onSelect }) {
+function WebEmojiPicker({ onSelect, onClose }) {
   installEmojiPickerStyles();
   const [emojiGroup, setEmojiGroup] = useState(EMOJI_GROUPS[0].name);
   const [emojiQuery, setEmojiQuery] = useState('');
@@ -1118,6 +1197,14 @@ function WebEmojiPicker({ onSelect }) {
   };
 
   return h('div', { className: 'cinecrew-player__emoji-picker', role: 'dialog', 'aria-label': 'Choose an emoji' },
+    h('header', { className: 'cinecrew-player__emoji-header' },
+      h('strong', null, 'Choose an emoji'),
+      h('button', {
+        type: 'button',
+        className: 'cinecrew-player__emoji-close',
+        onClick: onClose,
+        'aria-label': 'Close emoji picker',
+      }, '×')),
     h('input', {
       className: 'cinecrew-player__emoji-search',
       type: 'search',
@@ -1163,23 +1250,6 @@ function WebChatComposer({ sending, canSend, onSend }) {
   const [message, setMessage] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const emojiAnchorRef = useRef(null);
-  useEffect(() => {
-    if (!emojiOpen) return undefined;
-    const closeOnOutsidePointer = (event) => {
-      if (!emojiAnchorRef.current?.contains(event.target)) setEmojiOpen(false);
-    };
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setEmojiOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsidePointer, true);
-    document.addEventListener('click', closeOnOutsidePointer, true);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePointer, true);
-      document.removeEventListener('click', closeOnOutsidePointer, true);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [emojiOpen]);
   const handleSubmit = async (event) => {
     event.preventDefault();
     const comment = message.trim();
@@ -1195,10 +1265,11 @@ function WebChatComposer({ sending, canSend, onSend }) {
         h('button', {
           type: 'button',
           className: 'cinecrew-player__emoji-toggle',
-          onClick: () => setEmojiOpen((open) => !open),
-          'aria-label': emojiOpen ? 'Close emoji picker' : 'Open emoji picker',
+          onClick: () => { if (!emojiOpen) setEmojiOpen(true); },
+          'aria-label': emojiOpen ? 'Emoji picker open' : 'Open emoji picker',
+          'aria-expanded': emojiOpen,
         }, '☺'),
-        emojiOpen ? h(WebEmojiPicker, { onSelect: insertEmoji }) : null),
+        emojiOpen ? h(WebEmojiPicker, { onSelect: insertEmoji, onClose: () => setEmojiOpen(false) }) : null),
       h('input', {
         value: message,
         onChange: (event) => setMessage(event.target.value),
@@ -1265,7 +1336,9 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
       const value = isChat
         ? await integration.loadMessages({ channelId, limit: pageSize, offset: 0 })
         : await integration.loadListings({ channelId, limit: integration.limit || 48 });
-      const nextRows = responseRows(value, isChat ? ['messages', 'items', 'comments'] : ['listings', 'programmes', 'epg', 'items']);
+      const nextRows = isChat
+        ? chatRowsPage(value, pageSize, 0)
+        : responseRows(value, ['listings', 'programmes', 'epg', 'items']);
       if (isChat) {
         const previousCount = rowsRef.current.length;
         const mergedRows = mergeChatMessages(rowsRef.current, nextRows);
@@ -1276,8 +1349,7 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
           ? nextRows.length
           : Math.max(offset, nextRows.length) + addedCount);
         if (previousCount === 0) {
-          const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
-          setHasMoreMessages(explicitHasMore === undefined ? nextRows.length >= pageSize : Boolean(explicitHasMore));
+          setHasMoreMessages(chatRowsHaveMore(value, pageSize, 0));
         }
       } else {
         setRows(nextRows);
@@ -1319,11 +1391,13 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
     try {
       setError('');
       const value = await integration.loadMessages({ channelId, limit: pageSize, offset: messageOffset });
-      const olderRows = responseRows(value, ['messages', 'items', 'comments']);
-      updateRows(mergeChatMessages(rowsRef.current, olderRows, true));
+      const olderRows = chatRowsPage(value, pageSize, messageOffset);
+      const currentRows = rowsRef.current;
+      const mergedRows = mergeChatMessages(currentRows, olderRows, true);
+      const addedCount = mergedRows.length - currentRows.length;
+      updateRows(mergedRows);
       setMessageOffset((offset) => offset + olderRows.length);
-      const explicitHasMore = value?.hasMore ?? value?.pagination?.hasMore;
-      setHasMoreMessages(explicitHasMore === undefined ? olderRows.length >= pageSize : Boolean(explicitHasMore));
+      setHasMoreMessages(addedCount > 0 && chatRowsHaveMore(value, pageSize, messageOffset));
     } catch (loadError) {
       setError(loadError?.message || 'Could not load more messages.');
     } finally {
@@ -1345,12 +1419,6 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
       shouldScrollBottomRef.current = false;
     }
   }, [rows]);
-
-  useEffect(() => {
-    if (isChat && hasMoreMessages && !loadingOlder && panelListRef.current?.scrollTop <= 24) {
-      void loadOlderMessages();
-    }
-  }, [rows.length, hasMoreMessages, loadingOlder, isChat]);
 
   const send = async (comment) => {
     if (!comment || sending || !integration.sendMessage) return false;
@@ -1392,18 +1460,22 @@ function WebIntegrationPanel({ kind, integration, integrations, source, title, t
   h('header', { className: 'cinecrew-player__panel-heading' },
     h('strong', null, isChat ? 'Live chat' : `${title || 'Channel'} · EPG`),
     h('button', { type: 'button', onClick: onClose, 'aria-label': 'Close panel' }, '×')),
+  isChat && hasMoreMessages ? h('button', {
+    type: 'button',
+    className: 'cinecrew-player__chat-load-more',
+    onClick: () => { void loadOlderMessages(); },
+    disabled: loadingOlder,
+    'aria-busy': loadingOlder,
+    'aria-label': loadingOlder ? 'Loading older messages' : 'Load more messages',
+  }, loadingOlder ? 'Loading…' : 'Load more') : null,
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
   !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
     h('div', {
       className: 'cinecrew-player__panel-list',
       ref: panelListRef,
-      onScroll: (event) => {
-        if (isChat && event.currentTarget.scrollTop <= 24) void loadOlderMessages();
-      },
       'aria-live': isChat ? 'polite' : undefined,
     },
-      isChat && loadingOlder ? h('div', { className: 'cinecrew-player__older-loading', role: 'status' }, 'Loading older messages…') : null,
       rows.map((row, index) => h(WebPanelRow, { key: getChatMessageKey(row, index), row, index, isChat }))),
     isChat ? h(WebChatComposer, {
       sending,
@@ -1504,6 +1576,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const [recordingStatus, setRecordingStatus] = useState('idle');
   const [recordingElapsed, setRecordingElapsed] = useState(0);
   const [recordingError, setRecordingError] = useState('');
+  const [recordingSaveDialog, setRecordingSaveDialog] = useState(null);
   const [recordingDownloadLink, setRecordingDownloadLink] = useState(null);
   const [availableTracks, setAvailableTracks] = useState([]);
   const [fullscreen, setFullscreen] = useState(false);
@@ -1518,6 +1591,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const recordingDownloadLinkRef = useRef(null);
   const recordingFinalizerRef = useRef(null);
   const recordingCompletionRef = useRef(null);
+  const recordingSaveSucceededRef = useRef(false);
   const lastProgressBarSecondRef = useRef(null);
   const recordingClockRef = useRef({ startedAt: 0, accumulatedMs: 0 });
   aspectRatioRef.current = aspectRatio;
@@ -1739,6 +1813,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const startBuiltinRecording = useCallback(async () => {
     const video = videoRef.current;
     if (!video) throw new Error('The media element is not ready to record.');
+    recordingSaveSucceededRef.current = false;
     let capture = createVideoRecordingStream(video, playerRef.current, () => aspectRatioRef.current, ac3AudioPlayback.getRecordingAudioStream());
     // Fallback: if direct capture failed (CORS / tainted), use screen capture.
     if (!capture) {
@@ -1770,6 +1845,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         setRecordingDownloadLink(downloadLink);
         try {
           if (!downloadRecording(blob, title)) throw new Error('The browser did not start the recording download. Try a local or CORS-enabled source.');
+          recordingSaveSucceededRef.current = true;
           // Auto-dismiss back to idle after a successful download.
           setRecordingStatus('idle');
           setRecordingError('');
@@ -1778,10 +1854,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
           recordingDownloadLinkRef.current = null;
           setRecordingDownloadLink(null);
         } catch (downloadError) {
+          recordingSaveSucceededRef.current = false;
+          setRecordingSaveDialog(null);
           setRecordingError(downloadError?.message || 'The recording could not be downloaded.');
           setRecordingStatus('idle');
         }
       } catch (error_) {
+        recordingSaveSucceededRef.current = false;
+        setRecordingSaveDialog(null);
         setRecordingError(error_?.message || 'Could not finish the recording.');
         setRecordingStatus('idle');
       } finally {
@@ -1805,8 +1885,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, [ac3AudioPlayback, title]);
 
   const startRecording = useCallback(async () => {
+    setRecordingSaveDialog(null);
     setRecordingError('');
+    setActivePanel(null);
     recordingBlobRef.current = null;
+    recordingSaveSucceededRef.current = false;
     if (recordingDownloadLinkRef.current?.url) URL.revokeObjectURL(recordingDownloadLinkRef.current.url);
     recordingDownloadLinkRef.current = null;
     setRecordingDownloadLink(null);
@@ -1820,6 +1903,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setRecordingStatus('recording');
     } catch (startError) {
       setRecordingStatus('idle');
+      setRecordingSaveDialog(null);
       setRecordingError(startError?.message || 'Could not start recording.');
     }
   }, [action, integrations.recording, startBuiltinRecording, streamUrl, title]);
@@ -1860,8 +1944,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, [action, integrations.recording, recordingElapsed]);
 
   const stopRecording = useCallback(async () => {
+    const stop = integrations.recording?.stop;
+    setRecordingError('');
+    setRecordingSaveDialog({ status: 'saving' });
+    setRecordingStatus('finalizing');
     try {
-      const stop = integrations.recording?.stop;
       const completedBlob = await performRecordingStop({
         stop,
         action,
@@ -1873,6 +1960,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         finalizerRef: recordingFinalizerRef,
         setRecordingStatus,
       });
+      const saveSucceeded = Boolean(stop || recordingSaveSucceededRef.current);
       updateRecordingStopState({
         clock: recordingClockRef.current,
         completedBlob,
@@ -1881,7 +1969,18 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         setRecordingStatus,
         setRecordingError,
       });
+      if (saveSucceeded) {
+        const savedMessage = stop
+          ? 'The recording was saved successfully.'
+          : `${recordingDownloadLinkRef.current?.filename || title || 'Recording'} is saved. The download has started.`;
+        setRecordingSaveDialog({ status: 'saved', message: savedMessage });
+      } else {
+        setRecordingSaveDialog(null);
+        setRecordingError((current) => current || 'The recording was finalized, but the browser did not start its download.');
+      }
     } catch (stopError) {
+      setRecordingStatus('idle');
+      setRecordingSaveDialog(null);
       setRecordingError(stopError?.message || 'Could not finish recording.');
     }
   }, [action, integrations.recording, recordingElapsed, streamUrl, title]);
@@ -1898,6 +1997,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const dismissRecording = useCallback(() => {
     setRecordingStatus('idle');
     setRecordingError('');
+    setRecordingSaveDialog(null);
     recordingBlobRef.current = null;
     if (recordingDownloadLinkRef.current?.url) URL.revokeObjectURL(recordingDownloadLinkRef.current.url);
     recordingDownloadLinkRef.current = null;
@@ -2234,6 +2334,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     brightness,
     onBrightnessChange: updateBrightness,
     onBrightnessChangeEnd,
+    recordingSaveDialog,
+    onDismissRecordingSave: () => setRecordingSaveDialog(null),
   });
 });
 

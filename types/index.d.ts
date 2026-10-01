@@ -341,8 +341,25 @@ export interface InlineLivePlayerProps {
   onActivate?: () => void;
   /** @deprecated Inline fullscreen is self-contained. Use actions.onFullscreen to observe its state. */
   onFullscreen?: () => void;
-  controls?: Pick<PlayerControls, 'playPause' | 'mute' | 'fullscreen'>;
-  actions?: Pick<PlayerActions, 'onPlayPause' | 'onMute' | 'onFullscreen'>;
+  /** Promote the inline preview into the host app's full player. Receives the current playback position so it can resume without restarting. */
+  onPromotePreview?: (position: { currentTime: number; startTime: number; position: number; progressTime: string; title: string; source: PlayerSource }) => void;
+  controls?: Pick<PlayerControls, 'playPause' | 'mute' | 'fullscreen' | 'seek' | 'liveChat' | 'epg' | 'diagnostics'>;
+  actions?: Pick<PlayerActions, 'onPlayPause' | 'onMute' | 'onFullscreen' | 'onLiveChatOpen' | 'onEpgOpen' | 'onDiagnosticsOpen'>;
+  /** Enable stream diagnostics in the inline player's drawer. */
+  features?: Pick<NonNullable<CineCrewPlayerProps['features']>, 'diagnostics'>;
+  /** Drawer integrations and optional current-user metadata. */
+  integrations?: PlayerIntegrations;
+  /** Choose right-side overlay, resized video, or modal drawer presentation. Defaults to overlay. */
+  drawerMode?: PlayerDrawerMode;
+  /** Chat page size; older messages load automatically as the list is scrolled to the top. Defaults to 50. */
+  messagePageSize?: number;
+  mediaId?: string | number;
+  drawerStyle?: React.CSSProperties | import('react-native').ViewStyle;
+  /** Control drawer visibility externally. Pair with onLiveChatChange to control it. */
+  showLiveChat?: boolean;
+  /** Initial drawer visibility when showLiveChat is not supplied. Defaults to false. */
+  initialShowLiveChat?: boolean;
+  onLiveChatChange?: (isOpen: boolean) => void;
   theme?: PlayerTheme;
   icons?: PlayerIcons;
   style?: unknown;
@@ -373,6 +390,8 @@ export interface InlineLivePlayerProps {
   /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
   onError?: (error: PlayerError) => void;
   onPlaying?: (event: unknown) => void;
+  /** Called for each elapsed second and after a seek with the exact HH:MM:SS playback position. */
+  onProgressBarChange?: (time: string) => void;
 }
 
 export interface VerticalBrightnessControlProps {

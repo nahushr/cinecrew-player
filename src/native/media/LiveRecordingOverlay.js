@@ -185,6 +185,110 @@ export function LiveRecordingNotice({ notice, colors, onDismiss }) {
   );
 }
 
+function RecordingProgressBar() {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1150,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [progress]);
+
+  return (
+    <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityLabel="Saving recording">
+      <Animated.View
+        style={[
+          styles.progressSweep,
+          { transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-112, 276] }) }] },
+        ]}
+      />
+    </View>
+  );
+}
+
+function RecordingSavedMark({ visible }) {
+  const scale = useRef(new Animated.Value(0.55)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    scale.setValue(0.55);
+    opacity.setValue(0);
+    if (!visible) return undefined;
+    const animation = Animated.parallel([
+      Animated.spring(scale, { toValue: 1, damping: 8, stiffness: 170, mass: 0.7, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [opacity, scale, visible]);
+
+  return (
+    <Animated.View style={[styles.successMark, { opacity, transform: [{ scale }] }]} accessibilityLabel="Recording saved">
+      <View style={styles.checkShort} />
+      <View style={styles.checkLong} />
+    </Animated.View>
+  );
+}
+
+export function RecordingSaveDialog({ saveDialog, colors, onDismiss }) {
+  const status = saveDialog?.status;
+  const visible = status === 'saving' || status === 'saved';
+  const theme = resolveTheme(colors);
+  const isSaving = status === 'saving';
+
+  if (!visible) return null;
+
+  return (
+    <View
+      style={[StyleSheet.absoluteFill, styles.dialogBackdrop]}
+      onStartShouldSetResponder={() => true}
+      accessibilityViewIsModal
+    >
+      <View
+        style={[styles.dialogCard, { backgroundColor: theme.noticeBg, borderColor: theme.noticeBorder }]}
+        accessibilityRole="alert"
+        accessibilityLiveRegion="polite"
+      >
+        {isSaving ? (
+          <>
+            <View style={[styles.savingGlyph, { borderColor: `${theme.primary}66` }]}>
+              <Animated.View style={[styles.savingGlyphDot, { backgroundColor: theme.primary }]} />
+            </View>
+            <Text style={[styles.dialogTitle, { color: theme.text }]}>Saving recording</Text>
+            <Text style={[styles.dialogDescription, { color: theme.muted }]}>
+              Preparing and saving your video. Larger recordings can take a little longer.
+            </Text>
+            <RecordingProgressBar />
+          </>
+        ) : (
+          <>
+            <RecordingSavedMark visible={status === 'saved'} />
+            <Text style={[styles.dialogTitle, { color: theme.text }]}>Recording saved</Text>
+            <Text style={[styles.dialogDescription, { color: theme.muted }]} numberOfLines={3}>
+              {saveDialog?.message || saveDialog?.filename || 'Your video recording is ready.'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.dialogButton, { backgroundColor: theme.primary }]}
+              onPress={onDismiss}
+              accessibilityRole="button"
+              accessibilityLabel="Close recording saved dialog"
+            >
+              <Text style={styles.dialogButtonText}>Done</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export function PipRecordingBadge({ status, elapsedMs }) {
   if (status !== 'recording' && status !== 'paused') return null;
   return (
@@ -202,10 +306,113 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 10000,
     ...(isWeb() || isElectron() ? {} : { elevation: 1000 }),
     alignItems: 'center',
     pointerEvents: 'box-none',
+  },
+  dialogBackdrop: {
+    zIndex: 10001,
+    ...(isWeb() || isElectron() ? {} : { elevation: 10001 }),
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    borderRadius: 24,
+    borderWidth: 1,
+    ...(isWeb() || isElectron()
+      ? { boxShadow: '0 18px 54px rgba(0,0,0,0.42)' }
+      : { elevation: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.36, shadowRadius: 22 }),
+  },
+  savingGlyph: {
+    width: 56,
+    height: 56,
+    marginBottom: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderRadius: 28,
+  },
+  savingGlyphDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  dialogTitle: {
+    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  dialogDescription: {
+    marginBottom: 20,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  progressTrack: {
+    width: '100%',
+    height: 7,
+    overflow: 'hidden',
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  progressSweep: {
+    width: 112,
+    height: '100%',
+    borderRadius: 5,
+    backgroundColor: '#00E5FF',
+  },
+  successMark: {
+    width: 78,
+    height: 78,
+    marginBottom: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 39,
+    backgroundColor: '#20B875',
+    ...(isWeb() || isElectron()
+      ? { boxShadow: '0 8px 28px rgba(32,184,117,0.34)' }
+      : { elevation: 8, shadowColor: '#20B875', shadowOpacity: 0.36, shadowRadius: 14, shadowOffset: { width: 0, height: 4 } }),
+  },
+  checkShort: {
+    position: 'absolute',
+    left: 22,
+    top: 39,
+    width: 14,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
+  },
+  checkLong: {
+    position: 'absolute',
+    left: 31,
+    top: 35,
+    width: 27,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '-48deg' }],
+  },
+  dialogButton: {
+    minWidth: 116,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  dialogButtonText: {
+    color: '#06120D',
+    fontSize: 14,
+    fontWeight: '800',
   },
   bar: {
     flexDirection: 'row',

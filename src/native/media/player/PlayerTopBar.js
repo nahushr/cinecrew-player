@@ -4,6 +4,13 @@ import { isAndroid, isIOS, isElectronOverlay } from '../../../utils/runtimePlatf
 import { cleanPlayerTitle } from '../../../utils/mediaUtils';
 import { PlayerIcon, usePlayerColors } from '../../customization';
 
+function controlButtonSize(compact, scale) {
+  const boost = scale?.buttonBoost || 1;
+  if (boost <= 1) return null;
+  const size = Math.round((compact ? 30 : 38) * boost);
+  return { width: size, height: size, borderRadius: size / 2 };
+}
+
 function shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
   if (isMobile || !episodeLabel) return false;
   const episode = episodeLabel.trim().toLowerCase();
@@ -16,7 +23,7 @@ function BackButton({ visible, palette, onClose, compact, scale }) {
   const iconBoost = scale?.iconBoost || 1;
   return (
     <TouchableOpacity
-      style={[styles.pill, compact && styles.compactPill]}
+      style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale)]}
       onPress={(event) => { event.stopPropagation(); onClose(); }}
       hitSlop={12}
       accessibilityRole="button"
@@ -32,7 +39,7 @@ function RecordingControls({ canRecord, enabled, status, loading, controls, onSt
   const iconBoost = scale?.iconBoost || 1;
   if (status === 'idle') {
     return (
-      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
+      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale), loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
         <PlayerIcon name="record-rec" size={Math.round((compact ? 18 : 22) * iconBoost)} color={palette.errorColor} />
       </TouchableOpacity>
     );
@@ -40,10 +47,10 @@ function RecordingControls({ canRecord, enabled, status, loading, controls, onSt
   const isPaused = status === 'paused';
   return (
     <>
-      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, isPaused ? styles.recPausePill : styles.recActivePill]} onPress={isPaused ? onResume : onPause} hitSlop={12} accessibilityLabel={isPaused ? 'Resume recording' : 'Pause recording'}>
+      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale), isPaused ? styles.recPausePill : styles.recActivePill]} onPress={isPaused ? onResume : onPause} hitSlop={12} accessibilityLabel={isPaused ? 'Resume recording' : 'Pause recording'}>
         <PlayerIcon name={isPaused ? 'play' : 'pause'} size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.controlColor} />
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, styles.recStopPill]} onPress={onStop} hitSlop={12} accessibilityLabel="Stop recording">
+      <TouchableOpacity style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale), styles.recStopPill]} onPress={onStop} hitSlop={12} accessibilityLabel="Stop recording">
         <PlayerIcon name="stop" size={Math.round((compact ? 18 : 20) * iconBoost)} color={palette.errorColor} />
       </TouchableOpacity>
     </>
@@ -60,6 +67,7 @@ function ServiceActionButton({ name, tab, enabled, controls, showLiveChat, drawe
       style={[
         styles.pill,
         compact && styles.compactPill,
+        controlButtonSize(compact, scale),
         active && {
           backgroundColor: 'rgba(0, 229, 255, 0.12)',
           borderColor: palette.accentColor,
@@ -85,7 +93,7 @@ function SessionActionButton({ visible, compact, onPress, icon, color, accessibi
   const iconBoost = scale?.iconBoost || 1;
   return (
     <TouchableOpacity
-      style={[styles.pill, compact && styles.compactPill]}
+      style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale)]}
       onPress={(event) => { event.stopPropagation(); onPress(); }}
       hitSlop={12}
       accessibilityRole="button"
@@ -110,7 +118,7 @@ export const PlayerLockButton = forwardRef(function PlayerLockButton(
   return (
     <TouchableOpacity
       ref={ref}
-      style={[styles.pill, compact && styles.compactPill, stateStyle, style]}
+      style={[styles.pill, compact && styles.compactPill, controlButtonSize(compact, scale), stateStyle, style]}
       onLayout={onLayout}
       onPress={(event) => { event.stopPropagation(); onPress?.(); }}
       hitSlop={12}

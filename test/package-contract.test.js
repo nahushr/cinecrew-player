@@ -82,9 +82,11 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   assert.match(nativeDrawer, /height: '75%'/);
   assert.match(nativeDrawer, /compactOverlayBackdrop/);
   assert.match(nativePlayer, /const resizeDrawerOpen = drawerMode === 'resize'\s+&& showLiveChat\s+&& windowWidth >= windowHeight/);
-  assert.match(nativePlayer, /landscapeFullWidth=\{props\.isLandscape\}/);
+  assert.match(nativePlayer, /landscapeFullWidth=\{landscapeFullWidth\}/);
   assert.match(nativeDrawer, /const fullscreenLandscape = \(fullscreen \|\| landscapeFullWidth\)[\s\S]*?windowWidth >= windowHeight/);
   assert.match(nativeDrawer, /fullscreenTopInset[\s\S]*fullscreenBottomInset/);
+  assert.match(nativeDrawer, /landscapeOverlayPanelStyle = drawerMode === 'overlay'[\s\S]*?!isPortrait/);
+  assert.doesNotMatch(nativeDrawer, /overlayVideoSurfaceStyle/);
   assert.match(webPlayer, /cinecrew-player__modal-backdrop/);
   assert.match(webPlayer, /aria-modal/);
   assert.match(webStyles, /\.cinecrew-player__panel\.is-modal/);
@@ -99,6 +101,25 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   ]) {
     assert.match(readFileSync(path.join(root, demoFile), 'utf8'), /value: 'modal'|value="modal"/);
   }
+});
+
+test('native inline player supports the shared drawers without clipping resize mode', () => {
+  const inlinePlayer = readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8');
+  const nativeDemo = readFileSync(path.join(root, 'examples/native-demo/App.js'), 'utf8');
+  const nativeDemoViewport = readFileSync(path.join(root, 'examples/native-demo/src/components/PlayerViewport.js'), 'utf8');
+
+  assert.match(inlinePlayer, /React\.createElement\(LiveChatDrawer/);
+  assert.match(inlinePlayer, /drawerMode,/);
+  assert.match(inlinePlayer, /isLiveCommentsEnabled,/);
+  assert.match(inlinePlayer, /isEpgEnabled,/);
+  assert.match(inlinePlayer, /diagnosticsEnabled,/);
+  assert.match(inlinePlayer, /initialTab: drawerTab/);
+  assert.match(inlinePlayer, /fullscreenLandscape \? fullscreenFrameHeight : fullscreenPortraitVideoHeight/);
+  assert.match(nativeDemoViewport, /showLiveChat=\{showLiveChat\}/);
+  assert.match(nativeDemoViewport, /drawerMode=\{drawerMode\}/);
+  assert.match(nativeDemoViewport, /integrations=\{integrations\}/);
+  assert.match(nativeDemo, /inline\s*\?\s*220/);
+  assert.match(nativeDemo, /portraitResizeVideoHeight \+ portraitResizeDrawerHeight \+ 2/);
 });
 
 test('native fullscreen video taps dismiss controls and landscape drawers overlay full-width video', () => {
@@ -232,25 +253,52 @@ test('compact inline titles are bottom-anchored and the Vite source controls sta
   assert.match(demoStyles, /\.file-source-row\s*\{[^}]*padding-top:\s*12px/);
 });
 
-test('web player keeps chat paging automatic and exposes customizable aspect modes', () => {
+test('web player exposes manual chat paging and customizable aspect modes', () => {
   const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
   const webStyles = readFileSync(path.join(root, 'src/web/styles.css'), 'utf8');
   const recording = readFileSync(path.join(root, 'src/utils/webRecording.js'), 'utf8');
   const nativeEntry = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
+  const nativeChatPanel = readFileSync(path.join(root, 'src/native/media/chat/LiveChatMessagesPanel.js'), 'utf8');
+  const webChatPanel = webEntry.slice(webEntry.indexOf('function WebIntegrationPanel'), webEntry.indexOf('/**\n * URL-first browser player'));
 
   assert.match(declarations, /aspectRatios\?: Array<AspectRatio \| AspectRatioOption>/);
   assert.match(declarations, /defaultAspectRatio\?: AspectRatio/);
   assert.match(webEntry, /if \(name === 'onAspectRatioChange'\) callback = callback \|\| props\.onAspectRatioChange/);
-  assert.match(webEntry, /onScroll:[\s\S]*loadOlderMessages/);
+  assert.match(webChatPanel, /cinecrew-player__chat-load-more/);
+  assert.doesNotMatch(webChatPanel, /onScroll/);
+  assert.match(nativeChatPanel, /Load more/);
+  assert.doesNotMatch(nativeChatPanel, /onScroll/);
   assert.doesNotMatch(webEntry, /See more messages/);
   assert.doesNotMatch(webEntry, /name: 'videoOnly'/);
   assert.match(webStyles, /cinecrew-player__menu-option\.is-selected/);
   assert.match(webStyles, /cinecrew-player__controls\.is-recording/);
+  assert.match(webEntry, /recordingStatus === 'recording' \|\| bottomProps\.recordingStatus === 'paused'/);
+  assert.match(webEntry, /recordingStatus === 'finalizing'\) return null/);
+  assert.match(webEntry, /cinecrew-player__recording-dialog-backdrop/);
+  assert.match(webStyles, /cinecrew-player__recording-progress/);
+  assert.match(nativeEntry, /!recordingInProgress && showControls/);
+  assert.match(nativeEntry, /saveDialog=\{recSaveDialog\}/);
   assert.match(recording, /new MediaRecorder|MediaRecorder/);
   assert.match(recording, /canvas\.captureStream/);
   assert.doesNotMatch(webEntry, /youtube|youtubeVideoId/i);
   assert.doesNotMatch(nativeEntry, /youtube|youtubeVideoId/i);
   assert.doesNotMatch(webStyles, /cinecrew-player--youtube/i);
+});
+
+test('emoji picker supports repeat selection and smooth category list updates', () => {
+  const nativeEmojiPicker = readFileSync(path.join(root, 'src/native/media/EmojiPickerModal.js'), 'utf8');
+  const webEntry = readFileSync(path.join(root, 'src/web/index.js'), 'utf8');
+  const webEmojiPicker = webEntry.slice(webEntry.indexOf('function WebEmojiPicker'), webEntry.indexOf('function WebChatComposer'));
+
+  assert.match(nativeEmojiPicker, /onSelectEmoji\?\.\(item\.emoji\)/);
+  assert.doesNotMatch(nativeEmojiPicker, /onSelectEmoji\?\.\(item\.emoji\)[\s\S]{0,80}close\(\)/);
+  assert.match(nativeEmojiPicker, /key=\{numColumns\}/);
+  assert.match(nativeEmojiPicker, /getItemLayout=/);
+  assert.doesNotMatch(nativeEmojiPicker, /<Pressable style=\{\[styles\.backdrop,[\s\S]*?onPress=\{close\}/);
+  assert.match(webEmojiPicker, /className: 'cinecrew-player__emoji-close'/);
+  assert.match(webEmojiPicker, /onClick: onClose/);
+  assert.match(webEmojiPicker, /onClick: \(\) => onSelect\(item\.emoji\)/);
+  assert.doesNotMatch(webEntry, /closeOnOutsidePointer|closeOnEscape/);
 });
 
 test('back action is app-owned and the Vite demo shows its callback in a snackbar', () => {

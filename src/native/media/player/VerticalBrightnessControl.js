@@ -147,16 +147,14 @@ export function VerticalBrightnessControl({
               <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
             </View>
           </View>
-          <Text
-            style={[
-              styles.valueLabel,
-              responsiveCompact && styles.compactValueLabel,
-              fullscreenLandscape && {
-                fontSize: (responsiveCompact ? 10 : 11) * 1.1,
-                lineHeight: (responsiveCompact ? 12 : 13) * 1.1,
-              },
-            ]}
-          >{displayPercent}</Text>
+          {!responsiveCompact ? (
+            <Text
+              style={[
+                styles.valueLabel,
+                fullscreenLandscape && { fontSize: 12, lineHeight: 14 },
+              ]}
+            >{displayPercent}</Text>
+          ) : null}
         </View>
       )}
     </View>

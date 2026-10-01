@@ -20,11 +20,12 @@ export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
+  const [promotedFullscreen, setPromotedFullscreen] = useState(false);
   const [liveBadge, setLiveBadge] = useState(false);
   const [status, setStatus] = useState('Ready');
   const [progressTime, setProgressTime] = useState('00:00:00');
   const [drawerMode, setDrawerMode] = useState('resize');
-  const [showLiveChat, setShowLiveChat] = useState(isLandscape);
+  const [showLiveChat, setShowLiveChat] = useState(false);
   const prevLandscapeRef = useRef(isLandscape);
   const [toast, setToast] = useState(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
@@ -72,10 +73,11 @@ export default function App() {
   useEffect(() => {
     if (prevLandscapeRef.current !== isLandscape) {
       prevLandscapeRef.current = isLandscape;
-      setShowLiveChat(isLandscape);
-      if (isLandscape) {
-        setDrawerMode('resize');
-      }
+      // Keep drawers closed across orientation changes in the demo. Users can
+      // still open chat explicitly from the player controls. Preserve the
+      // selected drawer layout: rotation must not silently turn Overlay or
+      // Modal into Resize.
+      setShowLiveChat(false);
     }
   }, [isLandscape]);
 
@@ -99,19 +101,27 @@ export default function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
-  const isImmersive = isLandscape;
+  const isImmersive = promotedFullscreen;
 
   const handleInlineChange = useCallback((nextInline) => {
     setInline(nextInline);
+    if (nextInline) setPromotedFullscreen(false);
     if (progressTime && progressTime !== '00:00:00') {
       setStartTime(progressTime);
     }
+  }, [progressTime]);
+
+  const handlePromotePreview = useCallback((payload = {}) => {
+    setStartTime(payload.startTime ?? payload.currentTime ?? progressTime);
+    setInline(false);
+    setPromotedFullscreen(true);
   }, [progressTime]);
 
   const integrations = useDemoIntegrations(notify);
   const actions = useDemoPlayerActions({
     notify,
     setSelectedAudioTrack,
+    onFullscreenChange: setPromotedFullscreen,
   });
 
   const reportPlaybackError = useCallback((error) => {
@@ -158,7 +168,15 @@ export default function App() {
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
   const playerCardWidth = Math.max(1, Math.min(width, 1060) - horizontalPadding * 2);
-  const playerCardHeight = Math.round(playerCardWidth * (9 / 16));
+  const defaultPlayerCardHeight = Math.round(playerCardWidth * (9 / 16));
+  const portraitResizeOpen = !isLandscape && !isImmersive && drawerMode === 'resize' && showLiveChat;
+  const portraitResizeVideoHeight = inline
+    ? 220
+    : Math.min(Math.round(height * 0.42), Math.round(width * (9 / 16)));
+  const portraitResizeDrawerHeight = Math.min(380, Math.max(280, Math.round(height * 0.42)));
+  const playerCardHeight = portraitResizeOpen
+    ? portraitResizeVideoHeight + portraitResizeDrawerHeight + 2
+    : defaultPlayerCardHeight;
   const effectiveDrawerMode = drawerMode;
   const landscapePlayerStyle = {
     width: '100%',
@@ -225,8 +243,10 @@ export default function App() {
           drawerMode={effectiveDrawerMode}
           showLiveChat={showLiveChat}
           onLiveChatChange={setShowLiveChat}
-          playerStyle={landscapePlayerStyle}
+          playerStyle={isImmersive ? landscapePlayerStyle : undefined}
           inline={inline}
+          promotedFullscreen={promotedFullscreen}
+          onPromotePreview={handlePromotePreview}
           startTime={startTime}
           showBrightnessControl={true}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
@@ -264,7 +284,11 @@ export default function App() {
         style={[styles.screen, isImmersive && { backgroundColor: '#000' }, isElectronOverlay && styles.electronOverlayScreen]}
         edges={isImmersive ? [] : ['top', 'right', 'bottom', 'left']}
       >
-      {Platform.OS === 'web' ? (
+      {isImmersive ? (
+        <View style={styles.immersiveStage}>
+          {pageContent}
+        </View>
+      ) : Platform.OS === 'web' ? (
         <ScrollView
           ref={scrollViewRef}
           nativeID={isElectronOverlay ? 'cinecrew-electron-demo-scroll' : undefined}
@@ -295,6 +319,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
+  immersiveStage: { flex: 1, width: '100%', height: '100%' },
   electronOverlayScreen: { backgroundColor: 'transparent' },
   scroll: { flex: 1, minHeight: 0, width: '100%' },
   content: { width: '100%', maxWidth: 1060, alignSelf: 'center', paddingTop: 32, paddingBottom: 56 },

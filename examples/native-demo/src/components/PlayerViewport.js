@@ -14,6 +14,8 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
   onLiveChatChange,
   playerStyle,
   inline,
+  promotedFullscreen,
+  onPromotePreview,
   startTime,
   showBrightnessControl,
   brightnessColor,
@@ -29,6 +31,23 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
   onStatus,
   onPlaybackError,
 }, ref) {
+  React.useEffect(() => {
+    if (inline || !promotedFullscreen || typeof ref === 'function') return undefined;
+    let frame;
+    let attempts = 0;
+    const enterFullscreen = () => {
+      const enter = ref?.current?.enterFullscreen;
+      if (typeof enter === 'function') {
+        enter();
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) frame = requestAnimationFrame(enterFullscreen);
+    };
+    frame = requestAnimationFrame(enterFullscreen);
+    return () => cancelAnimationFrame(frame);
+  }, [inline, promotedFullscreen, ref]);
+
   const reportPlaybackError = (error) => {
     onStatus(error?.message || 'Playback error');
     onPlaybackError?.(error);
@@ -43,6 +62,15 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
         isActive
         paused={false}
         style={playerStyle}
+        controls={{ liveChat: true, epg: true, diagnostics: true }}
+        features={{ diagnostics: true }}
+        integrations={integrations}
+        drawerMode={drawerMode}
+        messagePageSize={5}
+        mediaId={active.id}
+        showLiveChat={showLiveChat}
+        onLiveChatChange={onLiveChatChange}
+        onPromotePreview={onPromotePreview}
         startTime={startTime}
         showBrightnessControl={showBrightnessControl}
         brightnessColor={brightnessColor}

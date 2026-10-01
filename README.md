@@ -439,7 +439,13 @@ type PlayerSource = string | {
 | `paused`, `isActive` | `boolean` | `false`, `true` | Control whether this preview should render/play its stream. |
 | `onActivate` | `() => void` | — | Called when an inactive preview poster is selected. |
 | `onFullscreen` | `() => void` | — | Deprecated; no longer promotes to another player. Use `actions.onFullscreen` to observe the inline player's fullscreen state after it changes. |
-| `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen'>` | all shown | Toggle its compact controls. |
+| `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen' \| 'seek' \| 'liveChat' \| 'epg' \| 'diagnostics'>` | all shown | Toggle its compact controls and optional chat, EPG, and diagnostics buttons. |
+| `drawerMode` | `'overlay' \| 'resize' \| 'modal'` | `'overlay'` | Select a right-side overlay, a video-and-drawer layout, or the platform modal presentation. |
+| `showLiveChat`, `initialShowLiveChat` | `boolean` | `false` | Control or initially open the shared chat/EPG/diagnostics drawer. When `showLiveChat` is controlled, update it from `onLiveChatChange`. |
+| `onLiveChatChange` | `(isOpen: boolean) => void` | — | Notifies the app when the shared inline drawer opens or closes. |
+| `features`, `integrations` | `PlayerIntegrations`, diagnostics feature | — | Supply live-chat/EPG integrations and opt into diagnostics with `features={{ diagnostics: true }}`. |
+| `messagePageSize` | `number` | `50` | Number of chat messages loaded per page; older messages load when the user scrolls to the top. |
+| `mediaId`, `drawerStyle` | `string \| number`, platform style | — | Identify the media channel and customize the drawer container. |
 | `startTime` | `number \| string` | — | Start at this position, specified in seconds or as `HH:MM:SS` (for example, `"00:12:30"`). |
 | `showBrightnessControl` | `boolean` | `false` | Show the vertical in-video brightness slider. The dimming overlay affects the video only, not device brightness. |
 | `brightnessColor`, `brightnessAccentColor` | `string` | `'#00D4FF'` | Accent color hash for the vertical brightness bar slider. Defaults to blue (`#00D4FF`). |
@@ -449,10 +455,10 @@ type PlayerSource = string | {
 | `showLiveBadge`, `showLivePill`, `showLiveButton` | `boolean` | `false` | Show or hide the LIVE badge pill on the top left. |
 | `onBrightnessChangeEnd` | `(brightnessPercent: number) => void` | — | Called after the inline brightness adjustment ends with its final integer percentage (`10`–`100`). |
 | `onVolumeChangeEnd`, `onSoundChangeEnd` | `(volumePercent: number) => void` | — | Called after the inline volume adjustment ends with its final integer percentage (`0`–`100`). |
-| `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
+| `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, fullscreen, chat, EPG, or diagnostics actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
 | `theme`, `icons`, `style` | `PlayerTheme`, `PlayerIcons`, platform style | defaults | Customize preview colors, controls, and layout. |
-| `onError`, `onPlaying` | callbacks | — | Playback lifecycle callbacks. `onError` includes the underlying `actualMessage` and raw `cause`/`err` when available. |
+| `onError`, `onPlaying`, `onProgressBarChange` | callbacks | — | Playback lifecycle callbacks; progress reports the exact `HH:MM:SS` position. `onError` includes the underlying `actualMessage` and raw `cause`/`err` when available. |
 
 ## Control visibility
 
@@ -625,6 +631,8 @@ The web browser still enforces its own media-format and origin policies. The pla
 The player package is MIT-licensed. The native VLC module is an adapted upstream project and includes its license and notices. MPEG-TS playback uses the bundled patched `mpegts.js` distribution, retaining its Apache-2.0 license. See [`NOTICE`](NOTICE) and the included dependency licenses for details.
 
 ## Development
+
+Contributor QA standard: [`docs/qa-playbook.md`](docs/qa-playbook.md). Latest recorded run: [`docs/qa-report-2026-10-01.md`](docs/qa-report-2026-10-01.md).
 
 ```sh
 npm install

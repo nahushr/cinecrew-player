@@ -27,6 +27,27 @@
   cursor: pointer;
 }
 
+.cinecrew-player__chat-load-more {
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 28px;
+  margin: -2px 0 0;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--cinecrew-accent) 35%, transparent);
+  border-radius: 14px;
+  color: var(--cinecrew-accent);
+  background: color-mix(in srgb, var(--cinecrew-accent) 12%, transparent);
+  cursor: pointer;
+  font: inherit;
+  font-size: .78em;
+  font-weight: 700;
+}
+
+.cinecrew-player__chat-load-more:disabled {
+  opacity: .68;
+  cursor: wait;
+}
+
 .cinecrew-player__panel-list {
   display: flex;
   flex: 1;

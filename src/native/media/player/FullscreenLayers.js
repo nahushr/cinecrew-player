@@ -15,7 +15,7 @@ import { VerticalBrightnessControl } from './VerticalBrightnessControl';
 import { VerticalVolumeControl } from './VerticalVolumeControl';
 import { AudioOnlyView } from './AudioOnlyView';
 import { LiveChatDrawer } from '../LiveChatDrawer';
-import { LiveRecordingOverlay, LiveRecordingNotice } from '../LiveRecordingOverlay';
+import { LiveRecordingOverlay, LiveRecordingNotice, RecordingSaveDialog } from '../LiveRecordingOverlay';
 import { mediaPlayerStyles as styles } from './mediaPlayerStyles';
 
 export function FullscreenVideoLayer({ videoPlayer, zoomScale, isAudioOnly, transparent = false }) {
@@ -206,6 +206,7 @@ export function FullscreenControlsPanel(props) {
       /> : null}
       {props.showBrightnessControl && !props.isLocked ? (
         <VerticalBrightnessControl
+          compact={compact}
           value={props.brightness}
           onChange={props.onBrightnessChange}
           onChangeEnd={props.onBrightnessChangeEnd}
@@ -219,6 +220,7 @@ export function FullscreenControlsPanel(props) {
       ) : null}
       {props.showVolumeControl && !props.isLocked ? (
         <VerticalVolumeControl
+          compact={compact}
           value={props.volume}
           onChange={props.onVolumeChange}
           onChangeEnd={props.onVolumeChangeEnd}
@@ -310,7 +312,7 @@ export function FullscreenChatLayer(props) {
       messagePageSize={props.messagePageSize}
       drawerStyle={props.drawerStyle}
       fullscreen={props.isFullscreen}
-      landscapeFullWidth={props.isLandscape}
+      landscapeFullWidth={props.landscapeFullWidth ?? props.isLandscape}
       safeAreaInsets={props.insets}
     />
   );
@@ -325,7 +327,7 @@ export function FullscreenRecordingLayer(props) {
           status={props.recStatus}
           elapsedMs={props.recElapsedMs}
           colors={props.colors}
-          topInset={Math.max(props.insets?.top || 0, 12) + 8}
+          topInset={Math.max(props.insets?.top || 0, 8)}
           showTransport
           onPause={props.handlePauseRecording}
           onResume={props.handleResumeRecording}
@@ -335,6 +337,11 @@ export function FullscreenRecordingLayer(props) {
       {!props.isAudioOnly && recordingEligible && props.isScreenRecorderEnabled ? (
         <LiveRecordingNotice notice={props.recNotice} colors={props.colors} onDismiss={props.onDismissNotice} />
       ) : null}
+      <RecordingSaveDialog
+        saveDialog={props.saveDialog}
+        colors={props.colors}
+        onDismiss={props.onDismissSaveDialog}
+      />
     </>
   );
 }
