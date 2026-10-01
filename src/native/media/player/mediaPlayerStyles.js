@@ -37,11 +37,13 @@ export const mediaPlayerStyles = StyleSheet.create({
   },
   inlinePlayerContainer: {
     width: '100%',
-    aspectRatio: 16 / 9,
     backgroundColor: '#000',
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
+  },
+  inlineAspectRatio: {
+    aspectRatio: 16 / 9,
   },
   electronFullscreenHost: {
     position: 'fixed',

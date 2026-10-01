@@ -8,6 +8,7 @@ export * from './PlayerTopBar';
 export * from './PlayerBottomBar';
 export * from './VerticalIndicator';
 export * from './VerticalBrightnessControl';
+export * from './VerticalVolumeControl';
 export * from './mediaPlayerStyles';
 export * from './playerUtils';
 export * from './PlatformMediaSurface';

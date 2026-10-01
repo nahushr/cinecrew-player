@@ -15,45 +15,22 @@ export const CenterControls = ({
   return (
     <View style={[styles.centerContainer, compact && styles.compactCenterContainer]} pointerEvents="box-none">
       <View style={[styles.centerRow, compact && styles.compactCenterRow]} pointerEvents="box-none">
-        {!isLive && (
-          <TouchableOpacity
-            style={[styles.pill, { backgroundColor: palette.controlBackground }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              onSeekBy(-10);
-            }}
-            hitSlop={12}
-          >
-            <PlayerIcon pack="material" name="replay-10" size={compact ? 23 : 32} color={palette.controlColor} />
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity
-          style={[styles.bigPlayBtn, compact && styles.compactBigPlayBtn, { backgroundColor: palette.controlColor }]}
+          style={[styles.bigPlayBtn, compact && styles.compactBigPlayBtn]}
           onPress={(e) => {
             e.stopPropagation();
             onTogglePlayPause();
           }}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
         >
           <PlayerIcon
             name={isPlaying ? 'pause' : 'play'}
-            size={compact ? 28 : 40}
-            color={palette.backgroundColor}
+            size={compact ? 24 : 28}
+            color={palette.controlColor}
           />
         </TouchableOpacity>
-
-        {!isLive && (
-          <TouchableOpacity
-            style={[styles.pill, { backgroundColor: palette.controlBackground }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              onSeekBy(10);
-            }}
-            hitSlop={12}
-          >
-            <PlayerIcon pack="material" name="forward-10" size={compact ? 23 : 32} color={palette.controlColor} />
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -98,18 +75,20 @@ const styles = StyleSheet.create({
     elevation: 70,
   },
   bigPlayBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#FFF',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(12, 20, 32, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 70,
     elevation: 70,
   },
   compactBigPlayBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
 });

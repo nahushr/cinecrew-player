@@ -37,6 +37,7 @@ static NSString *const playbackRate = @"rate";
     BOOL _playInBackground;
     BOOL _playWhenInactive;
     NSString *_sourceURI;
+    NSString *_recordingPath;
 }
 
 - (instancetype)initWithEventDispatcher:(RCTEventDispatcher *)eventDispatcher
@@ -345,11 +346,13 @@ static NSString *const playbackRate = @"rate";
 }
 
 - (void)mediaPlayer:(VLCMediaPlayer *)player recordingStoppedAtPath:(NSString *)path {
+    NSString *completedPath = path ?: _recordingPath;
+    _recordingPath = nil;
     if (self.onRecordingState) {
         self.onRecordingState(@{
             @"target": self.reactTag,
             @"isRecording": @NO,
-            @"recordPath": path ?: [NSNull null]
+            @"recordPath": completedPath ?: [NSNull null]
         });
     }
 }
@@ -462,15 +465,30 @@ static NSString *const playbackRate = @"rate";
 
 - (void)startRecording:(NSString*)path
 {
-    BOOL accepted = _player != nil && path != nil && [_player startRecordingAtPath:path];
+    NSString *recordingPath = path;
+    NSString *errorMessage = nil;
+    if (recordingPath.length == 0) {
+        NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *directory = [documents stringByAppendingPathComponent:@"CineCrew Recordings"];
+        NSError *directoryError = nil;
+        if ([[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&directoryError]) {
+            recordingPath = [directory stringByAppendingPathComponent:[NSString stringWithFormat:@"cinecrew-%.0f.ts", [[NSDate date] timeIntervalSince1970] * 1000]];
+        } else {
+            errorMessage = directoryError.localizedDescription ?: @"Could not create the app's recording directory.";
+        }
+    }
+    BOOL accepted = _player != nil && recordingPath.length > 0 && [_player startRecordingAtPath:recordingPath];
+    if (accepted) _recordingPath = recordingPath;
     if (self.onRecordingState) {
-        self.onRecordingState(@{
+        NSMutableDictionary *state = [@{
             @"target": self.reactTag,
             @"operation": @"start",
             @"requestAccepted": @(accepted),
             @"isRecording": @(accepted),
-            @"error": accepted ? (id)[NSNull null] : @"VLC rejected the recording request for this media source."
-        });
+            @"error": accepted ? (id)[NSNull null] : (errorMessage ?: @"VLC rejected the recording request for this media source.")
+        } mutableCopy];
+        if (recordingPath.length > 0) state[@"recordPath"] = recordingPath;
+        self.onRecordingState(state);
     }
 }
 
@@ -478,13 +496,15 @@ static NSString *const playbackRate = @"rate";
 {
     BOOL accepted = _player != nil && [_player stopRecording];
     if (!accepted && self.onRecordingState) {
-        self.onRecordingState(@{
+        NSMutableDictionary *state = [@{
             @"target": self.reactTag,
             @"operation": @"stop",
             @"requestAccepted": @NO,
             @"isRecording": @YES,
             @"error": @"VLC rejected the request to stop recording."
-        });
+        } mutableCopy];
+        if (_recordingPath) state[@"recordPath"] = _recordingPath;
+        self.onRecordingState(state);
     }
 }
 

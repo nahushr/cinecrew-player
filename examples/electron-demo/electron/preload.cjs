@@ -6,6 +6,8 @@ const isOverlayWindow = process.argv.includes('--cinecrew-electron-overlay');
 const invokeChannels = new Set([
   'cinecrew:vlc:mount',
   'cinecrew:vlc:unmount',
+  'cinecrew:vlc:record-start',
+  'cinecrew:vlc:record-stop',
   'cinecrew:vlc:load',
   'cinecrew:vlc:set-paused',
   'cinecrew:vlc:set-volume',

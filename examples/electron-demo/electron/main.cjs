@@ -1,5 +1,8 @@
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { createVlcRecordingController } = require(app.isPackaged
+  ? '@cinecrew/cinecrew-player/electron/main'
+  : path.join(__dirname, '../../../src/electron/main/recording.cjs'));
 
 let mainWindow;
 let controlsWindow;
@@ -13,6 +16,12 @@ const sendPlayerEvent = (type, values = {}) => {
   if (!target || target.isDestroyed()) return;
   target.webContents.send('cinecrew:vlc:event', { type, ...values });
 };
+
+const recordingController = createVlcRecordingController({
+  app,
+  getPlayer: () => vlcPlayer,
+  sendEvent: sendPlayerEvent,
+});
 
 function normalizeContainerRect(rect = {}) {
   const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -133,6 +142,7 @@ async function mountPlayer(event) {
 async function unmountPlayer() {
   if (progressTimer) clearInterval(progressTimer);
   progressTimer = null;
+  await recordingController.finalizeBeforeUnmount().catch(() => {});
   if (vlcPlayer) {
     vlcPlayer.destroy();
     vlcPlayer = null;
@@ -144,6 +154,7 @@ async function unmountPlayer() {
 function registerIpc() {
   ipcMain.handle('cinecrew:vlc:mount', (event, payload = {}) => mountPlayer({ sender: event.sender, args: payload }));
   ipcMain.handle('cinecrew:vlc:unmount', unmountPlayer);
+  recordingController.registerIpc(ipcMain);
   ipcMain.handle('cinecrew:window:set-fullscreen', (_event, fullscreen) => {
     if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
     const requested = Boolean(fullscreen);

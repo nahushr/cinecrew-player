@@ -1,27 +1,30 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { PlayerIcon } from '../../customization';
 
-const MIN_PERCENT = 10;
+const MIN_PERCENT = 0;
 const MAX_PERCENT = 100;
-const PERCENT_RANGE = MAX_PERCENT - MIN_PERCENT;
+const PERCENT_RANGE = 100;
 
 function clampPercent(value) {
   const number = Number(value);
-  return Math.round(Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, Number.isFinite(number) ? number : MAX_PERCENT)));
+  if (!Number.isFinite(number)) return MAX_PERCENT;
+  // If passed as 0..1 ratio, convert to 0..100
+  const normalized = number <= 1 && number > 0 ? Math.round(number * 100) : Math.round(number);
+  return Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, normalized));
 }
 
-
-/** Native/Electron vertical slider. Brightness is rendered by the video layer, never the device. */
-export function VerticalBrightnessControl({
-  value = 1,
+/** Native/Electron vertical sound slider. Controls volume without interrupting the video stream. */
+export function VerticalVolumeControl({
+  value = 100,
   onChange,
   onChangeEnd,
-  accentColor = '#00D4FF',
+  accentColor = '#FFE066',
   compact = false,
   availableHeight,
   topInset = 0,
   bottomInset = 0,
-  leftInset,
+  rightInset,
   alignTop = false,
 }) {
   const measuredHeight = Number(availableHeight);
@@ -36,7 +39,7 @@ export function VerticalBrightnessControl({
     : (responsiveCompact ? 144 : 188);
   const reservedTrackSpace = responsiveCompact ? 38 : 56;
   const trackHeight = Math.max(12, Math.min(responsiveCompact ? 84 : 120, cardHeight - reservedTrackSpace));
-  const percent = clampPercent(Number(value) * 100);
+  const percent = clampPercent(value);
   const [activePercent, setActivePercent] = React.useState(percent);
   const isDraggingRef = useRef(false);
   const percentRef = useRef(percent);
@@ -57,13 +60,13 @@ export function VerticalBrightnessControl({
   const publishPercent = useCallback((nextPercent) => {
     const next = clampPercent(Math.round(nextPercent));
     percentRef.current = next;
-    changeRef.current?.(Number((next / 100).toFixed(2)));
+    changeRef.current?.(next);
     return next;
   }, []);
 
   const finishInteraction = useCallback((finalPercent = percentRef.current) => {
     const next = publishPercent(Math.round(finalPercent));
-    changeEndRef.current?.(Math.round(next));
+    changeEndRef.current?.(next);
   }, [publishPercent]);
 
   const responder = useMemo(() => PanResponder.create({
@@ -98,7 +101,7 @@ export function VerticalBrightnessControl({
   const fillRatio = (displayPercent - MIN_PERCENT) / PERCENT_RANGE;
   const thumbTop = `${(1 - fillRatio) * 100}%`;
   const fillHeight = `${fillRatio * 100}%`;
-  const safeLeftInset = Number.isFinite(Number(leftInset)) ? Number(leftInset) : 10;
+  const safeRightInset = Number.isFinite(Number(rightInset)) ? Number(rightInset) : 10;
   const positionerStyle = [
     measuredHeight > 0
       ? {
@@ -107,7 +110,7 @@ export function VerticalBrightnessControl({
           justifyContent: alignTop ? 'flex-start' : 'center',
         }
       : null,
-    { paddingLeft: safeLeftInset },
+    { paddingRight: safeRightInset },
   ];
   const adjustByKeyboard = (event) => {
     const change = event?.nativeEvent?.actionName === 'increment' ? 5 : -5;
@@ -116,15 +119,23 @@ export function VerticalBrightnessControl({
     finishInteraction(next);
   };
 
+  const volumeIcon = displayPercent === 0
+    ? 'volume-mute'
+    : displayPercent < 50
+      ? 'volume-medium'
+      : 'volume-high';
+
   return (
     <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]}>
       {measuredHeight > 0 && cardHeight < 44 ? null : (
         <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
-          <Text style={[styles.sunIcon, responsiveCompact && styles.compactSunIcon, { color: accentColor }]} accessible={false}>☼</Text>
+          <View style={styles.iconWrap}>
+            <PlayerIcon name={volumeIcon} size={responsiveCompact ? 16 : 20} color={accentColor} />
+          </View>
           <View
             {...responder.panHandlers}
             accessibilityRole="adjustable"
-            accessibilityLabel="Video brightness"
+            accessibilityLabel="Device sound volume"
             accessibilityValue={{ min: MIN_PERCENT, max: MAX_PERCENT, now: displayPercent, text: `${displayPercent}%` }}
             accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
             onAccessibilityAction={adjustByKeyboard}
@@ -146,7 +157,7 @@ const styles = StyleSheet.create({
   positioner: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
     zIndex: 90,
     elevation: 90,
   },
@@ -158,15 +169,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   compactCard: { width: 30, paddingVertical: 2 },
-  sunIcon: {
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  iconWrap: {
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  compactSunIcon: { fontSize: 14, lineHeight: 16 },
   trackHitTarget: { width: 36, alignItems: 'center', justifyContent: 'center', marginVertical: 3 },
   compactTrackHitTarget: { width: 32, marginVertical: 2 },
   track: {

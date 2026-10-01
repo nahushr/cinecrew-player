@@ -15,6 +15,7 @@
     "dist:win": "npm run stage:vlc:win && npm run build && electron-builder --win nsis"
   },
   "dependencies": {
+    "@cinecrew/cinecrew-player": "latest",
     "@expo/vector-icons": "~14.0.4",
     "@mediabunny/ac3": "^1.59.0",
     "@react-native-community/slider": "4.5.5",

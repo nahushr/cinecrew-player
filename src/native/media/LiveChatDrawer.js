@@ -58,6 +58,7 @@ export const LiveChatDrawer = ({
   colors,
   messagePageSize = 50,
   drawerStyle,
+  portraitVideoHeight: propPortraitVideoHeight,
   fullscreen = false,
   landscapeFullWidth = false,
   safeAreaInsets,
@@ -83,6 +84,12 @@ export const LiveChatDrawer = ({
   };
 
   const [activeTab, setActiveTab] = useState(() => pickPanel(initialTab));
+  const [prevInitialTab, setPrevInitialTab] = useState(initialTab);
+
+  if (initialTab !== prevInitialTab) {
+    setPrevInitialTab(initialTab);
+    setActiveTab(pickPanel(initialTab));
+  }
 
   useEffect(() => {
     setActiveTab(pickPanel(initialTab));
@@ -355,25 +362,17 @@ export const LiveChatDrawer = ({
   if (!visible) return null;
 
   const renderMessageItem = ({ item }) => {
-    const color = getUserColor(item.username);
-    const initial = (item.username || 'V').charAt(0).toUpperCase();
     const timeStr = formatMessageTime(item.createdAt);
 
     return (
-      <View style={[styles.messageRow, item.isPending && styles.messagePending]}>
-        <View style={[styles.userAvatar, { backgroundColor: color }]}>
-          <Text style={styles.userAvatarText}>{initial}</Text>
+      <View style={[styles.messageCard, item.isPending && styles.messagePending]}>
+        <View style={styles.messageHeaderRow}>
+          <Text style={styles.usernameText}>
+            {item.username || 'Viewer'}
+          </Text>
+          {!!timeStr && <Text style={styles.timeText}>{timeStr}</Text>}
         </View>
-
-        <View style={styles.messageContentWrap}>
-          <View style={styles.metaRow}>
-            {!!timeStr && <Text style={styles.timeText}>{timeStr}</Text>}
-            <Text style={[styles.usernameText, { color }]}>
-              @{item.username || 'Viewer'}
-            </Text>
-          </View>
-          <Text style={styles.messageBodyText}>{item.textContent}</Text>
-        </View>
+        <Text style={styles.messageBodyText}>{item.textContent}</Text>
       </View>
     );
   };
@@ -434,7 +433,10 @@ export const LiveChatDrawer = ({
   const health = getHealthStatus();
   const bottomModal = drawerMode === 'modal' && !isWeb() && !popupMode;
   const centeredModal = popupMode || (drawerMode === 'modal' && isWeb());
-  const resizeWidth = windowWidth < 640 ? '48%' : '36%';
+  const isPortrait = windowWidth < windowHeight;
+  const calculatedPortraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
+  const portraitVideoHeight = propPortraitVideoHeight || calculatedPortraitVideoHeight;
+  const resizeWidth = '30%';
   const fullscreenTopInset = Math.max(
     Number(safeAreaInsets?.top) || 0,
     Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
@@ -445,24 +447,101 @@ export const LiveChatDrawer = ({
   const fullscreenLandscape = (fullscreen || landscapeFullWidth)
     && drawerMode !== 'resize'
     && windowWidth >= windowHeight;
+  const overlayWidth = Math.min(380, Math.max(280, Math.round(windowWidth * 0.42)));
   const fullscreenLandscapeStyle = fullscreenLandscape
     ? {
         position: 'absolute',
         top: fullscreenTopInset,
         right: fullscreenRightInset,
         bottom: fullscreenBottomInset,
-        left: fullscreenLeftInset,
+        left: undefined,
         width: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
-        maxWidth: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
+        maxWidth: overlayWidth,
         height: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
         maxHeight: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
         alignSelf: 'stretch',
-        borderLeftWidth: 0,
+        borderLeftWidth: 1,
+        borderLeftColor: 'rgba(255, 255, 255, 0.12)',
         borderRadius: 0,
+        backgroundColor: 'rgba(7, 14, 26, 0.88)',
       }
     : null;
-  const fullscreenDrawerInsets = fullscreen && !centeredModal && !bottomModal
+  const fullscreenDrawerInsets = fullscreen && !centeredModal && !bottomModal && !isPortrait
     ? { top: fullscreenTopInset, bottom: fullscreenBottomInset }
+    : null;
+
+  const portraitResizeStyle = isPortrait && drawerMode === 'resize' && !popupMode
+    ? {
+        position: 'absolute',
+        top: portraitVideoHeight,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxWidth: '100%',
+        height: undefined,
+        maxHeight: undefined,
+        borderLeftWidth: 0,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.14)',
+        backgroundColor: '#07111E',
+        borderRadius: 0,
+        zIndex: 160,
+      }
+    : null;
+
+  const portraitOverlayStyle = isPortrait && drawerMode === 'overlay' && !popupMode
+    ? {
+        position: 'absolute',
+        top: undefined,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        maxWidth: '100%',
+        height: '62%',
+        maxHeight: '72%',
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.2)',
+        borderLeftWidth: 0,
+        backgroundColor: 'rgba(7, 14, 26, 0.95)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.55,
+        shadowRadius: 18,
+        elevation: 20,
+      }
+    : null;
+
+  // In overlay mode the panel owns the video surface, not just a narrow
+  // side-drawer. On fullscreen phones, inset it inside the system safe area;
+  // inline players instead use their own measured bounds with no device inset.
+  const overlayVideoSurfaceStyle = drawerMode === 'overlay' && !popupMode
+    ? {
+        position: 'absolute',
+        top: fullscreen ? fullscreenTopInset : 0,
+        right: fullscreen ? fullscreenRightInset : 0,
+        bottom: fullscreen ? fullscreenBottomInset : 0,
+        left: fullscreen ? fullscreenLeftInset : 0,
+        width: fullscreen
+          ? Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset)
+          : '100%',
+        maxWidth: fullscreen
+          ? Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset)
+          : '100%',
+        height: fullscreen
+          ? Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset)
+          : '100%',
+        maxHeight: fullscreen
+          ? Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset)
+          : '100%',
+        borderLeftWidth: 0,
+        borderTopWidth: 0,
+        borderRadius: 0,
+        backgroundColor: 'rgba(7, 14, 26, 0.78)',
+      }
     : null;
 
   const drawerContent = (
@@ -484,30 +563,22 @@ export const LiveChatDrawer = ({
         fullscreenDrawerInsets,
         fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
         fullscreenLandscapeStyle,
+        portraitResizeStyle,
+        portraitOverlayStyle,
+        overlayVideoSurfaceStyle,
         drawerStyle,
       ]}
     >
       {/* Header with Close Button & Title */}
       <View style={styles.drawerHeader}>
         <View style={styles.headerTitleWrap}>
-          <PlayerIcon
-            name={TAB_META[activeTab]?.icon || 'information'}
-            size={18}
-            color="#00E5FF"
-          />
           <Text style={styles.headerTitle}>
-            {TAB_META[activeTab]?.title || 'Overlay'}
+            {activeTab === 'chat' ? 'Live chat' : (TAB_META[activeTab]?.title || 'Overlay')}
           </Text>
-          {activeTab === 'chat' && (
-            <View style={styles.viewerBadge}>
-              <PlayerIcon name="account-group" size={13} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.viewerBadgeText}>Live</Text>
-            </View>
-          )}
         </View>
 
-        <TouchableOpacity style={styles.closeHeaderBtn} onPress={onClose} hitSlop={10}>
-          <PlayerIcon name="close" size={20} color="#FFF" />
+        <TouchableOpacity style={styles.closeHeaderBtn} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close live chat">
+          <PlayerIcon name="close" size={18} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -531,6 +602,7 @@ export const LiveChatDrawer = ({
           showEmojiPicker={showEmojiPicker}
           handleSelectEmoji={handleSelectEmoji}
           colors={colors}
+          bottomInset={bottomModal ? fullscreenBottomInset : 0}
         />
       ) : activeTab === 'chat' ? (
         <View style={styles.epgStatusWrap}>
@@ -651,6 +723,10 @@ const styles = StyleSheet.create({
     borderLeftColor: 'rgba(255, 255, 255, 0.12)',
     zIndex: 160,
     overflow: 'hidden',
+    height: '100%',
+    maxHeight: '100%',
+    display: 'flex',
+    flexDirection: 'column',
     shadowColor: '#000',
     shadowOffset: { width: -4, height: 0 },
     shadowOpacity: 0.6,
@@ -664,13 +740,15 @@ const styles = StyleSheet.create({
     right: 0,
     width: 350,
     maxWidth: '92%',
+    height: '100%',
   },
   drawerResize: {
     top: 0,
     bottom: 0,
     right: 0,
-    width: '36%',
-    maxWidth: '36%',
+    width: '30%',
+    maxWidth: '30%',
+    height: '100%',
   },
   popupBackdrop: {
     flex: 1,
@@ -716,6 +794,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   drawerHeader: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -738,41 +817,65 @@ const styles = StyleSheet.create({
   viewerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 7,
+    gap: 4,
+    backgroundColor: 'rgba(0, 229, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.3)',
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   viewerBadgeText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#00E5FF',
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   closeHeaderBtn: {
-    padding: 4,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   welcomeBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     backgroundColor: 'rgba(0, 229, 255, 0.08)',
-    paddingHorizontal: 14,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.18)',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0, 229, 255, 0.15)',
   },
   welcomeText: {
     flex: 1,
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 11,
     lineHeight: 15,
+  },
+  chatPanelWrap: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  },
+  chatFlatList: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
   },
   messagesList: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 8,
+    gap: 6,
+    flexGrow: 1,
   },
   loadingOlderMessages: {
     minHeight: 36,
@@ -800,33 +903,53 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
   },
+  messageCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 9,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  messageHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 3,
+  },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 9,
   },
   messagePending: {
     opacity: 0.6,
   },
   userAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   userAvatarText: {
-    color: '#000',
+    color: '#FFF',
     fontSize: 12,
     fontWeight: '800',
   },
   messageContentWrap: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   metaRow: {
     flexDirection: 'row',
@@ -835,65 +958,74 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   timeText: {
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontSize: 10,
+    color: '#8297ae',
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
   usernameText: {
-    fontSize: 11,
+    color: '#00E5FF',
+    fontSize: 13,
     fontWeight: '700',
   },
   messageBodyText: {
-    color: '#FFF',
-    fontSize: 12,
-    lineHeight: 16,
+    color: '#edf6ff',
+    fontSize: 13,
+    lineHeight: 18,
   },
   quickReactionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingHorizontal: 10,
+    alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(6, 12, 22, 0.6)',
   },
   quickReactionBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   quickReactionEmoji: {
-    fontSize: 17,
+    fontSize: 18,
   },
   inputBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexShrink: 0,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(12, 14, 18, 0.98)',
   },
   inputPill: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    height: 38,
+    backgroundColor: 'rgba(12, 20, 32, 0.72)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    paddingLeft: 10,
+    paddingRight: 6,
+    height: 44,
+    gap: 8,
   },
   textInput: {
     flex: 1,
-    color: '#FFF',
+    color: '#edf6ff',
     fontSize: 13,
     paddingVertical: 0,
   },
   emojiToggleBtn: {
-    padding: 4,
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendBtn: {
     width: 36,
-    height: 36,
-    borderRadius: 18,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#00E5FF',
     alignItems: 'center',
     justifyContent: 'center',

@@ -101,7 +101,7 @@ export function SourceControls({
   draftUrl,
   fileInputRef,
   inline,
-  brightnessControl,
+  liveBadge = false,
   drawerMode,
   onSelectSample,
   onDraftUrlChange,
@@ -109,7 +109,7 @@ export function SourceControls({
   onChooseFile,
   onClearFile,
   onInlineChange,
-  onBrightnessControlChange,
+  onLiveBadgeChange,
   onDrawerModeChange,
   progressTime,
   status,
@@ -157,7 +157,7 @@ export function SourceControls({
 
       <View style={styles.options}>
         <ToggleRow label="Use compact inline player" value={inline} onChange={onInlineChange} />
-        <ToggleRow label="Brightness control" value={brightnessControl} onChange={onBrightnessControlChange} />
+        <ToggleRow label="Show LIVE pill badge" value={liveBadge} onChange={onLiveBadgeChange} />
         <View style={styles.drawerRow}>
           <Text style={styles.toggleLabel}>Drawer layout</Text>
           <DrawerLayoutPicker value={drawerMode} onChange={onDrawerModeChange} onOpenChange={setDrawerLayoutOpen} />
@@ -174,7 +174,7 @@ export function SourceControls({
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 18, gap: 8, marginBottom: 16 },
-  cardDropdownOpen: { position: 'relative', zIndex: 100, elevation: 24 },
+  cardDropdownOpen: { position: 'relative', zIndex: 100, elevation: 24, paddingBottom: 72 },
   narrowCard: { padding: 12 },
   sampleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 2, marginBottom: 4 },
   urlRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   pickerButton: { minHeight: 36, minWidth: 124, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', paddingHorizontal: 10, paddingVertical: 7 },
   pickerText: { color: '#edf6ff', fontSize: 14 },
   pickerChevron: { color: '#a9bbcf', fontSize: 16, lineHeight: 18 },
-  pickerMenu: { position: 'absolute', top: 40, left: 0, minWidth: 160, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#07111e', padding: 4, zIndex: 40, elevation: 40 },
+  pickerMenu: { position: 'absolute', top: 40, left: 0, minWidth: 160, borderWidth: 1, borderColor: '#29415d', borderRadius: 8, backgroundColor: '#0d1a2a', padding: 4, zIndex: 50, elevation: 50 },
   pickerOption: { minHeight: 36, justifyContent: 'center', borderRadius: 5, paddingHorizontal: 9 },
   pickerOptionSelected: { backgroundColor: '#12243a' },
   status: { color: '#a9bbcf', fontSize: 13, lineHeight: 19, marginTop: 1 },

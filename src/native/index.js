@@ -116,6 +116,7 @@ export {
   CenterControls,
   AudioOnlyView,
   VerticalBrightnessControl,
+  VerticalVolumeControl,
 } from './media/player';
 export { LiveChatDrawer } from './media/LiveChatDrawer';
 export { LiveChatPanel, DiagnosticsTab } from './media/chat';

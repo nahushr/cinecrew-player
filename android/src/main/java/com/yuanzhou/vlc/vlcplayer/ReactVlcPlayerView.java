@@ -8,6 +8,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.PowerManager;
+import android.os.Environment;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
@@ -47,6 +48,7 @@ class ReactVlcPlayerView extends TextureView
   private boolean isSurfaceViewDestory;
   private String src;
   private String subtitleUri;
+  private String recordingPath;
   private ReadableMap srcMap;
   private int mVideoHeight = 0;
   private int mVideoWidth = 0;
@@ -316,10 +318,12 @@ class ReactVlcPlayerView extends TextureView
             case MediaPlayer.Event.RecordChanged:
               map.putString("type", "RecordingPath");
               map.putBoolean(EVENT_PROP_IS_RECORDING, event.getRecording());
+              String completedPath = event.getRecordPath() != null ? event.getRecordPath() : recordingPath;
+              if (completedPath != null) map.putString("recordPath", completedPath);
               // Record started emits and event with the record path (but no file).
               // Only want to emit when recording has stopped and the recording is created.
-              if (!event.getRecording() && event.getRecordPath() != null) {
-                map.putString("recordPath", event.getRecordPath());
+              if (!event.getRecording() && completedPath != null) {
+                recordingPath = null;
               }
               eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
               break;
@@ -834,14 +838,28 @@ class ReactVlcPlayerView extends TextureView
   }
 
   public void startRecording(String recordingPath) {
-    boolean accepted = mMediaPlayer != null && recordingPath != null && mMediaPlayer.record(recordingPath);
+    String targetPath = recordingPath;
+    String error = null;
+    if (targetPath == null || targetPath.trim().isEmpty()) {
+      File moviesDirectory = getContext().getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+      if (moviesDirectory == null) moviesDirectory = getContext().getFilesDir();
+      File recordingDirectory = new File(moviesDirectory, "CineCrew Recordings");
+      if ((recordingDirectory.exists() || recordingDirectory.mkdirs()) && recordingDirectory.isDirectory()) {
+        targetPath = new File(recordingDirectory, "cinecrew-" + System.currentTimeMillis() + ".ts").getAbsolutePath();
+      } else {
+        error = "Could not create the app's recording directory.";
+      }
+    }
+    boolean accepted = mMediaPlayer != null && targetPath != null && mMediaPlayer.record(targetPath);
+    if (accepted) this.recordingPath = targetPath;
     WritableMap map = Arguments.createMap();
     map.putString("operation", "start");
     map.putBoolean("requestAccepted", accepted);
     map.putBoolean(EVENT_PROP_IS_RECORDING, accepted);
     if (!accepted) {
-      map.putString(EVENT_PROP_ERROR, "VLC rejected the recording request for this media source.");
+      map.putString(EVENT_PROP_ERROR, error != null ? error : "VLC rejected the recording request for this media source.");
     }
+    if (targetPath != null) map.putString("recordPath", targetPath);
     eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
 
@@ -850,7 +868,10 @@ class ReactVlcPlayerView extends TextureView
     WritableMap map = Arguments.createMap();
     map.putString("operation", "stop");
     map.putBoolean("requestAccepted", accepted);
-    map.putBoolean(EVENT_PROP_IS_RECORDING, !accepted);
+    // Keep the logical recording state active until LibVLC emits its final
+    // RecordChanged event, which is when the output file is actually closed.
+    map.putBoolean(EVENT_PROP_IS_RECORDING, true);
+    if (this.recordingPath != null) map.putString("recordPath", this.recordingPath);
     if (!accepted) {
       map.putString(EVENT_PROP_ERROR, "VLC rejected the request to stop recording.");
     }

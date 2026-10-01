@@ -1,0 +1,106 @@
+.cinecrew-player__diagnostics {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.cinecrew-player__diagnostics-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .14);
+}
+
+.cinecrew-player__diagnostics-heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cinecrew-player__diagnostics-heading strong { font-size: 1.05rem; }
+.cinecrew-player__diagnostics-heading > div > span { opacity: .7; overflow-wrap: anywhere; }
+
+.cinecrew-player__diagnostics-close {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(255,255,255,.1);
+  cursor: pointer;
+}
+
+.cinecrew-player__diagnostics-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 999px;
+  background: rgba(255,255,255,.07);
+  font-size: .86em;
+}
+
+.cinecrew-player__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ba9bb;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.cinecrew-player__status-dot.is-playing { color: #42d392; background: currentColor; }
+.cinecrew-player__status-dot.is-buffering { color: #ffca58; background: currentColor; }
+.cinecrew-player__status-dot.is-error { color: #ff647c; background: currentColor; }
+
+.cinecrew-player__diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.cinecrew-player__diagnostic-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 9px;
+  row-gap: 3px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.cinecrew-player__diagnostic-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  grid-row: span 2;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--diagnostic-accent, #fff) 32%, transparent);
+  background: color-mix(in srgb, var(--diagnostic-accent, #fff) 14%, transparent);
+}
+
+.cinecrew-player__diagnostic-icon .cinecrew-player__icon { width: 18px; height: 18px; }
+.cinecrew-player__diagnostic-label { overflow: hidden; opacity: .7; font-size: .76em; text-overflow: ellipsis; white-space: nowrap; }
+.cinecrew-player__diagnostic-card strong { overflow-wrap: anywhere; font-size: .9em; }
+.cinecrew-player__diagnostics-note { opacity: .65; line-height: 1.35; }
+
+@media (max-width: 420px) {
+  .cinecrew-player__diagnostic-grid { grid-template-columns: minmax(0, 1fr); }
+}

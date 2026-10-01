@@ -62,10 +62,10 @@ export interface PlayerApi {
   closePanel(): void;
   getVideoElement(): unknown | null;
   getAudioTracks(): AudioTrack[];
-  /** Start a native VLC recording to a platform-specific path. Returns false when VLC is unavailable. */
-  startNativeRecording?(path: string): boolean;
-  /** Stop an active native VLC recording. Returns false when VLC is unavailable. */
-  stopNativeRecording?(): boolean;
+  /** Start a built-in native VLC/LibVLC recording. The path is optional; when omitted the platform chooses an app-owned recordings folder. */
+  startNativeRecording?(path?: string): boolean | Promise<{ path?: string; filename?: string } | null>;
+  /** Stop an active native VLC/LibVLC recording. */
+  stopNativeRecording?(): boolean | Promise<{ path?: string; filename?: string; size?: number } | null>;
   enterFullscreen?(): void | Promise<void>;
   exitFullscreen?(): void | Promise<void>;
 }
@@ -196,7 +196,7 @@ export interface PlayerIntegrations {
     render?: (context: { title: string; source: PlayerSource; onClose: () => void }) => React.ReactNode;
   };
   recording?: {
-    /** Starts host-managed recording for the active direct media source. */
+    /** Optional override for the player's built-in recorder. */
     start?: (args: { getVideoElement: () => unknown | null; streamUrl: string; title?: string; player?: PlayerApi | null }) => Promise<unknown>;
     pause?: () => Promise<unknown>;
     resume?: () => Promise<unknown>;
@@ -237,6 +237,19 @@ export interface CineCrewPlayerProps {
   showProgressBar?: boolean;
   /** Show the in-video brightness slider. Brightness is simulated with a translucent black layer; device brightness is not changed. Defaults to false. */
   showBrightnessControl?: boolean;
+  /** Custom accent color hash or string for the brightness bar slider. Defaults to '#00D4FF'. */
+  brightnessColor?: string;
+  brightnessAccentColor?: string;
+  /** Show the in-video sound/volume slider on the opposite end. Defaults to false. */
+  showVolumeControl?: boolean;
+  showSoundControl?: boolean;
+  /** Custom accent color hash or string for the sound/volume bar slider. Defaults to '#FFE066' (light yellow). */
+  volumeColor?: string;
+  soundColor?: string;
+  /** Show the LIVE badge pill on the top left for the compact/inline player. Defaults to false. */
+  showLiveBadge?: boolean;
+  showLivePill?: boolean;
+  showLiveButton?: boolean;
   /** Web/Electron chat and EPG drawer behavior. Overlay keeps the video full-size; resize shrinks it to make room. */
   drawerMode?: PlayerDrawerMode;
   /** Web CSS or React Native view-style overrides for the chat, EPG, and diagnostics drawer. */
@@ -262,6 +275,8 @@ export interface CineCrewPlayerProps {
   ogvResourceBase?: string;
   audioTracks?: AudioTrack[];
   selectedAudioTrack?: string | number;
+  /** Initial playback position as seconds or a zero-padded `HH:MM:SS` string. Takes precedence over `resumePosition`. */
+  startTime?: number | string;
   resumePosition?: number;
   durationSecs?: number;
   mediaId?: string | number;
@@ -291,12 +306,17 @@ export interface CineCrewPlayerProps {
   onProgressBarChange?: (time: string) => void;
   /** Called after a brightness drag/adjustment ends with the final integer percentage (10–100). */
   onBrightnessChangeEnd?: (brightnessPercent: number) => void;
+  /** Called after a sound/volume drag/adjustment ends with the final integer percentage (0–100). */
+  onVolumeChangeEnd?: (volumePercent: number) => void;
+  onSoundChangeEnd?: (volumePercent: number) => void;
   onPlaying?: (event: unknown) => void;
   onBuffering?: (buffering: boolean) => void;
   /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
   onError?: (error: PlayerError) => void;
   onEnded?: () => void;
   onPlaybackRoute?: (url: string) => void;
+  /** Called after a native/Electron recording is finalized and its local file path is available. */
+  onRecordingComplete?: (recording: { path: string; filename: string; size?: number; platform?: string }) => void;
   onNextEpisode?: (episode: Record<string, unknown>) => void;
   onCwRefresh?: () => void;
   renderLiveChat?: PlayerIntegrations['liveChat'] extends infer T ? T extends { render?: infer R } ? R : never : never;
@@ -321,15 +341,60 @@ export interface InlineLivePlayerProps {
   icons?: PlayerIcons;
   style?: unknown;
   initialMuted?: boolean;
+  /** Initial playback position as seconds or a zero-padded `HH:MM:SS` string. */
+  startTime?: number | string;
   /** Show a brightness slider over the inline video. Defaults to false. */
   showBrightnessControl?: boolean;
+  /** Custom accent color hash or string for the brightness bar slider. Defaults to '#00D4FF'. */
+  brightnessColor?: string;
+  brightnessAccentColor?: string;
+  /** Show the sound/volume bar slider. Defaults to false. */
+  showVolumeControl?: boolean;
+  showSoundControl?: boolean;
+  /** Custom accent color hash or string for the sound/volume bar slider. Defaults to '#FFE066' (light yellow). */
+  volumeColor?: string;
+  soundColor?: string;
+  initialVolume?: number;
+  /** Show the LIVE badge pill on the top left of the compact/inline player. Defaults to false. */
+  showLiveBadge?: boolean;
+  showLivePill?: boolean;
+  showLiveButton?: boolean;
   /** Called when an inline brightness adjustment ends with the final integer percentage (10–100). */
   onBrightnessChangeEnd?: (brightnessPercent: number) => void;
+  /** Called after a sound/volume drag/adjustment ends with the final integer percentage (0–100). */
+  onVolumeChangeEnd?: (volumePercent: number) => void;
+  onSoundChangeEnd?: (volumePercent: number) => void;
   /** Receives the player-facing error plus the underlying engine diagnostic (`actualMessage`, `cause`, `err`) when available. */
   onError?: (error: PlayerError) => void;
   onPlaying?: (event: unknown) => void;
 }
 
+export interface VerticalBrightnessControlProps {
+  value?: number;
+  onChange?: (value: number) => void;
+  onChangeEnd?: (value: number) => void;
+  accentColor?: string;
+  compact?: boolean;
+  availableHeight?: number;
+  topInset?: number;
+  bottomInset?: number;
+  leftInset?: number;
+}
+
+export interface VerticalVolumeControlProps {
+  value?: number;
+  onChange?: (value: number) => void;
+  onChangeEnd?: (value: number) => void;
+  accentColor?: string;
+  compact?: boolean;
+  availableHeight?: number;
+  topInset?: number;
+  bottomInset?: number;
+  rightInset?: number;
+}
+
+export const VerticalBrightnessControl: React.FC<VerticalBrightnessControlProps>;
+export const VerticalVolumeControl: React.FC<VerticalVolumeControlProps>;
 export const CineCrewPlayer: React.ForwardRefExoticComponent<CineCrewPlayerProps & React.RefAttributes<PlayerApi>>;
 export const InlineLivePlayer: React.MemoExoticComponent<React.FC<InlineLivePlayerProps>>;
 export const PlayerCustomizationProvider: React.FC<{ icons?: PlayerIcons; theme?: PlayerTheme; children?: React.ReactNode }>;

@@ -11,11 +11,36 @@ import { EMOJI_GROUPS, searchEmojis } from '../data/emoji';
 import { createRecordingDownloadLink, createVideoRecordingStream, createScreenRecordingStream, downloadRecording, getRecordingMimeType } from '../utils/webRecording';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
+import { parsePlaybackStartTime } from '../utils/playbackTime.js';
 import { playPlayer } from '../utils/playbackRecovery.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
-import { installWebPlayerStyles } from './installStyles.js';
+import {
+  installCoreStyles,
+  installControlsStyles,
+  installBrightnessStyles,
+  installAudioCardStyles,
+  installRecordingStyles,
+  installPanelStyles,
+  installDiagnosticsStyles,
+  installEmojiPickerStyles,
+  installWebPlayerStyles,
+} from './installStyles.js';
 
-installWebPlayerStyles();
+export {
+  installCoreStyles,
+  installControlsStyles,
+  installBrightnessStyles,
+  installAudioCardStyles,
+  installRecordingStyles,
+  installPanelStyles,
+  installDiagnosticsStyles,
+  installEmojiPickerStyles,
+  installWebPlayerStyles,
+};
+
+export function installAllStyles() {
+  installWebPlayerStyles();
+}
 
 const h = React.createElement;
 const DEFAULT_THEME = {
@@ -340,6 +365,7 @@ function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPa
 function WebRecordingOverlay(props) {
   const { status, error, theme, onDismiss } = props;
   if (status === 'idle' && !error) return null;
+  installRecordingStyles();
   const dismissButton = error
     ? h('button', { type: 'button', onClick: onDismiss, 'aria-label': 'Dismiss recording message' }, '×')
     : null;
@@ -351,6 +377,7 @@ function WebRecordingOverlay(props) {
 }
 
 function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
+  installBrightnessStyles();
   const controlRef = useRef(null);
   const valueRef = useRef(brightness);
   const activeRef = useRef(false);
@@ -437,6 +464,7 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
 }
 
 function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
+  installControlsStyles();
   let leftControls = locked ? null : unlockedControls.left;
   let rightControls = unlockedControls.right;
   if (locked) {
@@ -488,16 +516,16 @@ function getDrawerResizedVideoStyle(drawerResize, videoStyle) {
   if (!drawerResize) return {};
   if (videoStyle.width === 'auto') {
     return {
-      left: 'calc(var(--cinecrew-media-width, 64%) / 2)',
+      left: 'calc(var(--cinecrew-media-width, 70%) / 2)',
       top: '50%',
       right: 'auto',
       bottom: 'auto',
-      maxWidth: 'var(--cinecrew-media-width, 64%)',
+      maxWidth: 'var(--cinecrew-media-width, 70%)',
       transform: 'translate(-50%, -50%)',
     };
   }
   return {
-    width: 'var(--cinecrew-media-width, 64%)',
+    width: 'var(--cinecrew-media-width, 70%)',
     height: '100%',
     left: 0,
     top: 0,
@@ -522,7 +550,7 @@ function getOgvStageStyle(drawerResize, audioOnly) {
     left: 0,
     right: drawerResize ? 'auto' : 0,
     bottom: 0,
-    width: drawerResize ? 'var(--cinecrew-media-width, 64%)' : '100%',
+    width: drawerResize ? 'var(--cinecrew-media-width, 70%)' : '100%',
     height: '100%',
     backgroundColor: '#000',
     opacity: audioOnly ? 0 : 1,
@@ -532,6 +560,7 @@ function getOgvStageStyle(drawerResize, audioOnly) {
 function WebPlayerSurface({
   title,
   streamUrl,
+  startTime,
   videoRef,
   directVideoSource,
   poster,
@@ -561,6 +590,23 @@ function WebPlayerSurface({
   onErrorRef,
 }) {
   const ogvContainerRef = useRef(null);
+  const initialTimeAppliedRef = useRef(false);
+  const requestedStartTime = parsePlaybackStartTime(startTime);
+  useEffect(() => {
+    initialTimeAppliedRef.current = false;
+  }, [streamUrl, requestedStartTime]);
+  const applyInitialTime = () => {
+    if (requestedStartTime === null || initialTimeAppliedRef.current) return;
+    const video = videoRef.current;
+    const duration = Number(video?.duration);
+    if (!video || !Number.isFinite(duration) || duration <= 0) return;
+    try {
+      video.currentTime = Math.min(requestedStartTime, duration);
+      initialTimeAppliedRef.current = true;
+    } catch {
+      // A source can briefly reject a seek while its decoder is attaching.
+    }
+  };
   useWebOgvPlayback({
     activeUrl: streamUrl,
     type: mediaType,
@@ -571,6 +617,7 @@ function WebPlayerSurface({
     onErrorRef,
     onBufferingRef: bufferingRef,
     resourceBase: ogvResourceBase,
+    startTime: requestedStartTime,
     paused,
     muted,
     volume,
@@ -604,6 +651,8 @@ function WebPlayerSurface({
     crossOrigin: corsMode,
     style: surfaceStyle,
     onClick: inlinePreview ? onPromotePreview : undefined,
+    onDurationChange: applyInitialTime,
+    onLoadedMetadata: applyInitialTime,
     onError: (event) => {
       if (!directVideoSource) return;
       const mediaError = event.currentTarget?.error;
@@ -613,6 +662,7 @@ function WebPlayerSurface({
 }
 
 function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo, hasVideo, isPaused }) {
+  installAudioCardStyles();
   const bars = [1, 2, 3, 4, 5, 6, 7];
   return h('div', {
     className: 'cinecrew-player__audio-card',
@@ -790,6 +840,13 @@ function getPlaybackStatus(error, buffering, paused) {
 }
 
 function WebPlayerLayout(props) {
+  installCoreStyles();
+  if (props.brightness !== undefined && props.brightness < 1) {
+    installBrightnessStyles();
+  }
+  if (props.activePanel && props.webPanel) {
+    installPanelStyles();
+  }
   let controlLayer = null;
   if (!props.error) {
     controlLayer = h(WebPlayerControls, {
@@ -849,7 +906,7 @@ function WebPlayerLayout(props) {
   return h('div', {
     ref: props.playerRef,
     className: `cinecrew-player${props.audioOnly ? ' cinecrew-player--audio-mode' : ''}${props.inlinePreview ? ' cinecrew-player--inline-preview' : ''}${props.drawerMode === 'resize' && props.activePanel ? ' cinecrew-player--drawer-resize' : ''}${props.drawerMode === 'modal' && props.activePanel ? ' cinecrew-player--drawer-modal' : ''} ${props.className}`.trim(),
-    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '64%' },
+    style: { ...props.rootStyle, ...props.style, background: props.theme.backgroundColor, borderRadius: props.theme.borderRadius, '--cinecrew-accent': props.theme.accentColor, '--cinecrew-text': props.theme.controlColor, '--cinecrew-surface': props.theme.surfaceColor, '--cinecrew-media-width': '70%' },
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
@@ -858,7 +915,7 @@ function WebPlayerLayout(props) {
     className: 'cinecrew-player__brightness-dim',
     style: {
       opacity: 1 - props.brightness,
-      ...(props.drawerMode === 'resize' && props.activePanel ? { right: 'auto', width: 'var(--cinecrew-media-width, 64%)' } : {}),
+      ...(props.drawerMode === 'resize' && props.activePanel ? { right: 'auto', width: 'var(--cinecrew-media-width, 70%)' } : {}),
     },
     'aria-hidden': true,
   }) : null,
@@ -959,6 +1016,7 @@ function getFrameQuality(video) {
 }
 
 function WebDiagnosticsPanel({ title, theme, icons, onClose, streamMode, status, currentTime, duration, videoRef }) {
+  installDiagnosticsStyles();
   const video = videoRef?.current;
   const resolution = video?.videoWidth && video?.videoHeight
     ? `${video.videoWidth} × ${video.videoHeight}`
@@ -1027,6 +1085,7 @@ function formatChatTimestamp(value) {
 const EMOJI_BATCH_SIZE = 96;
 
 function WebEmojiPicker({ onSelect }) {
+  installEmojiPickerStyles();
   const [emojiGroup, setEmojiGroup] = useState(EMOJI_GROUPS[0].name);
   const [emojiQuery, setEmojiQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(EMOJI_BATCH_SIZE);
@@ -1344,6 +1403,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     poster,
     isLive: liveProp,
     autoPlay = true,
+    startTime,
     muted: mutedProp = false,
     volume: volumeProp = 1,
     playbackRate: playbackRateProp = 1,
@@ -2038,6 +2098,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const mediaSurface = h(WebPlayerSurface, {
     title,
     streamUrl,
+    startTime,
     videoRef,
     directVideoSource,
     poster,
@@ -2161,11 +2222,16 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   icons,
   style,
   initialMuted = true,
+  startTime,
   showBrightnessControl = false,
   onBrightnessChangeEnd,
+  showLiveBadge = false,
+  showLivePill = false,
+  showLiveButton = false,
   onError,
   onPlaying,
 }) {
+  installCoreStyles();
   const media = getSource(source, url);
   const playbackSource = { ...media, isLive: true, title: title || media.title };
   if (!isActive) {
@@ -2186,6 +2252,7 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     autoPlay: !paused,
     paused,
     muted: initialMuted,
+    startTime,
     poster: poster || media.poster || media.posterUrl,
     controls: {
       back: false, restart: false, lock: false, recording: false, liveChat: false, epg: false,
@@ -2198,6 +2265,7 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     icons,
     showBrightnessControl,
     onBrightnessChangeEnd,
+    showLiveBadge: Boolean(showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton),
     onError,
     onPlaying,
     inlinePreview: true,

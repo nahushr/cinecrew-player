@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,9 +17,23 @@ import { USER_AGENT } from './media/player/playerConstants';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
 import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
+import { VerticalVolumeControl } from './media/player/VerticalVolumeControl';
+import { parsePlaybackStartTime } from '../utils/playbackTime.js';
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
+}
+
+function getProgressPosition(event) {
+  const payload = event?.nativeEvent || event || {};
+  const currentTime = Number(payload.currentTime);
+  const duration = Number(payload.duration);
+  const position = Number(payload.position);
+  return {
+    currentTime: Number.isFinite(currentTime) ? Math.max(0, currentTime / 1000) : null,
+    duration: Number.isFinite(duration) ? Math.max(0, duration / 1000) : 0,
+    position: Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : null,
+  };
 }
 
 function createInlinePlatformPlayer({
@@ -30,9 +44,12 @@ function createInlinePlatformPlayer({
   paused,
   volume,
   title,
+  startTime,
   vlcSource,
   onPlaying,
   onError,
+  onProgress,
+  playerRef,
 }) {
   if (!shouldRenderVideo || !streamUrl) return null;
 
@@ -42,15 +59,18 @@ function createInlinePlatformPlayer({
     paused,
     muted,
     volume: 100,
+    startTime,
     onPlaying,
     onError,
+    onProgress,
   };
-  if (isElectron()) return React.createElement(ElectronVideoPlayer, commonProps);
-  if (isWeb()) return React.createElement(WebVideoPlayer, { ...commonProps, title });
+  if (isElectron()) return React.createElement(ElectronVideoPlayer, { ...commonProps, ref: playerRef });
+  if (isWeb()) return React.createElement(WebVideoPlayer, { ...commonProps, ref: playerRef, title });
   if (!isAndroid() && !isIOS()) return null;
 
   return React.createElement(VLCPlayer, {
     key: streamUrl,
+    ref: playerRef,
     style: styles.video,
     source: vlcSource || source,
     autoplay: true,
@@ -62,6 +82,7 @@ function createInlinePlatformPlayer({
     onPlaying,
     onVLCPlaying: onPlaying,
     onOpen: onPlaying,
+    onProgress,
     onError,
     onVLCError: onError,
   });
@@ -101,6 +122,7 @@ function InlinePlayerOverlay({
   paused,
   source,
   fullscreen,
+  showLiveBadge = false,
   onToggleControls,
   onMute,
   onPlay,
@@ -132,7 +154,7 @@ function InlinePlayerOverlay({
     }),
     showControls ? React.createElement(React.Fragment, null,
       React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
-      React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')),
+      showLiveBadge ? React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: styles.liveText }, 'LIVE')) : null,
       React.createElement(View, { style: { flex: 1 } }),
       button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
@@ -179,9 +201,15 @@ function InlineLivePlayerSurface({
   loading,
   error,
   brightness,
+  brightnessAccentColor,
   showBrightnessControl,
   onBrightnessChange,
   onBrightnessChangeEnd,
+  volume,
+  volumeAccentColor,
+  showVolumeControl,
+  onVolumeChange,
+  onVolumeChangeEnd,
   renderOverlay,
 }) {
   const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
@@ -201,18 +229,29 @@ function InlineLivePlayerSurface({
     })
     : null;
   const brightnessControl = (visible) => visible && showBrightnessControl
-    && (!fullscreen || fullscreenFrameHeight > 0)
+    && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
     ? React.createElement(VerticalBrightnessControl, {
       value: brightness,
       onChange: onBrightnessChange,
       onChangeEnd: onBrightnessChangeEnd,
-      accentColor: palette.accentColor,
+      accentColor: brightnessAccentColor || palette.accentColor,
       compact: true,
-      availableHeight: fullscreen
-        ? fullscreenFrameHeight
-        : (inlineFrameHeight || height),
-      topInset: 54,
-      bottomInset: 54,
+      availableHeight: fullscreen ? fullscreenFrameHeight : inlineFrameHeight,
+      topInset: fullscreen ? 54 : 32,
+      bottomInset: fullscreen ? 54 : 32,
+    })
+    : null;
+  const volumeControl = (visible) => visible && showVolumeControl
+    && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
+    ? React.createElement(VerticalVolumeControl, {
+      value: volume,
+      onChange: onVolumeChange,
+      onChangeEnd: onVolumeChangeEnd,
+      accentColor: volumeAccentColor || '#FFE066',
+      compact: true,
+      availableHeight: fullscreen ? fullscreenFrameHeight : inlineFrameHeight,
+      topInset: fullscreen ? 54 : 32,
+      bottomInset: fullscreen ? 54 : 32,
     })
     : null;
 
@@ -222,7 +261,8 @@ function InlineLivePlayerSurface({
     createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
     createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
     fullscreen ? null : renderOverlay(),
-    brightnessControl(!fullscreen && shouldRenderVideo),
+    fullscreen ? null : brightnessControl(showControls && shouldRenderVideo),
+    fullscreen ? null : volumeControl(showControls && shouldRenderVideo),
     React.createElement(Modal, {
       visible: fullscreen,
       animationType: 'none',
@@ -233,7 +273,8 @@ function InlineLivePlayerSurface({
       brightnessOverlay(shouldRenderVideo),
       createInlineStatusLayer(loading, error, palette),
       renderOverlay(),
-      brightnessControl(shouldRenderVideo))));
+      brightnessControl(showControls && shouldRenderVideo),
+      volumeControl(showControls && shouldRenderVideo))));
 }
 
 function InlineLivePlayerView({
@@ -252,8 +293,20 @@ function InlineLivePlayerView({
   style,
   icons,
   initialMuted = true,
+  startTime,
   showBrightnessControl = false,
+  brightnessColor,
   onBrightnessChangeEnd,
+  showVolumeControl = false,
+  showSoundControl = false,
+  volumeColor,
+  soundColor,
+  onVolumeChangeEnd,
+  onSoundChangeEnd,
+  initialVolume = 100,
+  showLiveBadge = false,
+  showLivePill = false,
+  showLiveButton = false,
   onError,
   onPlaying,
 }) {
@@ -261,8 +314,14 @@ function InlineLivePlayerView({
   const sourceObject = typeof sourceValue === 'string' ? { uri: sourceValue } : sourceValue || {};
   const rawUrl = sourceObject.uri || sourceObject.url || '';
   const streamUrl = useMemo(() => rawUrl || '', [rawUrl]);
+  const requestedStartTime = parsePlaybackStartTime(startTime);
+  const playerRef = useRef(null);
+  const playbackPositionRef = useRef(requestedStartTime ?? 0);
+  const playbackDurationRef = useRef(0);
+  const pendingSeekRef = useRef(requestedStartTime);
   const [internallyPaused, setInternallyPaused] = useState(Boolean(externalPaused));
   const [muted, setMuted] = useState(Boolean(initialMuted));
+  const [volume, setVolume] = useState(typeof initialVolume === 'number' ? initialVolume : 100);
   const [loading, setLoading] = useState(Boolean(streamUrl && isActive));
   const [error, setError] = useState('');
   const [showControls, setShowControls] = useState(true);
@@ -279,6 +338,55 @@ function InlineLivePlayerView({
     errorColor: '#FF647C',
     ...theme,
   };
+
+  const applyPendingSeek = useCallback(() => {
+    const target = pendingSeekRef.current;
+    const duration = playbackDurationRef.current;
+    if (target === null || target === undefined || duration <= 0) return false;
+    const playerInstance = playerRef.current;
+    if (typeof playerInstance?.seek !== 'function') return false;
+    try {
+      playerInstance.seek(Math.max(0, Math.min(1, target / duration)));
+      playbackPositionRef.current = target;
+      pendingSeekRef.current = null;
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const handleProgress = useCallback((event) => {
+    const progress = getProgressPosition(event);
+    if (progress.duration > 0) playbackDurationRef.current = progress.duration;
+    const current = progress.currentTime !== null
+      ? progress.currentTime
+      : (progress.position !== null && playbackDurationRef.current > 0
+        ? progress.position * playbackDurationRef.current
+        : null);
+    if (current !== null) playbackPositionRef.current = current;
+    applyPendingSeek();
+  }, [applyPendingSeek]);
+
+  const changeFullscreenWithPosition = useCallback((nextFullscreen) => {
+    // The native preview is re-parented into a Modal. Preserve the latest
+    // progress event and restore it after the new native view mounts.
+    pendingSeekRef.current = playbackPositionRef.current;
+    // Do not try the seek against the old surface's duration; wait for a
+    // progress event from the newly mounted surface to report its duration.
+    playbackDurationRef.current = 0;
+    setFullscreen(nextFullscreen);
+  }, []);
+
+  useEffect(() => {
+    playbackPositionRef.current = requestedStartTime ?? 0;
+    playbackDurationRef.current = 0;
+    pendingSeekRef.current = requestedStartTime;
+  }, [streamUrl, requestedStartTime]);
+
+  useEffect(() => {
+    const timeout = setTimeout(applyPendingSeek, 120);
+    return () => clearTimeout(timeout);
+  }, [fullscreen, applyPendingSeek]);
 
   useEffect(() => {
     setInternallyPaused(Boolean(externalPaused));
@@ -344,7 +452,7 @@ function InlineLivePlayerView({
 
   const openFullscreen = (event) => {
     event?.stopPropagation?.();
-    performAction('onFullscreen', () => setFullscreen((value) => !value), {
+    performAction('onFullscreen', () => changeFullscreenWithPosition(!fullscreen), {
       isFullscreen: !fullscreen,
       source: sourceObject,
       title,
@@ -377,12 +485,19 @@ function InlineLivePlayerView({
     streamUrl,
     source: sourceObject,
     muted,
+    volume: muted ? 0 : volume,
     paused: pausedNow,
     title,
     vlcSource,
+    startTime: requestedStartTime,
     onPlaying: handlePlaying,
+    onProgress: handleProgress,
     onError: handleError,
+    playerRef,
   });
+  const displayLiveBadge = Boolean(
+    showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton
+  );
   const renderOverlay = () => React.createElement(InlinePlayerOverlay, {
     showControls,
     controls: { ...controls, actions },
@@ -392,6 +507,7 @@ function InlineLivePlayerView({
     paused: pausedNow,
     source: streamUrl,
     fullscreen,
+    showLiveBadge: displayLiveBadge,
     onToggleControls: () => setShowControls((value) => !value),
     onMute: toggleMute,
     onPlay: togglePlay,
@@ -406,16 +522,25 @@ function InlineLivePlayerView({
       style,
       palette,
       fullscreen,
-      setFullscreen,
+      setFullscreen: changeFullscreenWithPosition,
       player,
       shouldRenderVideo,
       artwork,
       loading,
       error,
       brightness,
+      brightnessAccentColor: brightnessColor || palette.accentColor,
       showBrightnessControl: showBrightnessControl && showControls && shouldRenderVideo,
       onBrightnessChange: setBrightness,
       onBrightnessChangeEnd,
+      volume,
+      volumeAccentColor: volumeColor || soundColor || '#FFE066',
+      showVolumeControl: (showVolumeControl || showSoundControl) && showControls && shouldRenderVideo,
+      onVolumeChange: (val) => {
+        setVolume(val);
+        if (muted && val > 0) setMuted(false);
+      },
+      onVolumeChangeEnd: onVolumeChangeEnd || onSoundChangeEnd,
       renderOverlay,
     }),
   );

@@ -50,6 +50,7 @@
       "types": "./types/index.d.ts",
       "default": "./src/web/index.js"
     },
+    "./electron/main": "./src/electron/main/recording.cjs",
     "./react-native": {
       "types": "./types/index.d.ts",
       "react-native": "./src/native/index.js",
@@ -68,7 +69,17 @@
       "types": "./types/index.d.ts",
       "default": "./src/web/index.js"
     },
-    "./styles.css": "./src/web/styles.css",
+    "./styles.css": "./src/styles/styles.css",
+    "./styles/core.css": "./src/styles/core.css",
+    "./styles/controls.css": "./src/styles/controls.css",
+    "./styles/brightness.css": "./src/styles/brightness.css",
+    "./styles/audio-card.css": "./src/styles/audio-card.css",
+    "./styles/recording.css": "./src/styles/recording.css",
+    "./styles/panels.css": "./src/styles/panels.css",
+    "./styles/diagnostics.css": "./src/styles/diagnostics.css",
+    "./styles/emoji-picker.css": "./src/styles/emoji-picker.css",
+    "./styles/responsive.css": "./src/styles/responsive.css",
+    "./styles/styles.css": "./src/styles/styles.css",
     "./app.plugin": "./app.plugin.cjs",
     "./package.json": "./package.json"
   },

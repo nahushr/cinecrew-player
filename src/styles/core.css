@@ -1,0 +1,121 @@
+.cinecrew-player {
+  position: relative;
+  container-type: size;
+  container-name: cinecrew-player;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 180px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--cinecrew-text, #fff);
+  font: 500 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.cinecrew-player:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0 !important;
+}
+
+.cinecrew-player__video,
+.cinecrew-player__empty {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.cinecrew-player__video {
+  transition: width 180ms ease, height 180ms ease, top 180ms ease, left 180ms ease, transform 180ms ease;
+}
+
+.cinecrew-player__shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cinecrew-player__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  z-index: 2;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px #000;
+}
+
+.cinecrew-player__inline-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(52vw, 420px);
+  overflow: hidden;
+  color: var(--cinecrew-text, #fff);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px #000;
+}
+
+.cinecrew-player__status,
+.cinecrew-player__error {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.cinecrew-player__status {
+  pointer-events: none;
+  background: rgba(0,0,0,.24);
+}
+
+.cinecrew-player__spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255,255,255,.25);
+  border-radius: 50%;
+  animation: cinecrew-spin .75s linear infinite;
+}
+
+.cinecrew-player__error {
+  flex-direction: column;
+  padding: 24px;
+}
+
+.cinecrew-player__error strong {
+  font-size: 1.1em;
+}
+
+.cinecrew-player__inline-poster {
+  display: grid;
+  width: 100%;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  color: #fff;
+  background: #07111e;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.cinecrew-player__inline-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@keyframes cinecrew-spin {
+  to { transform: rotate(360deg); }
+}

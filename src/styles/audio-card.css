@@ -1,0 +1,127 @@
+.cinecrew-player__audio-card {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 2.5cqh, 16px);
+  padding: clamp(8px, 4cqh, 24px);
+  border: 1px solid;
+  border-radius: inherit;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .32);
+}
+
+.cinecrew-player--audio-mode .cinecrew-player__controls {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cinecrew-player__audio-poster {
+  width: min(160px, 30cqh, 28cqw);
+  max-width: 100%;
+  flex: 0 1 auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.cinecrew-player__audio-placeholder {
+  display: grid;
+  width: min(160px, 30cqh, 28cqw);
+  max-width: 100%;
+  flex: 0 1 auto;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid var(--cinecrew-accent, #00d4ff);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(0, 212, 255, .28), transparent 58%), linear-gradient(145deg, #142b49, #081321 72%);
+  box-shadow: 0 0 28px rgba(0, 212, 255, .2), inset 0 0 22px rgba(0, 212, 255, .12);
+}
+
+.cinecrew-player__audio-placeholder .cinecrew-player__icon {
+  width: min(42px, 12cqh, 12cqw);
+  height: min(42px, 12cqh, 12cqw);
+  font-size: min(42px, 12cqh, 12cqw);
+}
+
+.cinecrew-player__audio-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: clamp(12px, 6cqh, 24px);
+}
+
+.cinecrew-player__audio-wave span {
+  display: inline-block;
+  width: 4px;
+  height: clamp(4px, 2cqh, 8px);
+  border-radius: 2px;
+  background: var(--cinecrew-accent, #00E5FF);
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+.cinecrew-player__audio-wave.is-playing span {
+  animation: cinecrew-audio-bar 0.9s ease-in-out infinite alternate;
+}
+
+.cinecrew-player__audio-wave.is-playing span:nth-child(1) { height: clamp(6px, 4cqh, 14px); animation-delay: 0.1s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(2) { height: clamp(8px, 6cqh, 22px); animation-delay: 0.3s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(3) { height: clamp(5px, 3cqh, 10px); animation-delay: 0.5s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(4) { height: clamp(9px, 6.5cqh, 24px); animation-delay: 0.2s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(5) { height: clamp(7px, 4.5cqh, 16px); animation-delay: 0.4s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(6) { height: clamp(8px, 5.5cqh, 20px); animation-delay: 0.6s; }
+.cinecrew-player__audio-wave.is-playing span:nth-child(7) { height: clamp(5px, 3.5cqh, 12px); animation-delay: 0.15s; }
+
+@keyframes cinecrew-audio-bar {
+  0% { transform: scaleY(0.35); opacity: 0.45; }
+  100% { transform: scaleY(1.25); opacity: 1; }
+}
+
+.cinecrew-player__audio-card strong {
+  max-width: 100%;
+  font-size: clamp(.875rem, 4.8cqh, 1.4rem);
+}
+
+.cinecrew-player__audio-card button {
+  max-width: 100%;
+  border: 1px solid;
+  border-radius: 999px;
+  background: transparent;
+  padding: clamp(4px, 1.8cqh, 10px) clamp(10px, 3cqw, 18px);
+  font: inherit;
+  cursor: pointer;
+}
+
+@container cinecrew-player (max-width: 360px) {
+  .cinecrew-player__audio-card {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .cinecrew-player__audio-poster,
+  .cinecrew-player__audio-placeholder {
+    width: min(96px, 26cqh, 26cqw);
+  }
+
+  .cinecrew-player__audio-wave {
+    height: 14px;
+  }
+
+  .cinecrew-player__audio-card strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .cinecrew-player__audio-card button {
+    padding: 4px 10px;
+    font-size: .82rem;
+  }
+}

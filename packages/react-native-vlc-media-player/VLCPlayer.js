@@ -44,7 +44,7 @@ const VLCPlayer = forwardRef(function VLCPlayer(props, forwardedRef) {
       pause: () => setNativeProps({ paused: true }),
       startRecording: (path) => {
         lastRecordingRef.current = null;
-        dispatchCommand('startRecording', [path]);
+        dispatchCommand('startRecording', [path ?? null]);
       },
       stopRecording: () => dispatchCommand('stopRecording', []),
       stopPlayer: () => dispatchCommand('stopPlayer', []),

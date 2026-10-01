@@ -9,6 +9,7 @@ import {
   PanResponder,
   BackHandler,
   Modal,
+  StyleSheet,
 } from 'react-native';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { getFontSize, getFontWeight } from '../utils/layoutUtils';
 import { isLocalMediaUri } from '../utils/mediaUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { emitProgressBarTime } from '../utils/progressBarTime.js';
+import { parsePlaybackStartTime } from '../utils/playbackTime.js';
 import { playPlayer, resumePlayerAfterSeek } from '../utils/playbackRecovery.js';
 import {
   USER_AGENT,
@@ -56,67 +58,85 @@ import {
   FullscreenRecordingLayer,
 } from './media/player';
 
-export const MediaPlayerView = ({
-  visible,
-  streamUrl,
-  onBack,
-  title,
-  mediaType = 'live',
-  onClose,
-  colors,
-  initialShowLiveChat = false,
-  initialMuted = false,
-  initialVolume = 100,
-  initialPlaybackRate = 1,
-  showInlineChatButton = true,
-  onPlayerHostRef,
-  onInlinePreviewWheel,
-  inlinePreview = false,
-  inlinePreviewRect = null,
-  onPromotePreview,
-  mediaId,
-  posterUrl,
-  episodeLabel,
-  resumePosition = 0,
-  durationSecs = 0,
-  season,
-  episode,
-  onCwRefresh,
-  playlist,
-  shuffle,
-  onNextEpisode,
-  liveChatNonce = 0,
-  messagePageSize = 50,
-  drawerMode = 'overlay',
-  drawerStyle,
-  aspectRatios,
-  defaultAspectRatio = DEFAULT_ASPECT_RATIO,
-  onAspectRatioChange,
-  genre,
-  categoryName,
-  controls = {},
-  features = {},
-  actions = {},
-  integrations = {},
-  theme,
-  icons,
-  videoOnly = false,
-  initialAudioOnly = false,
-  initialPaused = false,
-  playerApiRef,
-  style,
-  onReady,
-  onProgress,
-  showProgressBar = true,
-  onProgressBarChange,
-  showBrightnessControl = false,
-  onBrightnessChangeEnd,
-  onPlaying,
-  onBuffering,
-  onError,
-  onEnded,
-  onPlaybackRoute,
-}) => {
+export const MediaPlayerView = (props) => {
+  const {
+    visible,
+    streamUrl,
+    onBack,
+    title,
+    mediaType = 'live',
+    onClose,
+    colors: initialColors,
+    showLiveChat: propShowLiveChat,
+    onLiveChatChange,
+    initialShowLiveChat = false,
+    initialMuted = false,
+    initialVolume = 100,
+    initialPlaybackRate = 1,
+    showInlineChatButton = true,
+    onPlayerHostRef,
+    onInlinePreviewWheel,
+    inlinePreview = false,
+    inlinePreviewRect = null,
+    onPromotePreview,
+    mediaId,
+    posterUrl,
+    episodeLabel,
+    startTime,
+    resumePosition = 0,
+    durationSecs = 0,
+    season,
+    episode,
+    onCwRefresh,
+    playlist,
+    shuffle,
+    onNextEpisode,
+    liveChatNonce = 0,
+    messagePageSize = 50,
+    drawerMode = 'overlay',
+    drawerStyle,
+    aspectRatios,
+    defaultAspectRatio = DEFAULT_ASPECT_RATIO,
+    onAspectRatioChange,
+    genre,
+    categoryName,
+    controls = {},
+    features = {},
+    actions = {},
+    integrations = {},
+    theme,
+    icons,
+    videoOnly = false,
+    initialAudioOnly = false,
+    initialPaused = false,
+    playerApiRef,
+    style,
+    onReady,
+    onProgress,
+    showProgressBar = true,
+    onProgressBarChange,
+    showBrightnessControl = false,
+    brightnessColor,
+    brightnessAccentColor,
+    onBrightnessChangeEnd,
+    showVolumeControl = false,
+    showSoundControl = false,
+    volumeColor,
+    soundColor,
+    onVolumeChangeEnd,
+    onSoundChangeEnd,
+    showLiveBadge = false,
+    showLivePill = false,
+    showLiveButton = false,
+    onPlaying,
+    onBuffering,
+    onError,
+    onEnded,
+    onPlaybackRoute,
+    onRecordingComplete,
+  } = props;
+  const requestedStartTime = parsePlaybackStartTime(startTime);
+  let colors = initialColors;
   colors = theme?.colors || (theme ? {
     ...colors,
     mode: theme.mode || colors?.mode,
@@ -132,7 +152,9 @@ export const MediaPlayerView = ({
   // Keep the default 16:9 player fully visible in landscape without requiring
   // apps to calculate dimensions or pass a demo-specific style. A consumer's
   // explicit `style` is applied afterwards and can still override this limit.
-  const landscapeInlineStyle = windowWidth > windowHeight
+  const flattenedStyle = StyleSheet.flatten(props.style) || {};
+  const consumerHasWidth = Boolean(flattenedStyle.width || flattenedStyle.maxWidth);
+  const landscapeInlineStyle = windowWidth > windowHeight && !consumerHasWidth
     ? {
         maxWidth: Math.max(
           1,
@@ -292,16 +314,25 @@ export const MediaPlayerView = ({
     };
   }, []);
 
-  const [showLiveChat, setShowLiveChat] = useState(false);
+  const [internalShowLiveChat, setInternalShowLiveChat] = useState(() => Boolean(propShowLiveChat ?? initialShowLiveChat));
+  const showLiveChat = propShowLiveChat !== undefined ? Boolean(propShowLiveChat) : internalShowLiveChat;
+  const setShowLiveChat = useCallback((next) => {
+    const nextVal = typeof next === 'function' ? next(showLiveChat) : next;
+    setInternalShowLiveChat(nextVal);
+    onLiveChatChange?.(nextVal);
+  }, [showLiveChat, onLiveChatChange]);
   const [drawerTab, setDrawerTab] = useState('chat');
   const isLive = mediaType === 'live' || mediaType === 'channel';
   const isLiveCommentsEnabled = controls.liveChat ?? Boolean(integrations.liveChat?.loadMessages && integrations.liveChat?.sendMessage);
   const isEpgEnabled = controls.epg ?? Boolean(integrations.epg?.loadListings);
   const diagnosticsOverlayEnabled = Boolean(features.diagnostics);
   const isAudioOnlyFeatureEnabled = controls.audioOnly ?? true;
-  const isScreenRecorderEnabled = controls.recording ?? Boolean(integrations.recording);
   const recording = integrations.recording;
-  const canRecord = isLive || recording?.supportsOnDemand === true;
+  const hasBuiltInRecorder = VLC_AVAILABLE || isElectron();
+  const isScreenRecorderEnabled = controls.recording ?? (Boolean(recording) || hasBuiltInRecorder);
+  const canRecord = recording
+    ? (isLive || recording.supportsOnDemand === true)
+    : hasBuiltInRecorder;
   const [currentUser, setCurrentUser] = useState(integrations.user || { id: '0', username: 'Viewer' });
 
   const badgeService = useMemo(() => ({
@@ -578,6 +609,23 @@ export const MediaPlayerView = ({
   const recNoticeTimer = useRef(null);
   const recStatusRef = useRef('idle');
   recStatusRef.current = recStatus;
+  const recordingClockRef = useRef({ startedAt: 0, elapsedMs: 0 });
+  const nativeRecordingStopRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const clearRecordingTimer = useCallback(() => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    recordingTimerRef.current = null;
+  }, []);
+  const waitForNativeRecordingFile = useCallback(() => new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      nativeRecordingStopRef.current = null;
+      reject(new Error('VLC did not report the completed recording file.'));
+    }, 20000);
+    nativeRecordingStopRef.current = {
+      resolve: (path) => { clearTimeout(timeout); resolve(path); },
+      reject: (error) => { clearTimeout(timeout); reject(error); },
+    };
+  }), []);
 
   const [isAudioOnly, setIsAudioOnly] = useState(!!initialAudioOnly);
   const [audioOnlyStreamUrl, setAudioOnlyStreamUrl] = useState('');
@@ -739,6 +787,19 @@ export const MediaPlayerView = ({
     };
   }, [clearAudioOnlyFallbackTimer, streamUrl, visible, initialPaused, initialPlaybackRate, videoOnly, initialAudioOnly]);
 
+  useEffect(() => {
+    if (requestedStartTime === null) return;
+    // Use the shared progress handler to seek once each backend reports its
+    // duration. This covers VLC, Electron, Expo web, and the native fallback.
+    pendingSeekRef.current = requestedStartTime;
+    sourceRestorePositionRef.current = 0;
+    hasResumedRef.current = true;
+    if (restoreTimerRef.current) {
+      clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
+    }
+  }, [requestedStartTime, streamUrl, visible]);
+
   // Reset aspect ratio & zoom state every time player opens or streamUrl changes
   useEffect(() => {
     if (visible) {
@@ -817,9 +878,27 @@ export const MediaPlayerView = ({
       } catch (err) {
         Alert.alert('Recording', err?.message || 'Could not save the recording.');
       }
+    } else if (recStatusRef.current !== 'idle') {
+      try {
+        if (isElectron()) {
+          const result = await playerApiRef?.current?.stopNativeRecording?.();
+          if (result?.filename) Alert.alert('Recording saved', result.filename);
+        } else {
+          const completedFile = waitForNativeRecordingFile();
+          const accepted = await playerApiRef?.current?.stopNativeRecording?.();
+          if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
+          const path = await completedFile;
+          Alert.alert('Recording saved', String(path).split(/[\\/]/).pop());
+        }
+      } catch (err) {
+        Alert.alert('Recording', err?.message || 'Could not save the recording.');
+      }
+      clearRecordingTimer();
+      setRecStatus('idle');
+      setRecElapsedMs(0);
     }
     onClose();
-  }, [clearAudioOnlyFallbackTimer, exitFullscreen, saveCurrentProgress, onCwRefresh, onClose, integrations, mediaId, recording]);
+  }, [clearAudioOnlyFallbackTimer, clearRecordingTimer, exitFullscreen, saveCurrentProgress, onCwRefresh, onClose, integrations, mediaId, recording, playerApiRef, waitForNativeRecordingFile]);
 
   const handleBackAction = useCallback(() => {
     if (isFullscreen) {
@@ -858,8 +937,15 @@ export const MediaPlayerView = ({
     if (recNoticeTimer.current) clearTimeout(recNoticeTimer.current);
     if (recording?.isActive?.()) {
       Promise.resolve(recording.stop?.()).catch(() => {});
+    } else if (recStatusRef.current !== 'idle') {
+      clearRecordingTimer();
+      try {
+        vlcRef.current?.stopRecording?.();
+      } catch {
+        // Best-effort finalize when the player is closed or its source changes.
+      }
     }
-  }, [streamUrl, visible, recording]);
+  }, [streamUrl, visible, recording, clearRecordingTimer]);
 
   const showRecNotice = useCallback((notice) => {
     if (recNoticeTimer.current) clearTimeout(recNoticeTimer.current);
@@ -871,16 +957,34 @@ export const MediaPlayerView = ({
     e?.stopPropagation?.();
     if (!isScreenRecorderEnabled || !canRecord || recStatusRef.current !== 'idle') return;
     try {
-      await recording?.start?.({
-        getVideoElement: () => {
-          const ref = vlcRef.current;
-          if (typeof ref?.getVideoElement === 'function') return ref.getVideoElement();
-          return null;
-        },
-        streamUrl: playbackUrl || streamUrl,
-        title,
-        player: playerApiRef?.current || null,
-      });
+      if (recording?.start) {
+        await recording.start({
+          getVideoElement: () => {
+            const ref = vlcRef.current;
+            if (typeof ref?.getVideoElement === 'function') return ref.getVideoElement();
+            return null;
+          },
+          streamUrl: playbackUrl || streamUrl,
+          title,
+          player: playerApiRef?.current || null,
+        });
+      } else {
+        const start = playerApiRef?.current?.startNativeRecording;
+        if (typeof start !== 'function') throw new Error('The platform recorder is unavailable in this player build.');
+        const result = await start();
+        if (result === false || result == null) throw new Error('The platform could not start recording.');
+        recordingClockRef.current = { startedAt: Date.now(), elapsedMs: 0 };
+        setRecElapsedMs(0);
+        setRecStatus('recording');
+        clearRecordingTimer();
+        recordingTimerRef.current = setInterval(() => {
+          const clock = recordingClockRef.current;
+          if (recStatusRef.current === 'recording' && clock.startedAt) {
+            const elapsedMs = clock.elapsedMs + Date.now() - clock.startedAt;
+            setRecElapsedMs(elapsedMs);
+          }
+        }, 500);
+      }
       if (muted) {
         showRecNotice({
           type: 'info',
@@ -890,30 +994,61 @@ export const MediaPlayerView = ({
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not start recording.' });
     }
-  }, [canRecord, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, playerApiRef]);
+  }, [canRecord, clearRecordingTimer, isScreenRecorderEnabled, muted, playbackUrl, showRecNotice, streamUrl, title, recording, playerApiRef]);
 
   const handlePauseRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
     try {
-      await recording?.pause?.();
+      if (recording?.pause) {
+        await recording.pause();
+      } else {
+        const clock = recordingClockRef.current;
+        if (clock.startedAt) clock.elapsedMs += Date.now() - clock.startedAt;
+        clock.startedAt = 0;
+        playerApiRef?.current?.pause?.();
+        setRecElapsedMs(clock.elapsedMs);
+        setRecStatus('paused');
+      }
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not pause recording.' });
     }
-  }, [showRecNotice, recording]);
+  }, [showRecNotice, recording, playerApiRef]);
 
   const handleResumeRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
     try {
-      await recording?.resume?.();
+      if (recording?.resume) {
+        await recording.resume();
+      } else {
+        playerApiRef?.current?.play?.();
+        recordingClockRef.current.startedAt = Date.now();
+        setRecStatus('recording');
+      }
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not resume recording.' });
     }
-  }, [showRecNotice, recording]);
+  }, [showRecNotice, recording, playerApiRef]);
 
   const handleStopRecording = useCallback(async (e) => {
     e?.stopPropagation?.();
     try {
-      const result = await recording?.stop?.();
+      let result;
+      if (recording?.stop) {
+        result = await recording.stop();
+      } else if (isElectron()) {
+        result = await playerApiRef?.current?.stopNativeRecording?.();
+        if (result === false || !result?.path) throw new Error('LibVLC could not finalize the recording file.');
+      } else {
+        const completedFile = waitForNativeRecordingFile();
+        const accepted = await playerApiRef?.current?.stopNativeRecording?.();
+        if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
+        const path = await completedFile;
+        result = { path, filename: String(path).split(/[\\/]/).pop(), platform: 'native' };
+      }
+      clearRecordingTimer();
+      recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
+      setRecStatus('idle');
+      setRecElapsedMs(0);
       if (result?.filename) {
         let where;
         if (result.platform === 'web') {
@@ -928,11 +1063,12 @@ export const MediaPlayerView = ({
           where = `Saved on this device as ${result.filename}`;
         }
         showRecNotice({ type: 'saved', message: where });
+        if (result.path) onRecordingComplete?.({ ...result, filename: result.filename });
       }
     } catch (err) {
       showRecNotice({ type: 'error', message: err?.message || 'Could not save the recording.' });
     }
-  }, [showRecNotice, recording]);
+  }, [clearRecordingTimer, onRecordingComplete, playerApiRef, recording, showRecNotice, waitForNativeRecordingFile]);
 
   /**
    * Restart the movie/episode from the beginning (seek to 00:00).
@@ -1226,13 +1362,20 @@ export const MediaPlayerView = ({
       setTimeout(() => handleSelectAspectRatio(aspectRatio), 400);
     }
 
+    if (requestedStartTime !== null) {
+      // The explicit position is queued and applied by the shared progress
+      // handler as soon as the active backend reports its duration.
+      hasResumedRef.current = true;
+      sourceRestorePositionRef.current = 0;
+      return;
+    }
+
     const restoredSourcePosition = Number(sourceRestorePositionRef.current || 0);
     if (!isLive && restoredSourcePosition > 5) {
       sourceRestorePositionRef.current = 0;
       setTimeout(() => restorePlaybackPosition(restoredSourcePosition, 0), 250);
       return;
     }
-
 
     const targetPos = Number(resumePosition || 0);
     if (!isLive && targetPos > 5 && !hasResumedRef.current) {
@@ -1397,13 +1540,13 @@ export const MediaPlayerView = ({
       getAudioTracks: () => audioTracks,
       startNativeRecording: (path) => {
         if (typeof vlcRef.current?.startRecording !== 'function') return false;
-        vlcRef.current.startRecording(path);
-        return true;
+        const result = vlcRef.current.startRecording(path);
+        return typeof result === 'undefined' ? true : result;
       },
       stopNativeRecording: () => {
         if (typeof vlcRef.current?.stopRecording !== 'function') return false;
-        vlcRef.current.stopRecording();
-        return true;
+        const result = vlcRef.current.stopRecording();
+        return typeof result === 'undefined' ? true : result;
       },
     };
     Object.assign(playerApiRef.current, api);
@@ -1414,10 +1557,27 @@ export const MediaPlayerView = ({
 
   const handleNativeRecordingCreated = useCallback((path) => {
     recording?.onNativeRecordingCreated?.(path);
+    nativeRecordingStopRef.current?.resolve?.(path);
+    nativeRecordingStopRef.current = null;
   }, [recording]);
   const handleNativeRecordingState = useCallback((state) => {
     recording?.onNativeRecordingState?.(state);
-  }, [recording]);
+    if (recording) return;
+    if (state?.requestAccepted === false || state?.error) {
+      const error = new Error(state.error || 'VLC rejected the recording request.');
+      nativeRecordingStopRef.current?.reject?.(error);
+      nativeRecordingStopRef.current = null;
+      if (state.operation === 'stop') {
+        showRecNotice({ type: 'error', message: error.message });
+        return;
+      }
+      clearRecordingTimer();
+      recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
+      setRecStatus('idle');
+      setRecElapsedMs(0);
+      showRecNotice({ type: 'error', message: error.message });
+    }
+  }, [clearRecordingTimer, recording, showRecNotice]);
 
   const handleSpeedSelect = useCallback((speed) => invokeAction(
     'onPlaybackRateChange', () => {
@@ -1964,7 +2124,6 @@ export const MediaPlayerView = ({
       handleNativeBuffering={handleNativeBuffering}
       onRecordingCreated={handleNativeRecordingCreated}
       onRecordingState={handleNativeRecordingState}
-      recording={recording}
       getPlayerHostBounds={getPlayerHostBounds}
     />
   );
@@ -1990,7 +2149,6 @@ export const MediaPlayerView = ({
         diagnosticsEnabled={diagnosticsOverlayEnabled}
         title={title}
         streamId={mediaId}
-        popupMode
         integrations={integrations}
         colors={colors}
         messagePageSize={messagePageSize}
@@ -2021,6 +2179,7 @@ export const MediaPlayerView = ({
         mediaId={mediaId}
         isLoading={isLoading}
         errorMessage={errorMessage}
+        showLiveBadge={showLiveBadge || showLivePill || showLiveButton || controls?.liveBadge || controls?.livePill || controls?.liveButton}
       >
         {liveChatDrawer}
       </InlinePreviewFrame>
@@ -2055,12 +2214,16 @@ export const MediaPlayerView = ({
     handleRestartAction,
     handleMuteAction,
     handleLockAction,
-    isAudioOnly,
     showBrightnessControl,
     brightness,
     onBrightnessChange: commitBrightness,
     onBrightnessChangeEnd,
-    brightnessAccentColor: colors?.brandAccent || colors?.primary || '#00D4FF',
+    brightnessAccentColor: brightnessColor || brightnessAccentColor || colors?.brandAccent || colors?.primary || '#00D4FF',
+    showVolumeControl: showVolumeControl || showSoundControl,
+    volume,
+    onVolumeChange: (val) => commitVolume(val, { unmute: true }),
+    onVolumeChangeEnd: onVolumeChangeEnd || onSoundChangeEnd,
+    volumeAccentColor: volumeColor || soundColor || '#FFE066',
     isPlaying,
     handleSeekByAction,
     handlePlayPauseAction,
@@ -2068,6 +2231,7 @@ export const MediaPlayerView = ({
     sliderPos,
     currentTime,
     duration,
+    isAudioOnly,
     isAudioOnlyFeatureEnabled,
     videoOnlyMode,
     showAspectPicker,
@@ -2128,9 +2292,18 @@ export const MediaPlayerView = ({
   const resizeDrawerOpen = drawerMode === 'resize'
     && showLiveChat
     && windowWidth >= windowHeight;
+  const portraitResizeOpen = drawerMode === 'resize'
+    && showLiveChat
+    && windowWidth < windowHeight;
+  const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
+  const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
+  const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
   const mediaFrameStyle = resizeDrawerOpen
-    ? { right: 'auto', width: windowWidth < 640 ? '52%' : '64%' }
-    : null;
+    ? { right: 'auto', width: '70%' }
+    : (portraitResizeOpen
+      ? { top: 0, left: 0, right: 0, bottom: 'auto', height: portraitVideoHeight, width: '100%' }
+      : null);
+  const isEndToEnd = windowWidth >= windowHeight;
 
   const fullscreenContent = (
     <View
@@ -2187,7 +2360,11 @@ export const MediaPlayerView = ({
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls
             are hidden if the elevated overlay remains mounted. */}
-        {showControls && !isAudioOnly && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
+        {showControls
+          && !isAudioOnly
+          && !(drawerMode === 'overlay' && showLiveChat)
+          && mediaFrameSize.width > 0
+          && mediaFrameSize.height > 0 ? (
             <View
               style={styles.controlsShell}
               pointerEvents="box-none"
@@ -2234,6 +2411,7 @@ export const MediaPlayerView = ({
         landscapeFullWidth={props.isLandscape}
         drawerTab={drawerTab}
         drawerMode={drawerMode}
+        portraitVideoHeight={portraitVideoHeight}
         playbackUrl={playbackUrl}
         streamUrl={streamUrl}
         isLive={isLive}
@@ -2272,12 +2450,19 @@ export const MediaPlayerView = ({
           visible={visible}
           animationType="none"
           transparent={false}
+          presentationStyle="fullScreen"
           statusBarTranslucent={true}
+          navigationBarTranslucent={true}
           hardwareAccelerated={true}
           onRequestClose={handleBackAction}
           supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
         >
-          {fullscreenContent}
+          <View
+            collapsable={false}
+            style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000' }]}
+          >
+            {fullscreenContent}
+          </View>
         </Modal>
       );
     }
@@ -2288,9 +2473,13 @@ export const MediaPlayerView = ({
         collapsable={false}
         style={[
           styles.inlinePlayerContainer,
-          landscapeInlineStyle,
+          portraitResizeOpen
+            ? { height: portraitResizeContainerHeight, aspectRatio: undefined }
+            : (!isEndToEnd && styles.inlineAspectRatio),
+          !isEndToEnd && !portraitResizeOpen && landscapeInlineStyle,
           transparentElectronOverlay && { backgroundColor: 'transparent' },
           style,
+          isEndToEnd && { borderRadius: 0, width: '100%', maxWidth: '100%' },
         ]}
       >
         {fullscreenContent}
@@ -2313,4 +2502,3 @@ export const MediaPlayerView = ({
     </View>
   );
 };
-

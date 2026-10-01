@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { isElectron, isWeb } from '../../../utils/runtimePlatform';
+import { isElectron, isElectronOverlay, isWeb } from '../../../utils/runtimePlatform';
 import { PlayerIcon } from '../../customization';
 import { PlayerTopBar } from './PlayerTopBar';
 import { CenterControls } from './CenterControls';
 import { PlayerBottomBar } from './PlayerBottomBar';
 import { VerticalBrightnessControl } from './VerticalBrightnessControl';
+import { VerticalVolumeControl } from './VerticalVolumeControl';
 import { AudioOnlyView } from './AudioOnlyView';
 import { LiveChatDrawer } from '../LiveChatDrawer';
 import { LiveRecordingOverlay, LiveRecordingNotice } from '../LiveRecordingOverlay';
@@ -77,7 +78,13 @@ export function FullscreenGestureLayer({
 }
 
 export function FullscreenControlsPanel(props) {
-  const [controlBounds, setControlBounds] = useState({ topBarY: 0, headerY: 0, bottom: 0 });
+  const [controlBounds, setControlBounds] = useState({
+    topBarY: 0,
+    headerY: 0,
+    headerHeight: 0,
+    bottom: 0,
+    bottomHeight: 0,
+  });
   const frame = props.frameSize || { width: 0, height: 0 };
   const isPortrait = frame.width > 0 && frame.height > 0 && frame.height >= frame.width;
   // Android reports landscape phone widths in dp (often ~850–1000dp), so a
@@ -89,19 +96,31 @@ export function FullscreenControlsPanel(props) {
     setControlBounds((current) => Math.abs(current.topBarY - y) > 1 ? { ...current, topBarY: y } : current);
   }, []);
   const onHeaderLayout = useCallback((event) => {
-    const { y = 0 } = event?.nativeEvent?.layout || {};
-    setControlBounds((current) => Math.abs(current.headerY - y) > 1 ? { ...current, headerY: y } : current);
+    const { y = 0, height = 0 } = event?.nativeEvent?.layout || {};
+    setControlBounds((current) => (Math.abs(current.headerY - y) > 1 || Math.abs(current.headerHeight - height) > 1)
+      ? { ...current, headerY: y, headerHeight: height }
+      : current);
   }, []);
   const onBottomBarLayout = useCallback((event) => {
-    const { y = 0 } = event?.nativeEvent?.layout || {};
-    setControlBounds((current) => Math.abs(current.bottom - y) > 1 ? { ...current, bottom: y } : current);
+    const { y = 0, height = 0 } = event?.nativeEvent?.layout || {};
+    setControlBounds((current) => (Math.abs(current.bottom - y) > 1 || Math.abs(current.bottomHeight - height) > 1)
+      ? { ...current, bottom: y, bottomHeight: height }
+      : current);
   }, []);
-  const topInset = controlBounds.topBarY + controlBounds.headerY > 0
-    ? controlBounds.topBarY + controlBounds.headerY
-    : (compact ? 4 : isPortrait ? 24 : 24);
-  const bottomInset = controlBounds.bottom > 0 && frame.height > 0
-    ? Math.max(0, frame.height - controlBounds.bottom) + 8
-    : (compact ? 74 : isPortrait ? 138 : 96);
+
+  const headerBottom = controlBounds.headerHeight > 0
+    ? controlBounds.topBarY + controlBounds.headerY + controlBounds.headerHeight
+    : 0;
+
+  const topInset = headerBottom > 0
+    ? headerBottom
+    : (compact ? 38 : isPortrait ? Math.max(props.insets?.top || 0, 24) + 44 : 44);
+
+  const bottomInset = controlBounds.bottomHeight > 0
+    ? (controlBounds.bottom > 0 && frame.height > 0
+        ? Math.max(0, frame.height - controlBounds.bottom)
+        : controlBounds.bottomHeight)
+    : (compact ? 70 : isPortrait ? Math.max(props.insets?.bottom || 0, 16) + 104 : 76);
 
   return (
     <View
@@ -129,6 +148,8 @@ export function FullscreenControlsPanel(props) {
         locked={props.isLocked}
         playerIsPortrait={isPortrait}
         compact={compact}
+        isPlaying={props.isPlaying}
+        paused={props.paused ?? !props.isPlaying}
         onClose={props.onClose}
         onStartRecording={(event) => props.handleRecordingAction('onRecordingStart', props.handleStartRecording, event)}
         onResumeRecording={(event) => props.handleRecordingAction('onRecordingResume', props.handleResumeRecording, event)}
@@ -192,7 +213,19 @@ export function FullscreenControlsPanel(props) {
           availableHeight={frame.height}
           topInset={topInset}
           bottomInset={bottomInset}
-          alignTop
+          leftInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}
+        />
+      ) : null}
+      {props.showVolumeControl && !props.isLocked ? (
+        <VerticalVolumeControl
+          value={props.volume}
+          onChange={props.onVolumeChange}
+          onChangeEnd={props.onVolumeChangeEnd}
+          accentColor={props.volumeAccentColor || props.brightnessAccentColor}
+          availableHeight={frame.height}
+          topInset={topInset}
+          bottomInset={bottomInset}
+          rightInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}
         />
       ) : null}
     </View>
@@ -261,6 +294,7 @@ export function FullscreenChatLayer(props) {
       isLandscape={props.isLandscape}
       initialTab={props.drawerTab}
       drawerMode={props.drawerMode}
+      portraitVideoHeight={props.portraitVideoHeight}
       streamUrl={props.playbackUrl || props.streamUrl || ''}
       serverUrl={props.playbackUrl || props.streamUrl || ''}
       isLive={props.isLive}

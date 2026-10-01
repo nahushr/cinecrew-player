@@ -198,9 +198,10 @@ test('startTime is public and wired through full, inline, web, and native playba
   assert.match(declarations, /interface InlineLivePlayerProps[\s\S]*startTime\?: number \| string/);
   assert.match(readme, /`startTime`[\s\S]*`HH:MM:SS`/);
   assert.match(nativeEntry, /parsePlaybackStartTime\(startTime\)/);
-  assert.match(nativeEntry, /handleSeekTo\(requestedStartTime\)/);
+  assert.match(nativeEntry, /pendingSeekRef\.current = requestedStartTime/);
   assert.match(nativeInline, /pendingSeekRef\.current = playbackPositionRef\.current/);
   assert.match(nativeInline, /playerInstance\.seek\(/);
+  assert.match(nativeInline, /onOpen: onPlaying,\s*onProgress,\s*onError/);
   assert.match(webEntry, /startTime,[\s\S]*onLoadedMetadata: applyInitialTime/);
   assert.match(webNativePlayer, /startTime: requestedStartTime/);
   assert.match(ogvPlayer, /player\.currentTime = Math\.min\(initialTime, duration\)/);

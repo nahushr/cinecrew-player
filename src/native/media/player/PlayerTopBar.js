@@ -11,18 +11,23 @@ function shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
   return Boolean(episode && title !== episode && !title.includes(episode));
 }
 
-function BackButton({ visible, palette, scale, onClose, compact }) {
+function BackButton({ visible, palette, onClose, compact }) {
   if (!visible) return <View style={{ width: 12 }} />;
   return (
-    <TouchableOpacity style={[styles.pill, compact && styles.compactPill]} onPress={(event) => { event.stopPropagation(); onClose(); }} hitSlop={12}>
-      <PlayerIcon name="arrow-left" size={compact ? 18 : 22} color={palette.controlColor} />
-      <Text style={[styles.backText, { color: palette.controlColor, fontSize: compact ? 12 : scale?.backFont, fontWeight: scale?.backWeight }]}>Back</Text>
+    <TouchableOpacity
+      style={[styles.pill, compact && styles.compactPill]}
+      onPress={(event) => { event.stopPropagation(); onClose(); }}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+    >
+      <PlayerIcon name="arrow-left" size={compact ? 18 : 20} color={palette.controlColor} />
     </TouchableOpacity>
   );
 }
 
 function RecordingControls({ canRecord, enabled, status, loading, controls, onStart, onResume, onPause, onStop, palette, compact }) {
-  if (controls.recording === false || enabled === false) return null;
+  if (!canRecord || controls.recording === false || enabled === false) return null;
   if (status === 'idle') {
     return (
       <TouchableOpacity style={[styles.pill, compact && styles.compactPill, loading && { opacity: 0.45 }]} onPress={onStart} hitSlop={12} disabled={loading} accessibilityLabel="Start recording">
@@ -43,17 +48,33 @@ function RecordingControls({ canRecord, enabled, status, loading, controls, onSt
   );
 }
 
-function LiveServiceControls({ isLive, controls, showLiveChat, drawerTab, showChat, showEpg, showDiagnostics, onToggle, palette, compact }) {
-  const renderServiceButton = (name, tab, enabled, activeName) => {
-    if (!enabled || controls[name] === false) return null;
-    const active = showLiveChat && drawerTab === tab;
-    return (
-      <TouchableOpacity key={tab} style={[styles.pill, compact && styles.compactPill, active && { backgroundColor: palette.surfaceColor, borderColor: palette.accentColor, borderWidth: 1 }]} onPress={(event) => { event.stopPropagation(); onToggle(tab); }} hitSlop={12}>
-        <PlayerIcon name={active ? activeName : ({ chat: 'comment-text-multiple-outline', epg: 'television-classic', diagnostics: 'pulse' }[tab])} size={compact ? 18 : 20} color={active ? palette.accentColor : palette.controlColor} />
-      </TouchableOpacity>
-    );
-  };
-  return <>{renderServiceButton('liveChat', 'chat', showChat, 'comment-text-multiple')}{renderServiceButton('epg', 'epg', showEpg, 'television-guide')}{renderServiceButton('diagnostics', 'diagnostics', showDiagnostics, 'pulse')}</>;
+function ServiceActionButton({ name, tab, enabled, controls, showLiveChat, drawerTab, onToggle, activeIcon, inactiveIcon, label, palette, compact }) {
+  if (!enabled || controls[name] === false) return null;
+  const active = showLiveChat && drawerTab === tab;
+  return (
+    <TouchableOpacity
+      key={tab}
+      style={[
+        styles.pill,
+        compact && styles.compactPill,
+        active && {
+          backgroundColor: 'rgba(0, 229, 255, 0.12)',
+          borderColor: palette.accentColor,
+          borderWidth: 1,
+        },
+      ]}
+      onPress={(event) => { event.stopPropagation(); onToggle(tab); }}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <PlayerIcon
+        name={active ? activeIcon : inactiveIcon}
+        size={compact ? 18 : 20}
+        color={active ? palette.accentColor : palette.controlColor}
+      />
+    </TouchableOpacity>
+  );
 }
 
 function SessionActionButton({ visible, compact, onPress, icon, color, accessibilityLabel }) {
@@ -63,6 +84,7 @@ function SessionActionButton({ visible, compact, onPress, icon, color, accessibi
       style={[styles.pill, compact && styles.compactPill]}
       onPress={(event) => { event.stopPropagation(); onPress(); }}
       hitSlop={12}
+      accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
       <PlayerIcon name={icon} size={compact ? 18 : 20} color={color} />
@@ -99,16 +121,6 @@ export const PlayerLockButton = forwardRef(function PlayerLockButton(
     </TouchableOpacity>
   );
 });
-
-function PlaybackSessionControls({ isLive, controls, muted, onRestart, onMute, onLock, palette, compact }) {
-  return (
-    <>
-      <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" />
-      <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} />
-      {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onLock} /> : null}
-    </>
-  );
-}
 
 function PlayerTitle({ isPortrait, compact, displayTitle, episodeLabel, showEpisodeSubtitle, palette, scale }) {
   if (isPortrait || compact) return null;
@@ -171,6 +183,8 @@ export const PlayerTopBar = ({
   isFullscreen = false,
   playerIsPortrait,
   compact = false,
+  isPlaying = false,
+  paused = true,
   onPlayerLayout,
   onHeaderLayout,
 }) => {
@@ -184,6 +198,7 @@ export const PlayerTopBar = ({
   const electronFullscreen = isFullscreen && isElectronOverlay();
   const compactAndroidLandscape = compact && isAndroid();
   const compactImmersiveAndroid = compactAndroidLandscape && isFullscreen;
+  const shouldShowLandscapeTitle = !isPortrait && Boolean(paused);
 
   const alignCompactLandscapeTopBar = () => {
     if (!compact) {
@@ -226,7 +241,7 @@ export const PlayerTopBar = ({
         compact && { top: landscapeTopOffset },
         {
           paddingTop: electronFullscreen ? 8 : compactImmersiveAndroid ? 4 : isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
-          paddingHorizontal: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
+          paddingHorizontal: electronFullscreen ? 8 : (isFullscreen || !isPortrait) ? Math.max(insets?.left || 0, insets?.right || 0, 20) : (compact ? 4 : 10),
         },
       ]}
       ref={(node) => { topBarRef.current = node; }}
@@ -246,8 +261,8 @@ export const PlayerTopBar = ({
         ]}
         onLayout={onHeaderLayout}
       >
-        <BackButton visible={!locked && controls.back !== false} palette={palette} scale={scale} onClose={onClose} compact={compact} />
-        {!locked ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
+        <BackButton visible={!locked && controls.back !== false} palette={palette} onClose={onClose} compact={compact} />
+        {!locked && (isPortrait || shouldShowLandscapeTitle) ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
 
         <View style={[
           styles.topRightActions,
@@ -258,13 +273,17 @@ export const PlayerTopBar = ({
           {locked ? <PlayerLockButton locked onPress={onToggleLock} compact={compact} /> : (
             <>
               <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} />
-              <LiveServiceControls isLive={isLive} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} showChat={isLiveCommentsEnabled} showEpg={isEpgEnabled} showDiagnostics={diagnosticsOverlayEnabled} onToggle={onToggleChatTab} palette={palette} compact={compact} />
-              <PlaybackSessionControls isLive={isLive} controls={controls} muted={muted} onRestart={onRestart} onMute={onToggleMute} onLock={onToggleLock} palette={palette} compact={compact} />
+              <ServiceActionButton name="liveChat" tab="chat" enabled={isLiveCommentsEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="comment-text-multiple" inactiveIcon="comment-text-multiple-outline" label="Live chat" palette={palette} compact={compact} />
+              <ServiceActionButton name="epg" tab="epg" enabled={isEpgEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="television-guide" inactiveIcon="television-classic" label="Programme guide" palette={palette} compact={compact} />
+              <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" />
+              <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onToggleMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} />
+              <ServiceActionButton name="diagnostics" tab="diagnostics" enabled={diagnosticsOverlayEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="pulse" inactiveIcon="pulse" label="Stream diagnostics" palette={palette} compact={compact} />
+              {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onToggleLock} /> : null}
             </>
           )}
         </View>
       </View>
-      {!locked ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} /> : null}
+      {!locked && shouldShowLandscapeTitle ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} /> : null}
       {!locked ? <PortraitPlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
     </View>
   );
@@ -327,7 +346,6 @@ const styles = StyleSheet.create({
   compactAndroidLandscapeHeaderRow: {
     justifyContent: 'space-between',
     gap: 6,
-    paddingLeft: 52,
   },
   portraitTopRightActions: {
     flex: 1,
@@ -394,19 +412,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pill: {
-    flexDirection: 'row',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   compactPill: {
-    gap: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
   backText: {
     color: '#FFF',

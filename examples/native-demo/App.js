@@ -20,10 +20,12 @@ export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
-  const [brightnessControl, setBrightnessControl] = useState(true);
+  const [liveBadge, setLiveBadge] = useState(false);
   const [status, setStatus] = useState('Ready');
   const [progressTime, setProgressTime] = useState('00:00:00');
   const [drawerMode, setDrawerMode] = useState('resize');
+  const [showLiveChat, setShowLiveChat] = useState(isLandscape);
+  const prevLandscapeRef = useRef(isLandscape);
   const [toast, setToast] = useState(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState('test-1');
   const toastTimerRef = useRef(null);
@@ -65,12 +67,14 @@ export default function App() {
   }, [active.url]);
 
   useEffect(() => {
-    if (inline || !active.url || !isLandscape) {
-      playerRef.current?.closePanel?.();
-      return;
+    if (prevLandscapeRef.current !== isLandscape) {
+      prevLandscapeRef.current = isLandscape;
+      setShowLiveChat(isLandscape);
+      if (isLandscape) {
+        setDrawerMode('resize');
+      }
     }
-    playerRef.current?.setPanel?.('chat');
-  }, [active.url, inline, isLandscape]);
+  }, [isLandscape]);
 
   useEffect(() => {
     if (!isLandscape) return undefined;
@@ -138,12 +142,14 @@ export default function App() {
 
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
-  const effectiveDrawerMode = isLandscape ? 'resize' : drawerMode;
+  const effectiveDrawerMode = drawerMode;
   const landscapePlayerStyle = isLandscape
     ? {
         width: '100%',
         maxWidth: '100%',
-        height: Math.max(1, height - 24),
+        height: height,
+        aspectRatio: undefined,
+        borderRadius: 0,
         alignSelf: 'stretch',
       }
     : undefined;
@@ -159,13 +165,12 @@ export default function App() {
         </View>
       </View>
 
-      <View nativeID="cinecrew-electron-demo-source-controls">
+      <View nativeID="cinecrew-electron-demo-source-controls" style={{ position: 'relative', zIndex: 100, elevation: 100 }}>
         <SourceControls
           active={active}
           draftUrl={draftUrl}
           fileInputRef={fileInputRef}
           inline={inline}
-          brightnessControl={brightnessControl}
           drawerMode={effectiveDrawerMode}
           onSelectSample={selectSample}
           onDraftUrlChange={setDraftUrl}
@@ -173,7 +178,8 @@ export default function App() {
           onChooseFile={loadFile}
           onClearFile={clearFile}
           onInlineChange={setInline}
-          onBrightnessControlChange={setBrightnessControl}
+          liveBadge={liveBadge}
+          onLiveBadgeChange={setLiveBadge}
           onDrawerModeChange={setDrawerMode}
           progressTime={progressTime}
           status={status}
@@ -196,10 +202,15 @@ export default function App() {
           active={active}
           source={source}
           drawerMode={effectiveDrawerMode}
+          showLiveChat={showLiveChat}
+          onLiveChatChange={setShowLiveChat}
           playerStyle={landscapePlayerStyle}
           inline={inline}
-          showBrightnessControl={brightnessControl}
+          showBrightnessControl={true}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
+          showVolumeControl={true}
+          onVolumeChangeEnd={(percent) => notify('Volume', `Sound volume set to ${percent}%`)}
+          showLiveBadge={liveBadge}
           selectedAudioTrack={selectedAudioTrack}
           integrations={integrations}
           actions={actions}
@@ -219,15 +230,15 @@ export default function App() {
   const pageContentStyle = [
     styles.content,
     isLandscape
-      ? { maxWidth: width, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }
+      ? { width: '100%', maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }
       : { paddingHorizontal: horizontalPadding, paddingTop: width < 600 ? 22 : 32 },
   ];
 
   return (
     <SafeAreaProvider>
       <SafeAreaView
-        style={[styles.screen, isElectronOverlay && styles.electronOverlayScreen]}
-        edges={['top', 'right', 'bottom', 'left']}
+        style={[styles.screen, isLandscape && { backgroundColor: '#000' }, isElectronOverlay && styles.electronOverlayScreen]}
+        edges={isLandscape ? [] : ['top', 'right', 'bottom', 'left']}
       >
       {Platform.OS === 'web' ? (
         <ScrollView
@@ -260,7 +271,7 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#07111e' },
   electronOverlayScreen: { backgroundColor: 'transparent' },
-  scroll: { flex: 1, minHeight: 0 },
+  scroll: { flex: 1, minHeight: 0, width: '100%' },
   content: { width: '100%', maxWidth: 1060, alignSelf: 'center', paddingTop: 32, paddingBottom: 56 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, gap: 12 },
   eyebrow: { color: '#16c7d9', fontSize: 11, fontWeight: '800', letterSpacing: 2.3 },
@@ -269,6 +280,6 @@ const styles = StyleSheet.create({
   platformTagText: { color: '#edf6ff', fontSize: 14, fontWeight: '600' },
   playerCard: { minHeight: 250, borderWidth: 1, borderColor: '#203650', borderRadius: 18, backgroundColor: '#0d1a2a', padding: 12, marginBottom: 10, overflow: 'hidden' },
   electronOverlayPlayerCard: { backgroundColor: 'transparent' },
-  landscapePlayerCard: { minHeight: 0, padding: 0, marginBottom: 0 },
+  landscapePlayerCard: { minHeight: 0, padding: 0, marginBottom: 0, borderWidth: 0, borderRadius: 0, backgroundColor: '#000', width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   footnote: { color: '#a9bbcf', fontSize: 13, lineHeight: 20 },
 });

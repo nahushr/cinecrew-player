@@ -14,7 +14,7 @@ export function PlatformMediaSurface(props) {
     handleWebBuffering, handleEpisodeEnded, handleWebError, togglePlayPause,
     handleSeekByAction, handlePlaybackRoute, exoFallback,
     nativeSource, computedAspectRatio, handleNativeLoadStart,
-    handleNativeOpen, handleNativeBuffering, onRecordingCreated, recording, getPlayerHostBounds,
+    handleNativeOpen, handleNativeBuffering, onRecordingCreated, onRecordingState, getPlayerHostBounds,
     setIsFullscreen,
   } = props;
   if (isElectron()) {
@@ -106,7 +106,7 @@ export function PlatformMediaSurface(props) {
           onError={handleWebError}
           onVLCError={handleWebError}
           onRecordingCreated={onRecordingCreated}
-          onRecordingState={recording?.onNativeRecordingState}
+          onRecordingState={onRecordingState}
         />
       </VLCBoundary>
     );

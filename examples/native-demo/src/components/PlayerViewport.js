@@ -10,10 +10,17 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
   active,
   source,
   drawerMode,
+  showLiveChat,
+  onLiveChatChange,
   playerStyle,
   inline,
   showBrightnessControl,
+  brightnessColor,
   onBrightnessChangeEnd,
+  showVolumeControl,
+  volumeColor,
+  onVolumeChangeEnd,
+  showLiveBadge,
   selectedAudioTrack,
   integrations,
   actions,
@@ -34,8 +41,14 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
         title={active.title}
         isActive
         paused={false}
+        style={playerStyle}
         showBrightnessControl={showBrightnessControl}
+        brightnessColor={brightnessColor}
         onBrightnessChangeEnd={onBrightnessChangeEnd}
+        showVolumeControl={showVolumeControl}
+        volumeColor={volumeColor}
+        onVolumeChangeEnd={onVolumeChangeEnd}
+        showLiveBadge={showLiveBadge}
         onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
@@ -48,8 +61,15 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
       ref={ref}
       title={active.title}
       style={playerStyle}
+      showLiveChat={showLiveChat}
+      onLiveChatChange={onLiveChatChange}
       showBrightnessControl={showBrightnessControl}
+      brightnessColor={brightnessColor}
       onBrightnessChangeEnd={onBrightnessChangeEnd}
+      showVolumeControl={showVolumeControl}
+      volumeColor={volumeColor}
+      onVolumeChangeEnd={onVolumeChangeEnd}
+      showLiveBadge={showLiveBadge}
       poster={active.poster}
       mediaId={active.id}
       autoPlay
@@ -57,8 +77,8 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
       audioTracks={demoAudioTracks}
       selectedAudioTrack={selectedAudioTrack}
       // All standard controls are on by default; the demo only opts into the
-      // optional recorder so it can showcase that capability too.
-      controls={{ recording: true }}
+      // optional recorder and liveChat so it can showcase those capabilities too.
+      controls={{ recording: true, liveChat: true }}
       integrations={integrations}
       drawerMode={drawerMode}
       messagePageSize={5}

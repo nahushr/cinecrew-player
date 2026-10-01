@@ -9,14 +9,12 @@ function SeekControls({ isLive, controls, insets, scale, compact, edgePadding, i
   if (isLive || controls.seek === false) return null;
   const seeking = Boolean(isSeeking?.current);
   const displayTime = seeking ? sliderPos : currentTime;
-  const remaining = duration > 0 ? formatTime(Math.max(0, duration - displayTime)) : '--:--';
+  const remaining = duration > 0 ? `-${formatTime(Math.max(0, duration - displayTime))}` : '--:--';
   return (
-    <View style={[styles.bottomBar, compact && styles.compactBottomBar, { paddingHorizontal: compact ? 4 : edgePadding ?? Math.max(insets?.left || 0, insets?.right || 0, 20) }]} pointerEvents="box-none">
-      <View style={styles.timeRow}>
-        <Text style={[styles.timeText, seeking && styles.timeTextSeeking, { color: seeking ? palette.accentColor : palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: seeking ? scale?.timeSeekingWeight : scale?.timeWeight }]}>{formatTime(displayTime)}</Text>
-        <Text style={[styles.timeText, { color: palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: scale?.timeWeight }]}>{remaining}</Text>
-      </View>
+    <View style={[styles.seekRow, compact && styles.compactSeekRow, { paddingHorizontal: compact ? 4 : edgePadding ?? Math.max(insets?.left || 0, insets?.right || 0, 20) }]} pointerEvents="box-none">
+      <Text style={[styles.timeText, seeking && styles.timeTextSeeking, { color: seeking ? palette.accentColor : palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: seeking ? scale?.timeSeekingWeight : scale?.timeWeight, minWidth: 38 }]}>{formatTime(displayTime)}</Text>
       <Slider testID="cinecrew-player-seek-slider" accessibilityLabel="Seek video" style={[styles.slider, compact && styles.compactSlider]} minimumValue={0} maximumValue={duration > 0 ? duration : 1} value={sliderPos} minimumTrackTintColor={palette.accentColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor={palette.accentColor} onValueChange={onValueChange} onSlidingStart={onSlidingStart} onSlidingComplete={onSlidingComplete} />
+      <Text style={[styles.timeText, { color: palette.controlColor, fontSize: compact ? 11 : scale?.timeFont, fontWeight: scale?.timeWeight, minWidth: 46, textAlign: 'right' }]}>{remaining}</Text>
     </View>
   );
 }
@@ -67,7 +65,10 @@ function SpeedControl({ enabled, open, playbackRate, onToggle, onSelect, compact
         })}
       </View> : null}
       <TouchableOpacity style={[styles.speedButton, compact && styles.compactSpeedButton, { backgroundColor: palette.controlBackground }, open && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }}>
-        <Text style={[styles.speedButtonText, { color: palette.controlColor, fontSize: compact ? 12 : undefined }]}>{playbackRate}x</Text>
+        <View style={styles.speedButtonInner}>
+          <Text style={[styles.speedButtonText, { color: palette.controlColor, fontSize: compact ? 12 : undefined }]}>{playbackRate}x</Text>
+          <PlayerIcon name="chevron-down" size={compact ? 12 : 14} color={palette.controlColor} />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -146,7 +147,7 @@ export const PlayerBottomBar = ({
   onPlayerLayout,
 }) => {
   const electronFullscreen = isFullscreen && isElectronOverlay();
-  const edgePadding = electronFullscreen ? 8 : Math.max(insets?.left || 0, insets?.right || 0, 20);
+  const edgePadding = electronFullscreen ? 8 : (isFullscreen || (insets?.left || 0) > 0) ? Math.max(insets?.left || 0, insets?.right || 0, 20) : (compact ? 4 : 10);
   const leftPickerOpen = Boolean(showAspectPicker);
   const rightPickerOpen = Boolean(showSpeedPicker || showAudioPicker);
   const anyPickerOpen = leftPickerOpen || rightPickerOpen;
@@ -159,7 +160,7 @@ export const PlayerBottomBar = ({
         compact && styles.compactBottomContainer,
         {
           paddingBottom: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.bottom || 0, 16) : 6,
-          paddingHorizontal: electronFullscreen ? 8 : isFullscreen ? Math.max(insets?.left || 0, insets?.right || 0, 20) : 10,
+          paddingHorizontal: edgePadding,
         },
       ]}
       pointerEvents="box-none"
@@ -174,12 +175,13 @@ export const PlayerBottomBar = ({
           <AspectRatioControl compact={compact} controls={controls} open={showAspectPicker} aspectRatio={aspectRatio} aspectRatios={aspectRatios} onToggle={onToggleAspectPicker} onSelect={onSelectAspectRatio} />
         </View>
 
-        {/* RIGHT ACTIONS: Playback Speed, Audio, Fullscreen */}
+        {/* RIGHT ACTIONS: Audio, Playback Speed, Fullscreen */}
         <View style={[styles.rightActionsContainer, rightPickerOpen && styles.openPickerActions, rightPickerOpen && android && { elevation: 16 }]}>
-          <SpeedControl compact={compact} enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} />
-
           {/* Audio Tracks Picker */}
           <AudioTracksControl compact={compact} enabled={controls.audioTracks !== false && !isLive} open={showAudioPicker} audioTracks={audioTracks} selectedAudioTrack={selectedAudioTrack} onToggle={onToggleAudioPicker} onSelect={onSelectAudioTrack} />
+
+          {/* Playback Speed */}
+          <SpeedControl compact={compact} enabled={!isLive && controls.playbackRate !== false} open={showSpeedPicker} playbackRate={playbackRate} onToggle={onToggleSpeedPicker} onSelect={onSelectSpeed} />
 
           {/* Fullscreen Button - available across platforms */}
           <FullscreenControl compact={compact} enabled={controls.fullscreen !== false} isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
@@ -204,32 +206,32 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     gap: 2,
   },
-  bottomBar: {
-    gap: 6,
-  },
-  compactBottomBar: {
-    gap: 1,
-  },
-  timeRow: {
+  seekRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    alignItems: 'center',
+    width: '100%',
+    gap: 8,
+  },
+  compactSeekRow: {
+    gap: 4,
   },
   timeText: {
     color: '#FFF',
     fontVariant: ['tabular-nums'],
+    fontSize: 12,
   },
   timeTextSeeking: {
-    color: '#FFD60A',
+    color: '#00E5FF',
   },
   slider: {
-    width: '100%',
-    height: 48,
+    flex: 1,
+    height: 40,
     zIndex: 75,
     elevation: 75,
   },
   compactSlider: {
-    height: 30,
+    flex: 1,
+    height: 28,
   },
   bottomControlsRow: {
     flexDirection: 'row',
@@ -268,27 +270,44 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 100,
   },
-  compactSpeedButton: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+  speedButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  compactFullscreenButton: {
+  compactSpeedButton: {
+    minWidth: 30,
+    minHeight: 30,
     paddingHorizontal: 7,
     paddingVertical: 4,
+    borderRadius: 15,
+  },
+  compactFullscreenButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
   fullscreenButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   speedButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    minWidth: 38,
+    minHeight: 38,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   speedButtonText: {
     color: '#FFF',

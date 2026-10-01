@@ -1,0 +1,140 @@
+.cinecrew-player__emoji-picker {
+  position: absolute;
+  left: 0;
+  right: auto;
+  bottom: 100%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 24px));
+  height: min(84vh, 640px);
+  height: min(84dvh, 640px);
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 14px;
+  background: var(--cinecrew-surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .42);
+}
+
+@supports (width: 1cqw) {
+  .cinecrew-player__emoji-picker { width: min(560px, 100cqw); }
+}
+
+.cinecrew-player__emoji-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  align-self: center;
+  align-items: center;
+}
+
+.cinecrew-player__emoji-anchor > .cinecrew-player__emoji-toggle {
+  box-sizing: border-box;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  line-height: 1;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-search {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 10px;
+  outline: 0;
+  padding: 9px 11px;
+  color: inherit;
+  background: rgba(0, 0, 0, .2);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-search:focus {
+  border-color: var(--cinecrew-accent);
+}
+
+.cinecrew-player__emoji-categories {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.cinecrew-player__emoji-picker button,
+.cinecrew-player__load-more {
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 9px;
+  color: inherit;
+  background: rgba(255, 255, 255, .07);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-categories button {
+  display: grid;
+  min-width: 0;
+  min-height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  font-size: 19px;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-categories button:hover,
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-categories button.is-active {
+  border-color: var(--cinecrew-accent);
+  background: color-mix(in srgb, var(--cinecrew-accent) 14%, transparent);
+}
+
+.cinecrew-player__emoji-grid {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-content: start;
+  gap: 3px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-grid button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  font-size: 23px;
+  line-height: 1;
+  transition: background-color .12s ease, transform .12s ease;
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-grid button:hover {
+  background: rgba(255, 255, 255, .12);
+  transform: scale(1.12);
+}
+
+.cinecrew-player__emoji-picker .cinecrew-player__emoji-grid .cinecrew-player__emoji-load-more {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: var(--cinecrew-accent);
+  background: rgba(255, 255, 255, .06);
+  font-size: 12px;
+}

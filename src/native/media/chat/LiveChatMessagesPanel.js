@@ -29,16 +29,10 @@ export function LiveChatPanel({
   showEmojiPicker,
   handleSelectEmoji,
   colors,
+  bottomInset = 0,
 }) {
   return (
-    <>
-      <View style={styles.welcomeBanner}>
-        <PlayerIcon name="shield-check" size={16} color="#00E5FF" style={{ marginTop: 2 }} />
-        <Text style={styles.welcomeText}>
-          Welcome to live chat! Remember to guard your privacy and abide by community guidelines.
-        </Text>
-      </View>
-
+    <View style={styles.chatPanelWrap}>
       {messagesLoading && messages.length === 0 ? (
         <View style={styles.chatLoadingWrap}>
           <ActivityIndicator size="small" color="#00E5FF" />
@@ -47,6 +41,7 @@ export function LiveChatPanel({
       ) : (
         <FlatList
           ref={flatListRef}
+          style={styles.chatFlatList}
           nestedScrollEnabled
           data={messages}
           keyExtractor={(item, index) => chatMessageKey(item, index)}
@@ -69,52 +64,42 @@ export function LiveChatPanel({
       )}
       {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}
 
-      <View style={styles.quickReactionsRow}>
-        {QUICK_REACTIONS.map((emoji) => (
-          <TouchableOpacity
-            key={emoji}
-            style={styles.quickReactionBtn}
-            onPress={() => handleQuickReaction(emoji)}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.quickReactionEmoji}>{emoji}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.inputBarContainer}>
+      <View style={[styles.inputBarContainer, bottomInset > 0 && { paddingBottom: 10 + bottomInset }]}>
         <View style={styles.inputPill}>
+          <TouchableOpacity
+            style={styles.emojiToggleBtn}
+            onPress={() => setShowEmojiPicker(true)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Pick emoji"
+          >
+            <PlayerIcon name="emoticon-happy-outline" size={20} color="#8297ae" />
+          </TouchableOpacity>
           <TextInput
             style={styles.textInput}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Chat..."
-            placeholderTextColor="rgba(255, 255, 255, 0.4)"
+            placeholder="Add a message..."
+            placeholderTextColor="#8297ae"
             onSubmitEditing={() => handleSend()}
             returnKeyType="send"
             maxLength={400}
           />
           <TouchableOpacity
-            style={styles.emojiToggleBtn}
-            onPress={() => setShowEmojiPicker(true)}
-            hitSlop={6}
+            style={[styles.sendBtn, (!inputText.trim() || isSending) && styles.sendBtnDisabled]}
+            onPress={() => handleSend()}
+            disabled={!inputText.trim() || isSending}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
           >
-            <PlayerIcon name="emoticon-happy-outline" size={22} color="#FFF" />
+            <PlayerIcon
+              name="send"
+              size={18}
+              color={inputText.trim() && !isSending ? '#07111e' : 'rgba(255, 255, 255, 0.3)'}
+            />
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={[styles.sendBtn, (!inputText.trim() || isSending) && styles.sendBtnDisabled]}
-          onPress={() => handleSend()}
-          disabled={!inputText.trim() || isSending}
-          hitSlop={8}
-        >
-          <PlayerIcon
-            name="send"
-            size={18}
-            color={inputText.trim() && !isSending ? '#000' : 'rgba(255, 255, 255, 0.3)'}
-          />
-        </TouchableOpacity>
       </View>
 
       <EmojiPickerModal
@@ -123,6 +108,6 @@ export function LiveChatPanel({
         onSelectEmoji={handleSelectEmoji}
         colors={colors}
       />
-    </>
+    </View>
   );
 }

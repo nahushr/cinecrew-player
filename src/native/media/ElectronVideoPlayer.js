@@ -301,6 +301,12 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     setAudioTrack(trackId) {
       return invokePlayer('cinecrew:vlc:set-audio-track', trackId);
     },
+    startRecording() {
+      return invokePlayer('cinecrew:vlc:record-start');
+    },
+    stopRecording() {
+      return invokePlayer('cinecrew:vlc:record-stop');
+    },
     getAudioTracks() {
       return tracksRef.current;
     },

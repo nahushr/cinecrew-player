@@ -186,11 +186,13 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
   public void receiveCommand(ReactVlcPlayerView root, int commandId, @Nullable ReadableArray args) {
     switch (commandId) {
       case 1:
-        if (args != null && args.size() > 0 && !args.isNull(0)) {
-          String path = args.getString(0);
-          root.startRecording(path);
-        }
+      {
+        String path = args != null && args.size() > 0 && !args.isNull(0)
+            ? args.getString(0)
+            : null;
+        root.startRecording(path);
         break;
+      }
 
       case 2:
         root.stopRecording();

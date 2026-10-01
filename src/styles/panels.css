@@ -1,0 +1,267 @@
+.cinecrew-player__panel-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 10px;
+  min-height: 0;
+  max-height: 100%;
+  font: inherit;
+}
+
+.cinecrew-player__panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, .14);
+}
+
+.cinecrew-player__panel-heading button,
+.cinecrew-player__chat-form button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, .12);
+  cursor: pointer;
+}
+
+.cinecrew-player__panel-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.cinecrew-player__older-loading {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 6px 10px;
+  color: var(--cinecrew-accent);
+  font-size: .86em;
+}
+
+.cinecrew-player__chat-message,
+.cinecrew-player__epg-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .06);
+}
+
+.cinecrew-player__chat-message header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cinecrew-player__chat-message time {
+  flex: 0 0 auto;
+  opacity: .65;
+  font-size: .78em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cinecrew-player__chat-message strong,
+.cinecrew-player__epg-item strong {
+  color: var(--cinecrew-accent);
+}
+
+.cinecrew-player__epg-item small,
+.cinecrew-player__panel-state {
+  opacity: .75;
+}
+
+.cinecrew-player__panel-state.is-error {
+  color: #ff647c;
+}
+
+.cinecrew-player__chat-form {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+
+.cinecrew-player__chat-composer {
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 14px;
+  background: rgba(12, 20, 32, .72);
+  box-shadow: 0 3px 12px rgba(0,0,0,.12);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.cinecrew-player__chat-composer:focus-within {
+  border-color: var(--cinecrew-accent);
+  background: rgba(12, 20, 32, .88);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cinecrew-accent) 18%, transparent);
+}
+
+.cinecrew-player__chat-composer input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 10px 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.cinecrew-player__chat-composer button {
+  display: inline-grid;
+  min-width: 34px;
+  min-height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: var(--cinecrew-accent);
+  background: rgba(255, 255, 255, .08);
+  cursor: pointer;
+  font: inherit;
+  transition: background-color .16s ease, transform .16s ease;
+}
+
+.cinecrew-player__chat-composer button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .15);
+}
+
+.cinecrew-player__chat-composer button:active:not(:disabled) {
+  transform: scale(.96);
+}
+
+.cinecrew-player__chat-composer button[type="submit"] {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  color: #07111e;
+  background: var(--cinecrew-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cinecrew-accent) 24%, transparent);
+}
+
+.cinecrew-player__chat-composer button[type="submit"] .cinecrew-player__icon { width: 19px; height: 19px; }
+
+.cinecrew-player__chat-composer button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.cinecrew-player__chat-composer button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.cinecrew-player__load-more {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 9px;
+  color: var(--cinecrew-accent);
+  background: rgba(255, 255, 255, .07);
+  cursor: pointer;
+  font: inherit;
+}
+
+.cinecrew-player__load-more:disabled {
+  opacity: .6;
+  cursor: progress;
+}
+
+.cinecrew-player__panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 6;
+  box-sizing: border-box;
+  width: min(380px, 42%);
+  max-width: 92%;
+  overflow: auto;
+  padding: 16px;
+  border-left: 1px solid rgba(255,255,255,.14);
+  border-radius: 0;
+  background: rgba(8, 16, 28, .84);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: -8px 0 32px rgba(0,0,0,.45);
+  animation: cinecrew-drawer-in 180ms ease-out both;
+}
+
+.cinecrew-player__modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  box-sizing: border-box;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 8, 16, .68);
+  backdrop-filter: blur(3px);
+}
+
+.cinecrew-player__panel.is-modal {
+  position: relative;
+  inset: auto;
+  width: min(520px, 100%);
+  max-width: 100%;
+  height: min(680px, 100%);
+  max-height: 100%;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 18px;
+  background: rgba(13, 26, 44, .96);
+  box-shadow: 0 20px 64px rgba(0,0,0,.5);
+  animation: cinecrew-modal-in 160ms ease-out both;
+}
+
+.cinecrew-player--drawer-resize .cinecrew-player__panel {
+  width: calc(100% - var(--cinecrew-media-width, 70%));
+  max-width: none;
+  padding: 14px;
+}
+
+.cinecrew-player__panel.is-resizing { background: rgba(13, 26, 44, .82); }
+
+.cinecrew-player--drawer-resize .cinecrew-player__shade,
+.cinecrew-player--drawer-resize .cinecrew-player__controls,
+.cinecrew-player--drawer-resize .cinecrew-player__status,
+.cinecrew-player--drawer-resize .cinecrew-player__error {
+  right: auto;
+  width: var(--cinecrew-media-width, 70%);
+}
+
+.cinecrew-player--drawer-resize .cinecrew-player__title {
+  right: calc(100% - var(--cinecrew-media-width, 70%));
+}
+
+.cinecrew-player__panel-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 24px;
+}
+
+@keyframes cinecrew-drawer-in {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes cinecrew-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

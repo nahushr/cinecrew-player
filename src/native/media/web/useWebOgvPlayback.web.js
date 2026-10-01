@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { attemptVideoPlayback } from './playbackAutoplay';
+import { parsePlaybackStartTime } from '../../../utils/playbackTime.js';
 
 const DEFAULT_OGV_RESOURCE_BASE = 'https://cdn.jsdelivr.net/npm/ogv@1.9.0/dist';
 const ogvRuntimePromises = new Map();
@@ -189,6 +190,7 @@ export function useWebOgvPlayback({
   onErrorRef,
   onBufferingRef,
   resourceBase,
+  startTime,
   paused = true,
   muted = false,
   volume = 1,
@@ -217,6 +219,7 @@ export function useWebOgvPlayback({
     let playerFrame = null;
     let resizeObserver = null;
     let recordingAudioRoute = null;
+    let initialTimeApplied = false;
     const reportError = (error) => {
       if (disposed) return;
       onBufferingRef?.current?.(false);
@@ -230,6 +233,16 @@ export function useWebOgvPlayback({
       // OGV creates its audio feeder asynchronously while loading the source.
       // Reapply mute/volume after that setup and before autoplay begins.
       syncPlaybackOptions(player, playbackOptionsRef.current);
+      const initialTime = parsePlaybackStartTime(startTime);
+      const duration = Number(player?.duration);
+      if (!initialTimeApplied && initialTime !== null && Number.isFinite(duration) && duration > 0) {
+        try {
+          player.currentTime = Math.min(initialTime, duration);
+          initialTimeApplied = true;
+        } catch {
+          // OGV can reject a seek during a decoder transition; canplay retries.
+        }
+      }
       onBufferingRef?.current?.(false);
       onProgressRef?.current?.();
       onPlaybackRouteRef?.current?.(activeUrl);
@@ -323,7 +336,7 @@ export function useWebOgvPlayback({
       recordingAudioRoute?.cleanup();
       if (playerFrameRef.current === playerFrame) playerFrameRef.current = null;
     };
-  }, [activeUrl, useOgv, playerContainerRef, videoRef, pausedRef, onErrorRef, onBufferingRef, resourceBase, onProgressRef, onPlayingRef, onEndedRef, onPlaybackRouteRef]);
+  }, [activeUrl, useOgv, playerContainerRef, videoRef, pausedRef, onErrorRef, onBufferingRef, resourceBase, onProgressRef, onPlayingRef, onEndedRef, onPlaybackRouteRef, startTime]);
 
   useEffect(() => {
     if (!useOgv) return;

@@ -112,7 +112,7 @@ flowchart LR
 | 🎚️ | `audioTracks` | Audio-track selection | Depends on exposed tracks / platform engine |
 | ⏩ | `playbackRate` | Playback speed | On-demand experience |
 | ⛶ | `fullscreen` | Fullscreen / promote preview | Native full-player presentation is platform-specific |
-| ⏺️ | `recording` | Recording controls | Web uses built-in MediaRecorder when supported; native uses an app recording adapter |
+| ⏺️ | `recording` | Recording controls | Built-in MediaRecorder on web, VLC on Android/iOS, and LibVLC on Electron; an optional adapter can override it |
 | 💬 | `liveChat` | Live chat panel | Requires an adapter, render slot, or callback |
 | 📅 | `epg` | Electronic program guide | Requires an adapter, render slot, or callback |
 | ⏱️ | `seek` | Seek bar | Meaningful for seekable media |
@@ -350,6 +350,10 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `playbackRate` | `number` | `1` | Initial playback speed; the on-demand speed control can change it afterward. |
 | `showProgressBar` | `boolean` | `true` | Show or hide the playback seek bar. When hidden, `onProgressBarChange` is not called. |
 | `showBrightnessControl` | `boolean` | `false` | Show a vertical in-video brightness slider. It dims the video with a translucent black overlay and never changes device brightness. |
+| `brightnessColor`, `brightnessAccentColor` | `string` | `'#00D4FF'` | Accent color hash for the vertical brightness bar slider. Defaults to blue (`#00D4FF`). |
+| `showVolumeControl`, `showSoundControl` | `boolean` | `false` | Show a vertical sound/volume bar on the opposite end to adjust app device sound without disrupting playback. |
+| `volumeColor`, `soundColor` | `string` | `'#FFE066'` (light yellow) | Accent color hash for the vertical sound bar slider. |
+| `showLiveBadge`, `showLivePill`, `showLiveButton` | `boolean` | `false` | Show or hide the LIVE badge pill on the top left of the compact/inline player. |
 | `aspectRatios` | `(string \| { value, label? })[]` | built-in choices | Customize the aspect-ratio menu. Values include `FIT`, `FILL`, `STRETCH`, or a ratio such as `1:1`; labels are optional. |
 | `defaultAspectRatio` | `string` | `'FIT'` | Initial and source-reset aspect mode. Must match an item in `aspectRatios` to appear selected. |
 | `controls` | `PlayerControls` | defaults below | Show/hide individual control buttons. |
@@ -369,6 +373,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `ogvResourceBase` | `string` | versioned jsDelivr ogv.js assets | Optional base URL for the OGV decoder’s worker and WebAssembly files. Use this to self-host the matching `ogv@1.9.0/dist/` resources. Web OGV playback is selected by `.ogv` URLs or the `video/ogg` type. |
 | `audioTracks` | `AudioTrack[]` | detected | Optional supplied track list (web). Native tracks are read from the native player. |
 | `selectedAudioTrack` | `string \| number` | first/default track | Initial or preferred audio track. |
+| `startTime` | `number \| string` | — | Start at this position on both player variants; pass seconds or `HH:MM:SS` (for example, `"00:12:30"`). Applied once media metadata is available and takes precedence over `resumePosition`. |
 | `resumePosition` | `number` | `0` | Resume position in seconds for on-demand playback. |
 | `durationSecs` | `number` | `0` | Known duration in seconds. |
 | `mediaId`, `episodeLabel`, `season`, `episode`, `genre`, `categoryName` | metadata | — | Optional item metadata for the player and integrations. |
@@ -378,6 +383,7 @@ In short: CineCrew’s intended distinction is **one app-facing player package f
 | `onAspectRatioChange` | `PlayerAction` | — | Top-level callback invoked after the player applies the selected aspect ratio; `actions.onAspectRatioChange` takes precedence if both are supplied. |
 | `onProgressBarChange` | `(time: string) => void` | — | When the progress bar is shown, reports the played position as zero-padded `HH:MM:SS` once per elapsed playback second, and immediately after a completed seek or restart. Scrubbing reports the committed position, not every intermediate drag update. It is not called when `showProgressBar` is false, `controls.seek` is false, or the live-player UI hides seeking. |
 | `onBrightnessChangeEnd` | `(brightnessPercent: number) => void` | — | When `showBrightnessControl` is enabled, called once after the user finishes dragging or adjusting the slider, with the final integer percentage from `10` to `100`. |
+| `onVolumeChangeEnd`, `onSoundChangeEnd` | `(volumePercent: number) => void` | — | When `showVolumeControl` is enabled, called once after the user finishes dragging or adjusting the sound slider, with the final integer percentage from `0` to `100`. |
 | `onReady`, `onProgress`, `onPlaying`, `onBuffering`, `onError`, `onEnded`, `onPlaybackRoute` | callbacks | — | Playback lifecycle callbacks. `onError` receives a player-facing `message` plus `actualMessage` and the original engine error under `cause`/`err` when available; progress payloads are platform-specific native/browser events. |
 | `onNextEpisode`, `onCwRefresh` | callbacks | — | Episode advancement and post-close refresh hooks. |
 | `renderLiveChat`, `renderEpg` | render functions | — | Web custom-panel render slots. On native, use the chat/EPG integration adapters. |
@@ -422,7 +428,7 @@ type PlayerSource = string | {
 
 ### Inline live preview props
 
-`InlineLivePlayer` is exported from `@cinecrew/cinecrew-player/native` and `@cinecrew/cinecrew-player/web`. It renders a compact channel preview/poster with its title at the bottom-left. Its fullscreen control expands the same inline playback surface; it does not promote or switch to the standard player.
+`InlineLivePlayer` is exported from `@cinecrew/cinecrew-player/native` and `@cinecrew/cinecrew-player/web`. It renders a compact channel preview/poster with its title at the bottom-left. Its fullscreen control expands the same inline playback surface and resumes at the current position; it does not promote or switch to the standard player.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -434,8 +440,15 @@ type PlayerSource = string | {
 | `onActivate` | `() => void` | — | Called when an inactive preview poster is selected. |
 | `onFullscreen` | `() => void` | — | Deprecated; no longer promotes to another player. Use `actions.onFullscreen` to observe the inline player's fullscreen state after it changes. |
 | `controls` | `Pick<PlayerControls, 'playPause' \| 'mute' \| 'fullscreen'>` | all shown | Toggle its compact controls. |
+| `startTime` | `number \| string` | — | Start at this position, specified in seconds or as `HH:MM:SS` (for example, `"00:12:30"`). |
 | `showBrightnessControl` | `boolean` | `false` | Show the vertical in-video brightness slider. The dimming overlay affects the video only, not device brightness. |
+| `brightnessColor`, `brightnessAccentColor` | `string` | `'#00D4FF'` | Accent color hash for the vertical brightness bar slider. Defaults to blue (`#00D4FF`). |
+| `showVolumeControl`, `showSoundControl` | `boolean` | `false` | Show a vertical sound/volume bar on the opposite end to adjust app sound without disrupting playback. |
+| `volumeColor`, `soundColor` | `string` | `'#FFE066'` (light yellow) | Accent color hash for the vertical sound bar slider. |
+| `initialVolume` | `number` | `100` | Initial volume percentage (0–100). |
+| `showLiveBadge`, `showLivePill`, `showLiveButton` | `boolean` | `false` | Show or hide the LIVE badge pill on the top left. |
 | `onBrightnessChangeEnd` | `(brightnessPercent: number) => void` | — | Called after the inline brightness adjustment ends with its final integer percentage (`10`–`100`). |
+| `onVolumeChangeEnd`, `onSoundChangeEnd` | `(volumePercent: number) => void` | — | Called after the inline volume adjustment ends with its final integer percentage (`0`–`100`). |
 | `actions` | matching `PlayerActions` subset | built-in | Observe play/pause, mute, or fullscreen actions after their built-in behavior runs. |
 | `initialMuted` | `boolean` | `true` | Initial preview mute state. |
 | `theme`, `icons`, `style` | `PlayerTheme`, `PlayerIcons`, platform style | defaults | Customize preview colors, controls, and layout. |
@@ -512,7 +525,7 @@ const playerRef = React.useRef(null);
 
 Available action keys: `onBack`, `onPlayPause`, `onSeek`, `onRestart`, `onLock`, `onMute`, `onAspectRatioChange`, `onVideoOnlyChange`, `onAudioOnlyChange`, `onAudioTrackChange`, `onPlaybackRateChange`, `onFullscreen`, `onRecordingStart`, `onRecordingPause`, `onRecordingResume`, `onRecordingStop`, `onLiveChatOpen`, `onEpgOpen`, and `onDiagnosticsOpen`.
 
-The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported. Native VLC builds additionally expose `startNativeRecording(path)` and `stopNativeRecording()` to an app-owned recording adapter; both return `false` when VLC is not attached (such as in Expo Go).
+The ref exposes `play`, `pause`, `togglePlayPause`, `restart`, `setMuted`, `toggleMute`, `setAspectRatio`, `setAudioTrack`, `setAudioOnly`, `setVideoOnly`, `setPlaybackRate`, `seekTo`, `seekBy`, `back`, `setPanel`, `closePanel`, `getVideoElement`, `getAudioTracks`, and fullscreen methods where supported. Native VLC builds additionally expose `startNativeRecording(path?)` and `stopNativeRecording()`; omitting the path selects an app-owned recording folder. Expo Go does not include the bundled VLC recorder.
 
 ## Integrations
 
@@ -558,9 +571,9 @@ The EPG drawer uses `integrations.epg.loadListings`, which returns entries with 
 
 ### Web recording
 
-On supported browsers, the built-in recording control captures the media video and audio tracks, shows a compact timer at the top of the video with pause/resume and stop actions, then attempts a WebM download when stopped. A `Download recording` action remains available afterward as a user-gesture retry if the browser blocks the automatic download. Native React Native apps provide an `integrations.recording` adapter; with the bundled VLC module, the player ref exposes native recording start/stop commands and the adapter receives the finalized path through `onNativeRecordingCreated`. Set `supportsOnDemand: true` when that adapter supports recording non-live media. Platform file locations and the destination/share flow remain app-owned.
+Recording is a player feature, not demo logic. On supported browsers, the built-in control captures media audio/video, shows an in-player timer with pause/resume and stop actions, and downloads the WebM file. Android and iOS use the bundled VLC module to write a transport-stream recording into the app's recordings folder; Electron uses LibVLC to save into the user's Videos/CineCrew Recordings folder. The optional `onRecordingComplete` callback receives `{ path, filename, size?, platform? }` after a native or Electron file is finalized. An `integrations.recording` adapter remains available only when an application needs to replace the built-in implementation. `controls.recording: false` hides the control.
 
-For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` to supply a different recording implementation.
+For ordinary web media, aspect changes are reflected in the recording when the browser permits the player to draw the cross-origin video into a canvas; if the source does not grant canvas CORS access, the recording keeps its source aspect ratio. Use `integrations.recording` only to provide an intentional custom recorder override.
 
 ### Audio-only and locked-screen playback
 

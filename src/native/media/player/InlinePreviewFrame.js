@@ -9,13 +9,16 @@ import {
 import { PlayerIcon } from '../../customization';
 import { mediaPlayerStyles as styles } from './mediaPlayerStyles';
 
-export function InlinePreviewTopActions({ controls, muted, videoOnlyMode, handleMuteAction }) {
+export function InlinePreviewTopActions({ controls, muted, videoOnlyMode, handleMuteAction, showLiveBadge }) {
+  const displayLiveBadge = Boolean(showLiveBadge ?? controls?.liveBadge ?? controls?.livePill ?? controls?.liveButton ?? false);
   return (
     <View style={styles.inlinePreviewTopRow} pointerEvents="box-none">
-      <View style={styles.inlineLiveBadge} pointerEvents="none">
-        <View style={styles.inlineLiveDot} />
-        <Text style={styles.inlineLiveText}>LIVE</Text>
-      </View>
+      {displayLiveBadge ? (
+        <View style={styles.inlineLiveBadge} pointerEvents="none">
+          <View style={styles.inlineLiveDot} />
+          <Text style={styles.inlineLiveText}>LIVE</Text>
+        </View>
+      ) : null}
       <View style={{ flex: 1 }} />
       {controls.mute !== false ? (
         <TouchableOpacity
@@ -124,7 +127,7 @@ export function InlinePreviewFrame({
   controls, colors, muted, videoOnlyMode, handleMuteAction, isPlaying,
   handlePlayPauseAction, showInlineChatButton, showLiveChat, handlePanelAction,
   isFullscreen, handleFullscreenAction, invokeAction, mediaId, isLoading,
-  errorMessage, children,
+  errorMessage, showLiveBadge, children,
 }) {
   return (
     <View
@@ -135,7 +138,8 @@ export function InlinePreviewFrame({
     >
       <View collapsable={false} pointerEvents="auto" style={styles.inlineVideoStage}>
         <View collapsable={false} pointerEvents="none" style={styles.videoContainer}>{videoPlayer}</View>
-        <View style={styles.inlinePreviewChrome} pointerEvents="box-none">
+        {!showLiveChat ? (
+          <View style={styles.inlinePreviewChrome} pointerEvents="box-none">
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -143,7 +147,7 @@ export function InlinePreviewFrame({
             accessibilityLabel={`Open ${title || 'live channel'} in the video player`}
             onPress={onPromotePreview}
           />
-          <InlinePreviewTopActions controls={controls} muted={muted} videoOnlyMode={videoOnlyMode} handleMuteAction={handleMuteAction} />
+          <InlinePreviewTopActions controls={controls} muted={muted} videoOnlyMode={videoOnlyMode} handleMuteAction={handleMuteAction} showLiveBadge={showLiveBadge} />
           {!isLoading ? (
             <InlinePreviewCenterAction controls={controls} colors={colors} isPlaying={isPlaying} handlePlayPauseAction={handlePlayPauseAction} />
           ) : null}
@@ -160,7 +164,8 @@ export function InlinePreviewFrame({
             mediaId={mediaId}
           />
           <InlinePreviewFeedback isLoading={isLoading} errorMessage={errorMessage} />
-        </View>
+          </View>
+        ) : null}
       </View>
       {children}
     </View>
