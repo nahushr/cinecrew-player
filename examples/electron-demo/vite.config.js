@@ -81,6 +81,10 @@ export default defineConfig({
         replacement: resolveDemoPackageModule('flv.js'),
       },
       {
+        find: /^hls\.js$/,
+        replacement: resolveDemoPackageModule('hls.js'),
+      },
+      {
         find: /^react-native$/,
         replacement: path.join(demoDir, 'src/shims/react-native.js'),
       },
