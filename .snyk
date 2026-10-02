@@ -1,0 +1,7 @@
+# This is a minified third-party dedicated-worker bundle. Snyk Code reports
+# window-origin findings on its WorkerGlobalScope message handlers even though
+# both handlers explicitly validate event.origin against self.location.origin.
+# Keep the guard regression test in test/mpegts-worker-origin.test.js.
+exclude:
+  code:
+    - vendor/mpegts.js/mpegts.js
