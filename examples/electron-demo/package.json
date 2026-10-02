@@ -78,7 +78,7 @@
       "artifactName": "cinecrew-player-demo-setup.exe"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
     }
