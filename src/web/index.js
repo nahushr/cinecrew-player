@@ -2387,6 +2387,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     video.addEventListener('durationchange', updateTime);
     video.addEventListener('playing', onPlayingEvent);
     video.addEventListener('waiting', onWaitingEvent);
+    video.addEventListener('seeking', updateTime);
+    video.addEventListener('seeked', updateTime);
     video.addEventListener('timeupdate', updateTime);
     const endedHandler = () => onEnded?.();
     video.addEventListener('ended', endedHandler);
@@ -2396,10 +2398,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       video.removeEventListener('durationchange', updateTime);
       video.removeEventListener('playing', onPlayingEvent);
       video.removeEventListener('waiting', onWaitingEvent);
+      video.removeEventListener('seeking', updateTime);
+      video.removeEventListener('seeked', updateTime);
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('ended', endedHandler);
     };
-  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType, durationHint]);
+  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType, durationHint, directVideoSource, corsMode]);
 
   useEffect(() => {
     if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;

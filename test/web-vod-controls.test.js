@@ -26,6 +26,14 @@ test('web duration changes refresh VOD duration and progress bar state', () => {
   assert.match(webEntry, /duration > 0 && progressBarVisible/);
 });
 
+test('web seek and time listeners rebind when the active video element changes', () => {
+  assert.match(webEntry, /video\.addEventListener\('seeking', updateTime\)/);
+  assert.match(webEntry, /video\.addEventListener\('seeked', updateTime\)/);
+  assert.match(webEntry, /video\.removeEventListener\('seeking', updateTime\)/);
+  assert.match(webEntry, /video\.removeEventListener\('seeked', updateTime\)/);
+  assert.match(webEntry, /media\.mimeType, durationHint, directVideoSource, corsMode\]\);/);
+});
+
 test('web movie title remains in the controls layer while video plays', () => {
   assert.match(webEntry, /!locked && !inlinePreview && title \? h\('div', \{ className: 'cinecrew-player__title', title \}, title\) : null/);
 });
