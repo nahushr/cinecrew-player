@@ -58,6 +58,8 @@ function createInlinePlatformPlayer({
   volume,
   title,
   startTime,
+  fullscreen,
+  isFullscreen,
   getContainerBounds,
   getContainerElement,
   vlcSource,
@@ -81,6 +83,8 @@ function createInlinePlatformPlayer({
   };
   if (isElectron()) return React.createElement(ElectronVideoPlayer, {
     ...commonProps,
+    fullscreen: fullscreen ?? isFullscreen,
+    isFullscreen: isFullscreen ?? fullscreen,
     getContainerBounds,
     getContainerElement,
     ref: playerRef,
@@ -408,27 +412,35 @@ function InlineLivePlayerSurface({
     })
     : null;
 
-  const renderPlayerStage = (isFullscreen) => React.createElement(View, {
-    ref: (node) => {
-      if (playerSurfaceBoundsRef?.current) {
-        playerSurfaceBoundsRef.current[isFullscreen ? 'fullscreen' : 'inline'] = node;
-      }
+  const renderPlayerStage = (isFullscreen) => {
+    const isCurrentStage = isFullscreen === Boolean(fullscreen);
+    return React.createElement(View, {
+      ref: (node) => {
+        if (playerSurfaceBoundsRef?.current) {
+          playerSurfaceBoundsRef.current[isFullscreen ? 'fullscreen' : 'inline'] = node;
+        }
+      },
+      id: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
+      nativeID: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
+      style: [
+        videoStageStyle(isFullscreen),
+        { backgroundColor: transparentElectronOverlay ? 'transparent' : palette.surfaceColor },
+      ],
+      onLayout: (event) => {
+        if (isFullscreen) handleFullscreenFrameLayout(event);
+        else handleInlineFrameLayout(event);
+        if (isElectron()) playerRef.current?.syncLayout?.();
+      },
     },
-    nativeID: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
-    style: [
-      videoStageStyle(isFullscreen),
-      { backgroundColor: transparentElectronOverlay ? 'transparent' : palette.surfaceColor },
-    ],
-    onLayout: isFullscreen ? handleFullscreenFrameLayout : handleInlineFrameLayout,
-  },
-    createInlinePlayerLayer(player, isFullscreen || !fullscreen),
-    brightnessOverlay(isFullscreen || !fullscreen),
-    createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
-    createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
-    renderOverlay(isFullscreen ? fullscreenLandscape : false),
-    brightnessControl(showControls && shouldRenderVideo),
-    volumeControl(showControls && shouldRenderVideo),
-  );
+      createInlinePlayerLayer(player, isCurrentStage),
+      brightnessOverlay(isCurrentStage),
+      createInlineArtworkLayer(shouldRenderVideo, artwork, palette.accentColor),
+      createInlineStatusLayer(shouldRenderVideo && loading, error, palette),
+      renderOverlay(isFullscreen ? fullscreenLandscape : false),
+      brightnessControl(showControls && shouldRenderVideo && isCurrentStage),
+      volumeControl(showControls && shouldRenderVideo && isCurrentStage),
+    );
+  };
 
   const renderDrawer = (isFullscreen, inlineFlow = false) => drawerVisible ? React.createElement(LiveChatDrawer, {
     videoId: mediaId || title || 'live',
@@ -481,14 +493,15 @@ function InlineLivePlayerSurface({
         : null),
     React.createElement(Modal, {
       visible: fullscreen,
+      supportedOrientations: ['portrait', 'landscape', 'landscape-left', 'landscape-right'],
       animationType: 'none',
       statusBarTranslucent: true,
       onRequestClose: () => changeFullscreenWithPosition(false),
-    }, React.createElement(View, {
+    }, fullscreen ? React.createElement(View, {
       style: [styles.fullscreenFrame, transparentElectronOverlay && { backgroundColor: 'transparent' }],
     },
       renderPlayerStage(true),
-      renderDrawer(true))));
+      renderDrawer(true)) : null));
 }
 
 function InlineLivePlayerView({
@@ -685,6 +698,8 @@ function InlineLivePlayerView({
   };
 
   const changeFullscreenWithPosition = useCallback((nextFullscreen) => {
+    const isFs = Boolean(nextFullscreen);
+    fullscreenRef.current = isFs;
     // The native preview is re-parented into a Modal. Preserve the latest
     // progress event and restore it after the new native view mounts.
     pendingSeekRef.current = playbackPositionRef.current;
@@ -692,8 +707,35 @@ function InlineLivePlayerView({
     // Do not try the seek against the old surface's duration; wait for a
     // progress event from the newly mounted surface to report its duration.
     playbackDurationRef.current = 0;
-    setFullscreen(nextFullscreen);
+    setFullscreen(isFs);
+    if (isElectron()) {
+      playerRef.current?.syncLayout?.();
+      [30, 80, 160, 320, 500].forEach((delay) => {
+        setTimeout(() => {
+          playerRef.current?.syncLayout?.();
+        }, delay);
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isElectron() || typeof document === 'undefined') return undefined;
+    const root = document.documentElement;
+    const className = 'cinecrew-electron-player-fullscreen';
+    root.classList.toggle(className, fullscreen);
+    return () => root.classList.remove(className);
+  }, [fullscreen]);
+
+  useEffect(() => {
+    fullscreenRef.current = fullscreen;
+    if (isElectron()) {
+      playerRef.current?.syncLayout?.();
+      const timers = [40, 120, 250, 450].map((delay) =>
+        setTimeout(() => playerRef.current?.syncLayout?.(), delay)
+      );
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [fullscreen]);
 
   const prevRequestedStartTimeRef = useRef(requestedStartTime);
   useEffect(() => {
@@ -831,6 +873,8 @@ function InlineLivePlayerView({
     title,
     vlcSource,
     startTime: vlcSource.startTime ?? requestedStartTime,
+    fullscreen,
+    isFullscreen: fullscreen,
     getContainerBounds: getPlayerSurfaceBounds,
     getContainerElement: getPlayerSurfaceElement,
     onPlaying: handlePlaying,

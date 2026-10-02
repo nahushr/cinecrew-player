@@ -40,6 +40,7 @@ async function setHostStageBounds(rect) {
   const bounds = normalizeContainerRect(rect);
   const css = `position:fixed;left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px;overflow:hidden;background:#000;`;
   await mainWindow.webContents.executeJavaScript(`(() => {
+    document.body.classList.remove('evp-player-fullscreen');
     const stage = document.getElementById('cinecrew-electron-vlc-stage');
     if (!stage) return false;
     stage.style.cssText = ${JSON.stringify(css)};

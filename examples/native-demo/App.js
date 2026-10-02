@@ -111,7 +111,9 @@ export default function App() {
     }
   }, [progressTime]);
 
+  const promotedFromInlineRef = useRef(false);
   const handlePromotePreview = useCallback((payload = {}) => {
+    promotedFromInlineRef.current = true;
     setStartTime(payload.startTime ?? payload.currentTime ?? progressTime);
     setInline(false);
     setPromotedFullscreen(true);
@@ -124,6 +126,10 @@ export default function App() {
     // remount, just as we do when promoting the compact inline player.
     if (resumeAt !== undefined && resumeAt !== null) setStartTime(resumeAt);
     setPromotedFullscreen(isFullscreen);
+    if (!isFullscreen && promotedFromInlineRef.current) {
+      promotedFromInlineRef.current = false;
+      setInline(true);
+    }
   }, []);
 
   const integrations = useDemoIntegrations(notify);
@@ -180,9 +186,8 @@ export default function App() {
   const electronPlayerCardWidth = isElectronDemo ? Math.min(playerCardWidth, 800) : playerCardWidth;
   const defaultPlayerCardHeight = Math.round(electronPlayerCardWidth * (9 / 16));
   const portraitResizeOpen = !isLandscape && !isImmersive && drawerMode === 'resize' && showLiveChat;
-  const compactInlineHeight = isElectronDemo ? defaultPlayerCardHeight : 220;
   const portraitResizeVideoHeight = inline
-    ? compactInlineHeight
+    ? 220
     : Math.min(Math.round(height * 0.42), Math.round(width * (9 / 16)));
   const portraitResizeDrawerHeight = Math.min(380, Math.max(280, Math.round(height * 0.42)));
   const playerCardHeight = portraitResizeOpen

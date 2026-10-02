@@ -2221,6 +2221,7 @@ export const MediaPlayerView = (props) => {
       handleNativeLoadStart={handleNativeLoadStart}
       handleNativeOpen={handleNativeOpen}
       handleClose={handleClose}
+      isFullscreen={isFullscreen}
       setIsFullscreen={setIsFullscreen}
       handleNativeBuffering={handleNativeBuffering}
       onRecordingCreated={handleNativeRecordingCreated}

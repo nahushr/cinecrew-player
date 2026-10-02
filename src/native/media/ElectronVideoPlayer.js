@@ -60,6 +60,8 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   streamUrl,
   getContainerBounds,
   getContainerElement,
+  fullscreen,
+  isFullscreen,
   paused,
   muted,
   volume = 100,
@@ -85,7 +87,42 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   const sourceRef = useRef('');
   const tracksRef = useRef([]);
   const stageRef = useRef(null);
+  const layoutFrameRef = useRef(null);
+  const layoutSyncTimersRef = useRef(new Set());
   const isOverlayWindow = isElectronOverlay();
+  const isPlayerFullscreen = Boolean(fullscreen ?? isFullscreen);
+
+  const getContainerBoundsRef = useRef(getContainerBounds);
+  getContainerBoundsRef.current = getContainerBounds;
+  const getContainerElementRef = useRef(getContainerElement);
+  getContainerElementRef.current = getContainerElement;
+
+  const requestLayoutSync = useCallback(() => {
+    if (layoutFrameRef.current !== null) return;
+    layoutFrameRef.current = requestAnimationFrame(() => {
+      layoutFrameRef.current = null;
+      const bounds = getPlayerBounds(stageRef.current, getContainerBoundsRef.current);
+      if (bounds && ipcRef.current) ipcRef.current.send('cinecrew:vlc:layout', bounds);
+    });
+  }, []);
+
+  const requestStableLayoutSync = useCallback(() => {
+    requestLayoutSync();
+    // Electron reports fullscreen changes before the paired controls window
+    // and renderer have finished their resize. Re-measure after that layout
+    // settles so VLC cannot retain fullscreen bounds in the inline player.
+    [40, 100, 220, 450].forEach((delay) => {
+      const timer = window.setTimeout(() => {
+        layoutSyncTimersRef.current.delete(timer);
+        requestLayoutSync();
+      }, delay);
+      layoutSyncTimersRef.current.add(timer);
+    });
+  }, [requestLayoutSync]);
+
+  useEffect(() => {
+    requestStableLayoutSync();
+  }, [isPlayerFullscreen, requestStableLayoutSync]);
 
   latestPropsRef.current = {
     onProgress,
@@ -177,29 +214,6 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     }
 
     let disposed = false;
-    let layoutFrame = null;
-    const layoutSyncTimers = new Set();
-    const requestLayoutSync = () => {
-      if (layoutFrame !== null) return;
-      layoutFrame = requestAnimationFrame(() => {
-        layoutFrame = null;
-        const bounds = getPlayerBounds(stageRef.current, getContainerBounds);
-        if (bounds) ipc.send('cinecrew:vlc:layout', bounds);
-      });
-    };
-    const requestStableLayoutSync = () => {
-      requestLayoutSync();
-      // Electron reports fullscreen changes before the paired controls window
-      // and renderer have finished their resize. Re-measure after that layout
-      // settles so VLC cannot retain fullscreen bounds in the inline player.
-      [80, 220, 450].forEach((delay) => {
-        const timer = window.setTimeout(() => {
-          layoutSyncTimers.delete(timer);
-          requestLayoutSync();
-        }, delay);
-        layoutSyncTimers.add(timer);
-      });
-    };
     const handlePlayerEvent = (event, payload = {}) => {
       handleNativeEvent(event, payload);
       if (payload.type === 'fullscreen') requestStableLayoutSync();
@@ -207,7 +221,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
 
     ipcRef.current = ipc;
     ipc.on('cinecrew:vlc:event', handlePlayerEvent);
-    const mountPromise = waitForPlayerBounds(stageRef.current, getContainerBounds, getContainerElement)
+    const mountPromise = waitForPlayerBounds(stageRef.current, getContainerBoundsRef.current, getContainerElementRef.current)
       .then((containerRect) => {
         if (!containerRect) throw new Error('Could not measure the Electron inline video surface.');
         return ipc.invoke('cinecrew:vlc:mount', {
@@ -234,7 +248,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(requestLayoutSync);
       if (stageRef.current) resizeObserver.observe(stageRef.current);
-      const containerElement = getContainerElement?.();
+      const containerElement = getContainerElementRef.current?.();
       if (containerElement && containerElement !== stageRef.current) resizeObserver.observe(containerElement);
     }
 
@@ -243,15 +257,15 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       window.removeEventListener('scroll', requestLayoutSync, true);
       window.removeEventListener('resize', requestLayoutSync);
       resizeObserver?.disconnect();
-      if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);
-      layoutSyncTimers.forEach((timer) => window.clearTimeout(timer));
-      layoutSyncTimers.clear();
+      if (layoutFrameRef.current !== null) cancelAnimationFrame(layoutFrameRef.current);
+      layoutSyncTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      layoutSyncTimersRef.current.clear();
       ipc.removeListener('cinecrew:vlc:event', handlePlayerEvent);
       ipcRef.current = null;
       mountPromiseRef.current = null;
       void unmountBundledVlc(ipc);
     };
-  }, [getContainerBounds, getContainerElement, handleNativeEvent]);
+  }, [handleNativeEvent, requestLayoutSync, requestStableLayoutSync]);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,6 +332,9 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   }, [videoAspectRatio, invokePlayer]);
 
   useImperativeHandle(ref, () => ({
+    syncLayout() {
+      requestStableLayoutSync();
+    },
     play() {
       return invokePlayer('cinecrew:vlc:set-paused', false);
     },

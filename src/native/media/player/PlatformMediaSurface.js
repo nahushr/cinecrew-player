@@ -40,6 +40,7 @@ export function PlatformMediaSurface(props) {
     onRecordingState,
     getPlayerHostBounds,
     getPlayerHostElement,
+    isFullscreen,
     setIsFullscreen
   } = props;
   if (isElectron()) {
@@ -49,6 +50,7 @@ export function PlatformMediaSurface(props) {
         streamUrl={playerStreamUrl}
         getContainerBounds={getPlayerHostBounds}
         getContainerElement={getPlayerHostElement}
+        fullscreen={isFullscreen}
         paused={!isPlaying}
         muted={muted || videoOnlyMode}
         volume={muted || videoOnlyMode ? 0 : volume}

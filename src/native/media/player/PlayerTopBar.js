@@ -28,11 +28,13 @@ function BackButton({ visible, palette, onClose, compact, scale }) {
       style={[
         styles.pill,
         styles.backPill,
-        compact && styles.compactPill,
+        compact ? styles.compactBackPill : styles.regularBackPill,
         {
-          width: Math.round((compact ? 74 : 84) * buttonBoost),
+          minWidth: Math.round((compact ? 76 : 88) * buttonBoost),
           height: buttonHeight,
           borderRadius: buttonHeight / 2,
+          paddingLeft: Math.round((compact ? 8 : 10) * buttonBoost),
+          paddingRight: Math.round((compact ? 12 : 16) * buttonBoost),
         },
       ]}
       onPress={(event) => { event.stopPropagation(); onClose(); }}
@@ -448,9 +450,24 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   backPill: {
+    width: 'auto',
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingRight: 8,
+    paddingLeft: 10,
+    paddingRight: 14,
+  },
+  regularBackPill: {
+    minWidth: 88,
+    paddingLeft: 10,
+    paddingRight: 14,
+  },
+  compactBackPill: {
+    minWidth: 76,
+    paddingLeft: 8,
+    paddingRight: 12,
+    gap: 5,
   },
   compactPill: {
     width: 30,
@@ -460,6 +477,7 @@ const styles = StyleSheet.create({
   backText: {
     color: '#FFF',
     fontWeight: '600',
+    paddingRight: 2,
   },
   recActivePill: {
     backgroundColor: 'rgba(255, 82, 82, 0.28)',
