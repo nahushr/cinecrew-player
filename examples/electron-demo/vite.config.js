@@ -11,7 +11,7 @@ const repoRoot = path.resolve(demoDir, '../..');
 const resolveDemoPackageModule = (packageName) => {
   const packageDir = path.join(demoDir, 'node_modules', packageName);
   const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
-  const entry = packageJson.module || packageJson.main;
+  const entry = packageJson.module || packageJson.exports?.['.']?.import || packageJson.main;
   return path.resolve(packageDir, entry);
 };
 
@@ -83,6 +83,10 @@ export default defineConfig({
       {
         find: /^hls\.js$/,
         replacement: resolveDemoPackageModule('hls.js'),
+      },
+      {
+        find: /^dashjs$/,
+        replacement: resolveDemoPackageModule('dashjs'),
       },
       {
         find: /^react-native$/,
