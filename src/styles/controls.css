@@ -8,13 +8,26 @@
   justify-content: space-between;
   padding: 14px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 160ms ease;
 }
 
-.cinecrew-player:hover .cinecrew-player__controls,
-.cinecrew-player:focus-within .cinecrew-player__controls,
 .cinecrew-player.is-controls-visible .cinecrew-player__controls {
   opacity: 1;
+}
+
+.cinecrew-player--locked .cinecrew-player__controls {
+  opacity: 1;
+}
+
+.cinecrew-player__controls :is(button, input, select, textarea, a, [role="button"], [role="slider"]) {
+  pointer-events: none;
+}
+
+.cinecrew-player.is-controls-visible .cinecrew-player__controls :is(button, input, select, textarea, a, [role="button"], [role="slider"]),
+.cinecrew-player--locked .cinecrew-player__controls :is(button, input, select, textarea, a, [role="button"], [role="slider"]),
+.cinecrew-player__controls.is-recording :is(button, input, select, textarea, a, [role="button"], [role="slider"]) {
+  pointer-events: auto;
 }
 
 .cinecrew-player__top-controls,

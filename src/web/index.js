@@ -566,8 +566,8 @@ function WebVolumeControl({ volume, onChange, onChangeEnd, accentColor = '#FFE06
 function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, showLiveBadge, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd, brightnessAccentColor, showVolumeControl, volume, onVolumeChange, onVolumeChangeEnd, volumeAccentColor }) {
   installControlsStyles();
   const compactInline = inlinePreview && !bottomProps.fullscreen;
-  if (bottomProps.recordingStatus === 'finalizing') return null;
-  if (bottomProps.recordingStatus === 'recording' || bottomProps.recordingStatus === 'paused') {
+  if (!locked && bottomProps.recordingStatus === 'finalizing') return null;
+  if (!locked && (bottomProps.recordingStatus === 'recording' || bottomProps.recordingStatus === 'paused')) {
     return h('div', { className: 'cinecrew-player__controls is-recording' },
       h(WebRecordingOverlay, {
         status: bottomProps.recordingStatus,
@@ -605,7 +605,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
     }
     bottomControls = h(WebBottomControls, bottomProps);
   }
-  const recordingUiVisible = bottomProps.recordingStatus !== 'idle' || Boolean(bottomProps.recordingError);
+  const recordingUiVisible = !locked && (bottomProps.recordingStatus !== 'idle' || Boolean(bottomProps.recordingError));
   return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}` },
     h('div', { className: 'cinecrew-player__top-controls' },
       h('div', { className: 'cinecrew-player__top-left-actions' },
@@ -633,7 +633,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     h(WebRecordingOverlay, {
-      status: bottomProps.recordingStatus,
+      status: locked ? 'idle' : bottomProps.recordingStatus,
       elapsed: bottomProps.recordingElapsed,
       error: bottomProps.recordingError,
       theme,
@@ -985,7 +985,10 @@ function getWebControlLayer(props) {
       theme: props.theme,
       icons: props.icons,
       unlockedControls: props.unlockedControls,
-      toggleLock: props.toggleLock,
+      toggleLock: () => {
+        props.toggleLock();
+        if (props.locked) props.showInteractionControls();
+      },
       showBrightnessControl: props.showBrightnessControl,
       brightness: props.brightness,
       onBrightnessChange: props.onBrightnessChange,
@@ -1071,6 +1074,7 @@ function getWebPlayerClassName(props) {
   const classes = ['cinecrew-player'];
   if (props.audioOnly) classes.push('cinecrew-player--audio-mode');
   if (props.inlinePreview) classes.push('cinecrew-player--inline-preview');
+  if (props.locked) classes.push('cinecrew-player--locked');
   if (props.drawerMode === 'resize' && props.activePanel) classes.push('cinecrew-player--drawer-resize');
   if (props.drawerMode === 'modal' && props.activePanel) classes.push('cinecrew-player--drawer-modal');
   if (props.className) classes.push(props.className);
@@ -1086,18 +1090,45 @@ function installWebLayoutStyles(props) {
 function WebPlayerLayout(props) {
   const [interactionControlsVisible, setInteractionControlsVisible] = useState(false);
   const controlsHideTimeoutRef = useRef(null);
-  const revealInteractionControls = useCallback(() => {
-    setInteractionControlsVisible(true);
-    if (controlsHideTimeoutRef.current) clearTimeout(controlsHideTimeoutRef.current);
-    controlsHideTimeoutRef.current = setTimeout(() => {
-      controlsHideTimeoutRef.current = null;
-      setInteractionControlsVisible(false);
-    }, 3500);
+  const lockedRef = useRef(props.locked);
+  lockedRef.current = props.locked;
+
+  const clearControlsHideTimeout = useCallback(() => {
+    if (!controlsHideTimeoutRef.current) return;
+    clearTimeout(controlsHideTimeoutRef.current);
+    controlsHideTimeoutRef.current = null;
   }, []);
 
+  const revealInteractionControls = useCallback(() => {
+    setInteractionControlsVisible(true);
+    clearControlsHideTimeout();
+    controlsHideTimeoutRef.current = setTimeout(() => {
+      controlsHideTimeoutRef.current = null;
+      if (!lockedRef.current) setInteractionControlsVisible(false);
+    }, 3500);
+  }, [clearControlsHideTimeout]);
+
+  const toggleInteractionControls = useCallback((event) => {
+    if (props.locked) return;
+    const target = event.target;
+    if (target?.closest?.('.cinecrew-player__panel, .cinecrew-player__modal-backdrop, .cinecrew-player__recording-dialog-backdrop')) return;
+    if (target?.closest?.('button, input, select, textarea, a, [role="button"], [role="slider"], [contenteditable="true"]')) return;
+    if (props.inlinePreview) {
+      revealInteractionControls();
+      return;
+    }
+
+    if (interactionControlsVisible) {
+      clearControlsHideTimeout();
+      setInteractionControlsVisible(false);
+      return;
+    }
+    revealInteractionControls();
+  }, [clearControlsHideTimeout, interactionControlsVisible, props.inlinePreview, props.locked, revealInteractionControls]);
+
   useEffect(() => () => {
-    if (controlsHideTimeoutRef.current) clearTimeout(controlsHideTimeoutRef.current);
-  }, []);
+    clearControlsHideTimeout();
+  }, [clearControlsHideTimeout]);
 
   installWebLayoutStyles(props);
   return h('div', {
@@ -1115,7 +1146,8 @@ function WebPlayerLayout(props) {
       '--cinecrew-control-text': props.theme.controlColor,
       '--cinecrew-media-width': '70%',
     },
-    onClick: revealInteractionControls,
+    onClick: toggleInteractionControls,
+    onFocusCapture: revealInteractionControls,
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
@@ -2601,6 +2633,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
     onSwitchToVideo: () => setAudioOnlyMode(false),
     locked,
+    showInteractionControls: revealInteractionControls,
     controlOverrides,
     icons,
     unlockedControls,

@@ -1,7 +1,3 @@
-@media (hover: none) {
-  .cinecrew-player__controls { opacity: 1; }
-}
-
 @media (max-width: 640px) {
   .cinecrew-player__controls { padding: 10px; }
   .cinecrew-player__top-controls { align-items: center; gap: 6px; flex-wrap: wrap; }
