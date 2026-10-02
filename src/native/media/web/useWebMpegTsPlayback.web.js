@@ -277,7 +277,7 @@ export function useWebMpegTsPlayback({
         hasAudio: !useAc3Fallback && !useVideoOnly,
         hasVideo: true,
       }, {
-        enableWorker: !useVideoOnly,
+        enableWorker: false,
         lazyLoad: false,
         enableStashBuffer: true,
         stashInitialSize: getStashInitialSize(useVideoOnly, isLive),
