@@ -12,7 +12,8 @@
 }
 
 .cinecrew-player:hover .cinecrew-player__controls,
-.cinecrew-player:focus-within .cinecrew-player__controls {
+.cinecrew-player:focus-within .cinecrew-player__controls,
+.cinecrew-player.is-controls-visible .cinecrew-player__controls {
   opacity: 1;
 }
 

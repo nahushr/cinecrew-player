@@ -756,14 +756,6 @@ function WebAudioOnlyCard({ poster, title, theme, icons, onSwitchToVideo, hasVid
     : null);
 }
 
-function WebPlayerError({ error, theme, renderBackButton }) {
-  if (!error) return null;
-  return h('div', { className: 'cinecrew-player__error' },
-    h('strong', null, 'Playback error'),
-    h('span', null, error),
-    renderBackButton());
-}
-
 function getDirectVideoSource({ mpegTs, useHls, useDash, useOgv, sourceType, activeUrl }) {
   if (mpegTs || useHls || useDash || useOgv || /mpegurl|mpeg-ts|dash|flv|video\/ogg|ogv/.test(sourceType)) return undefined;
   return activeUrl;
@@ -910,7 +902,6 @@ function getPlaybackStatus(error, buffering, paused) {
 }
 
 function getWebControlLayer(props) {
-  if (props.error) return null;
   return h(WebPlayerControls, {
       locked: props.locked,
       buffering: props.buffering,
@@ -1011,10 +1002,25 @@ function installWebLayoutStyles(props) {
 }
 
 function WebPlayerLayout(props) {
+  const [interactionControlsVisible, setInteractionControlsVisible] = useState(false);
+  const controlsHideTimeoutRef = useRef(null);
+  const revealInteractionControls = useCallback(() => {
+    setInteractionControlsVisible(true);
+    if (controlsHideTimeoutRef.current) clearTimeout(controlsHideTimeoutRef.current);
+    controlsHideTimeoutRef.current = setTimeout(() => {
+      controlsHideTimeoutRef.current = null;
+      setInteractionControlsVisible(false);
+    }, 3500);
+  }, []);
+
+  useEffect(() => () => {
+    if (controlsHideTimeoutRef.current) clearTimeout(controlsHideTimeoutRef.current);
+  }, []);
+
   installWebLayoutStyles(props);
   return h('div', {
     ref: props.playerRef,
-    className: getWebPlayerClassName(props),
+    className: `${getWebPlayerClassName(props)}${interactionControlsVisible ? ' is-controls-visible' : ''}`,
     style: {
       ...props.rootStyle,
       ...props.style,
@@ -1027,6 +1033,7 @@ function WebPlayerLayout(props) {
       '--cinecrew-control-text': props.theme.controlColor,
       '--cinecrew-media-width': '70%',
     },
+    onClick: revealInteractionControls,
     onWheel: props.onWheel,
     'data-stream-mode': props.streamMode,
   },
@@ -1035,7 +1042,6 @@ function WebPlayerLayout(props) {
   getWebAudioCard(props),
   h('div', { className: 'cinecrew-player__shade' }),
   getWebLoadingNotice(props),
-  h(WebPlayerError, { error: props.error, theme: props.theme, renderBackButton: props.locked ? () => null : props.renderBackButton }),
   getWebControlLayer(props),
   h(WebRecordingSaveDialog, { saveDialog: props.recordingSaveDialog, onDismiss: props.onDismissRecordingSave }),
   getWebPanelNode(props));
@@ -2518,6 +2524,7 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   onBrightnessChangeEnd,
   showLiveBadge = false,
   showLivePill = false,
+  showLiveButton = false,
   integrations = {},
   users,
   drawerMode = 'overlay',
