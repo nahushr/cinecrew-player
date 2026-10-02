@@ -10,6 +10,8 @@ let vlcPlayer;
 let playerWindowId;
 let progressTimer;
 let playerModulePromise;
+let layoutUpdateQueue = Promise.resolve();
+let cachedContentInsets = null;
 
 const sendPlayerEvent = (type, values = {}) => {
   const target = controlsWindow && !controlsWindow.isDestroyed() ? controlsWindow : mainWindow;
@@ -37,22 +39,47 @@ async function setHostStageBounds(rect) {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
   const bounds = normalizeContainerRect(rect);
   const css = `position:fixed;left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px;overflow:hidden;background:#000;`;
-  const hostRect = await mainWindow.webContents.executeJavaScript(`(() => {
+  await mainWindow.webContents.executeJavaScript(`(() => {
     const stage = document.getElementById('cinecrew-electron-vlc-stage');
     if (!stage) return false;
     stage.style.cssText = ${JSON.stringify(css)};
     const rect = stage.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
   })()`);
-  console.info('[cinecrew-vlc] overlay bounds:', bounds, 'host bounds:', hostRect, 'host content:', mainWindow.getContentSize());
 }
 
 function syncControlsWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed() || !controlsWindow || controlsWindow.isDestroyed()) return;
-  // In fullscreen, getContentBounds() can exclude the native titlebar/safe-area
-  // strip on macOS. The transparent controls layer must cover the same full
-  // frame as the VLC surface or the player inherits visible top/edge gutters.
-  const bounds = mainWindow.isFullScreen() ? mainWindow.getBounds() : mainWindow.getContentBounds();
+  const windowBounds = mainWindow.getBounds();
+  const contentBounds = mainWindow.getContentBounds();
+  const [contentWidth, contentHeight] = mainWindow.getContentSize();
+  // Cache the normal content inset before fullscreen changes. On macOS,
+  // getContentBounds() can report the old fullscreen dimensions briefly after
+  // leaving fullscreen; using it then makes the transparent controls window
+  // (and the VLC stage it measures) remain screen-sized over the demo page.
+  const contentBoundsAreStale = contentBounds.width > windowBounds.width + 8
+    || contentBounds.height > windowBounds.height + 8
+    || contentBounds.width > contentWidth + 8
+    || contentBounds.height > contentHeight + 8;
+  if (!mainWindow.isFullScreen() && !contentBoundsAreStale) {
+    cachedContentInsets = {
+      x: contentBounds.x - windowBounds.x,
+      y: contentBounds.y - windowBounds.y,
+    };
+  }
+  // In fullscreen, use the full native frame so controls cover the video up
+  // to the screen edges. Otherwise reconstruct the content rectangle from
+  // the current window size and the last known titlebar/frame inset.
+  const bounds = mainWindow.isFullScreen()
+    ? windowBounds
+    : contentBoundsAreStale && cachedContentInsets
+      ? {
+          x: windowBounds.x + cachedContentInsets.x,
+          y: windowBounds.y + cachedContentInsets.y,
+          width: contentWidth,
+          height: contentHeight,
+        }
+      : contentBounds;
   controlsWindow.setBounds(bounds);
 }
 
@@ -136,7 +163,6 @@ async function mountPlayer(event) {
   });
   playerWindowId = mainWindow.webContents.id;
   await vlcPlayer.embed();
-  console.info('[cinecrew-vlc] native bounds:', vlcPlayer.layout?.lastNativeBounds, 'container:', vlcPlayer.layout?.containerRect);
   bindPlayerEvents();
   return { ok: true };
 }
@@ -157,10 +183,17 @@ function registerIpc() {
   ipcMain.handle('cinecrew:vlc:mount', (event, payload = {}) => mountPlayer({ sender: event.sender, args: payload }));
   ipcMain.handle('cinecrew:vlc:unmount', unmountPlayer);
   recordingController.registerIpc(ipcMain);
-  ipcMain.handle('cinecrew:window:set-fullscreen', (_event, fullscreen) => {
+  ipcMain.handle('cinecrew:window:set-fullscreen', async (_event, fullscreen) => {
     if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
     const requested = Boolean(fullscreen);
-    if (mainWindow.isFullScreen() !== requested) mainWindow.setFullScreen(requested);
+    if (vlcPlayer && !vlcPlayer.destroyed) {
+      // The VLC layout controller snapshots/restores the native video bounds
+      // around fullscreen. Calling BrowserWindow.setFullScreen directly skips
+      // that recovery and leaves the embedded surface expanded after exit.
+      await vlcPlayer.setFullScreen(requested);
+    } else if (mainWindow.isFullScreen() !== requested) {
+      mainWindow.setFullScreen(requested);
+    }
     return { ok: true, isFullscreen: mainWindow.isFullScreen() };
   });
   ipcMain.handle('cinecrew:vlc:load', async (_event, payload = {}) => {
@@ -212,9 +245,12 @@ function registerIpc() {
     return { ok: true };
   });
   ipcMain.on('cinecrew:vlc:layout', (_event, rect) => {
-    void setHostStageBounds(rect).then(() => vlcPlayer?.notifyLayoutChange()).catch((error) => {
-      sendPlayerEvent('error', { message: error?.message || 'Could not update the LibVLC video layout.' });
-    });
+    layoutUpdateQueue = layoutUpdateQueue
+      .then(() => setHostStageBounds(rect))
+      .then(() => vlcPlayer?.notifyLayoutChange())
+      .catch((error) => {
+        sendPlayerEvent('error', { message: error?.message || 'Could not update the LibVLC video layout.' });
+      });
   });
 }
 
@@ -272,15 +308,18 @@ async function createWindow() {
   controlsWindow.showInactive();
 
   const syncOverlay = () => setTimeout(syncControlsWindowBounds, 0);
+  const syncOverlayAfterFullscreen = () => {
+    [0, 50, 150].forEach((delay) => setTimeout(syncControlsWindowBounds, delay));
+  };
   for (const eventName of ['move', 'resize', 'maximize', 'unmaximize']) {
     mainWindow.on(eventName, syncOverlay);
   }
   mainWindow.on('enter-full-screen', () => {
-    syncOverlay();
+    syncOverlayAfterFullscreen();
     sendPlayerEvent('fullscreen', { isFullscreen: true });
   });
   mainWindow.on('leave-full-screen', () => {
-    syncOverlay();
+    syncOverlayAfterFullscreen();
     sendPlayerEvent('fullscreen', { isFullscreen: false });
   });
   mainWindow.on('focus', () => {

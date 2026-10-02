@@ -5,6 +5,7 @@ export const CenterControls = ({
   visible = true,
   compact = false,
   isLive,
+  showSeekButtons = false,
   isPlaying,
   onSeekBy,
   onTogglePlayPause,
@@ -20,6 +21,20 @@ export const CenterControls = ({
   return (
     <View style={[styles.centerContainer, compact && styles.compactCenterContainer]} pointerEvents="box-none">
       <View style={[styles.centerRow, compact && styles.compactCenterRow]} pointerEvents="box-none">
+        {showSeekButtons && !isLive ? (
+          <TouchableOpacity
+            style={[styles.seekButton, compact && styles.compactSeekButton]}
+            onPress={(event) => {
+              event.stopPropagation();
+              onSeekBy?.(-10);
+            }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Rewind 10 seconds"
+          >
+            <PlayerIcon name="rewind-10" size={iconSize} color={palette.controlColor} />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={[styles.bigPlayBtn, compact && styles.compactBigPlayBtn, iconBoost > 1 && { width: btnSize, height: btnSize, borderRadius: Math.round(btnSize / 2) }]}
           onPress={(e) => {
@@ -36,6 +51,20 @@ export const CenterControls = ({
             color={palette.controlColor}
           />
         </TouchableOpacity>
+        {showSeekButtons && !isLive ? (
+          <TouchableOpacity
+            style={[styles.seekButton, compact && styles.compactSeekButton]}
+            onPress={(event) => {
+              event.stopPropagation();
+              onSeekBy?.(10);
+            }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Forward 10 seconds"
+          >
+            <PlayerIcon name="fast-forward-10" size={iconSize} color={palette.controlColor} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -67,6 +96,23 @@ const styles = StyleSheet.create({
   },
   compactCenterRow: {
     gap: 10,
+  },
+  seekButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(12, 20, 32, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 70,
+    elevation: 70,
+  },
+  compactSeekButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
   },
   pill: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
   showLiveChat,
   onLiveChatChange,
   playerStyle,
+  inlineHeight,
   inline,
   promotedFullscreen,
   onPromotePreview,
@@ -59,6 +60,7 @@ export const PlayerViewport = React.forwardRef(function PlayerViewport({
         key={active.url}
         source={source}
         title={active.title}
+        height={inlineHeight}
         isActive
         paused={false}
         style={playerStyle}

@@ -130,7 +130,7 @@ function FullscreenControl({ enabled, isFullscreen, onToggle, compact, scale }) 
   if (!enabled) return null;
   const iconBoost = scale?.iconBoost || 1;
   const selectedStyle = { backgroundColor: palette.surfaceColor, borderWidth: 1.5, borderColor: palette.accentColor };
-  return <TouchableOpacity style={[styles.fullscreenButton, compact && styles.compactFullscreenButton, fullscreenButtonSize(compact, scale), { backgroundColor: palette.controlBackground }, isFullscreen && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} hitSlop={10}><PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={Math.round((compact ? 17 : 20) * iconBoost)} color={palette.controlColor} /></TouchableOpacity>;
+  return <TouchableOpacity style={[styles.fullscreenButton, compact && styles.compactFullscreenButton, fullscreenButtonSize(compact, scale), { backgroundColor: palette.controlBackground }, isFullscreen && selectedStyle]} onPress={(event) => { event.stopPropagation(); onToggle(); }} hitSlop={10} accessibilityRole="button" accessibilityLabel={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}><PlayerIcon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={Math.round((compact ? 17 : 20) * iconBoost)} color={palette.controlColor} /></TouchableOpacity>;
 }
 
 export const PlayerBottomBar = ({

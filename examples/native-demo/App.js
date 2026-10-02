@@ -177,10 +177,12 @@ export default function App() {
   const source = asPlayerSource(active);
   const horizontalPadding = width < 600 ? 12 : 20;
   const playerCardWidth = Math.max(1, Math.min(width, 1060) - horizontalPadding * 2);
-  const defaultPlayerCardHeight = Math.round(playerCardWidth * (9 / 16));
+  const electronPlayerCardWidth = isElectronDemo ? Math.min(playerCardWidth, 800) : playerCardWidth;
+  const defaultPlayerCardHeight = Math.round(electronPlayerCardWidth * (9 / 16));
   const portraitResizeOpen = !isLandscape && !isImmersive && drawerMode === 'resize' && showLiveChat;
+  const compactInlineHeight = isElectronDemo ? defaultPlayerCardHeight : 220;
   const portraitResizeVideoHeight = inline
-    ? 220
+    ? compactInlineHeight
     : Math.min(Math.round(height * 0.42), Math.round(width * (9 / 16)));
   const portraitResizeDrawerHeight = Math.min(380, Math.max(280, Math.round(height * 0.42)));
   const playerCardHeight = portraitResizeOpen
@@ -237,6 +239,7 @@ export default function App() {
       <View
         style={[
           styles.playerCard,
+          !isImmersive && isElectronDemo && { width: '100%', maxWidth: 800, alignSelf: 'center' },
           !isImmersive && { height: playerCardHeight },
           isImmersive && styles.landscapePlayerCard,
           isElectronOverlay && styles.electronOverlayPlayerCard,
@@ -253,6 +256,7 @@ export default function App() {
           showLiveChat={showLiveChat}
           onLiveChatChange={setShowLiveChat}
           playerStyle={isImmersive ? landscapePlayerStyle : undefined}
+          inlineHeight={isElectronDemo ? (portraitResizeOpen ? portraitResizeVideoHeight : defaultPlayerCardHeight) : undefined}
           inline={inline}
           promotedFullscreen={promotedFullscreen}
           onPromotePreview={handlePromotePreview}

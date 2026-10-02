@@ -181,6 +181,8 @@ function InlinePlayerOverlay({
   onFullscreen,
   fullscreenLandscape = false,
   seekControl,
+  seekButtonsVisible = false,
+  onSeekBy,
   drawerVisible = false,
   drawerTab = 'chat',
   isLiveCommentsEnabled = false,
@@ -207,6 +209,16 @@ function InlinePlayerOverlay({
   const muteIcon = muted ? 'mute' : 'unmute';
   const playbackLabel = paused ? 'Play' : 'Pause';
   const playbackIcon = paused ? 'play' : 'pause';
+  const seekButton = (deltaSeconds, label, icon) => React.createElement(Pressable, {
+    key: `seek-${deltaSeconds}`,
+    accessibilityRole: 'button',
+    accessibilityLabel: label,
+    onPress: (event) => {
+      event?.stopPropagation?.();
+      onSeekBy?.(deltaSeconds);
+    },
+    style: [styles.seekButton, fullscreenLandscape && styles.fullscreenSeekButton],
+  }, React.createElement(PlayerIcon, { name: icon, size: iconSize, color: palette.controlColor }));
 
   return React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
     React.createElement(Pressable, {
@@ -236,7 +248,10 @@ function InlinePlayerOverlay({
       button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
       ),
       React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
-      button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused })),
+      React.createElement(View, { pointerEvents: 'box-none', style: styles.centerControlsRow },
+      seekButtonsVisible ? seekButton(-10, 'Rewind 10 seconds', 'rewind-10') : null,
+      button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused }),
+      seekButtonsVisible ? seekButton(10, 'Forward 10 seconds', 'fast-forward-10') : null)),
       fullscreen ? seekControl : null,
       React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
       React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }, fullscreenLandscape && { fontSize: 15 }] }, title),
@@ -526,6 +541,7 @@ function InlineLivePlayerView({
   const rawUrl = sourceObject.uri || sourceObject.url || '';
   const streamUrl = useMemo(() => rawUrl || '', [rawUrl]);
   const requestedStartTime = parsePlaybackStartTime(startTime);
+  const [fullscreen, setFullscreen] = useState(false);
   const playerRef = useRef(null);
   const playerSurfaceBoundsRef = useRef({ inline: null, fullscreen: null, ids: null });
   if (!playerSurfaceBoundsRef.current.ids) {
@@ -562,7 +578,6 @@ function InlineLivePlayerView({
   const [loading, setLoading] = useState(Boolean(streamUrl && isActive));
   const [error, setError] = useState('');
   const [showControls, setShowControls] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
   const [brightness, setBrightness] = useState(1);
   const [internalShowLiveChat, setInternalShowLiveChat] = useState(Boolean(initialShowLiveChat));
   const [drawerTab, setDrawerTab] = useState('chat');
@@ -654,6 +669,20 @@ function InlineLivePlayerView({
       }
     }
   }, [applyPendingSeek, onProgressBarChange]);
+
+  const handleSeekBy = (deltaSeconds) => {
+    const duration = playbackDurationRef.current;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    const currentTime = playbackPositionRef.current;
+    const target = Math.max(0, Math.min(duration, currentTime + deltaSeconds));
+    performAction('onSeek', () => {
+      playbackPositionRef.current = target;
+      pendingSeekRef.current = target;
+      pendingSeekAttemptAtRef.current = 0;
+      setPlaybackTime(target);
+      applyPendingSeek();
+    }, { deltaSeconds, currentTime });
+  };
 
   const changeFullscreenWithPosition = useCallback((nextFullscreen) => {
     // The native preview is re-parented into a Modal. Preserve the latest
@@ -858,6 +887,8 @@ function InlineLivePlayerView({
     onFullscreen: openFullscreen,
     fullscreenLandscape,
     seekControl,
+    seekButtonsVisible: isElectron() && playbackDuration > 0,
+    onSeekBy: handleSeekBy,
     drawerVisible: showLiveChat,
     drawerTab,
     isLiveCommentsEnabled,
@@ -934,6 +965,9 @@ const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 5 },
   bottomRow: { position: 'absolute', left: 8, right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 4 },
   seekRow: { position: 'absolute', left: 10, right: 10, bottom: 44, height: 30, flexDirection: 'row', alignItems: 'center', gap: 5, zIndex: 5 },
+  centerControlsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  seekButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(5, 11, 20, 0.76)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  fullscreenSeekButton: { width: 46, height: 46, borderRadius: 23 },
   seekTime: { color: '#FFF', fontSize: 9, fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,.9)', textShadowRadius: 3 },
   seekSlider: { flex: 1, height: 30 },
   button: { minWidth: 38, height: 38, paddingHorizontal: 10, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

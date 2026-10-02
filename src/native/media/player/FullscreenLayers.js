@@ -165,6 +165,7 @@ export function FullscreenControlsPanel(props) {
         compact={compact}
         visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
         isLive={props.isLive}
+        showSeekButtons={isElectron() && !props.isLive && Number(props.duration) > 0}
         isPlaying={props.isPlaying}
         onSeekBy={props.handleSeekByAction}
         onTogglePlayPause={props.handlePlayPauseAction}

@@ -150,7 +150,7 @@ export const MediaPlayerView = (props) => {
   const flattenedStyle = StyleSheet.flatten(props.style) || {};
   const consumerHasWidth = Boolean(flattenedStyle.width || flattenedStyle.maxWidth);
   const landscapeInlineStyle =
-    windowWidth > windowHeight && !consumerHasWidth
+    windowWidth > windowHeight && !consumerHasWidth && !isElectron()
       ? {
           maxWidth: Math.max(1, (windowHeight - (insets?.top || 0) - (insets?.bottom || 0) - 140) * (16 / 9)),
           alignSelf: 'center'
@@ -186,8 +186,14 @@ export const MediaPlayerView = (props) => {
     },
     [onPlayerHostRef]
   );
+  const getPlayerHostElement = useCallback(() => {
+    const mediaFrame = typeof document !== 'undefined'
+      ? document.getElementById('cinecrew-electron-player-media-frame')
+      : null;
+    return mediaFrame || mediaFrameRef.current || playerRef.current;
+  }, []);
   const getPlayerHostBounds = useCallback(() => {
-    const rect = (mediaFrameRef.current || playerRef.current)?.getBoundingClientRect?.();
+    const rect = getPlayerHostElement()?.getBoundingClientRect?.();
     if (!rect) return null;
     return {
       x: rect.left,
@@ -195,7 +201,7 @@ export const MediaPlayerView = (props) => {
       width: rect.width,
       height: rect.height
     };
-  }, []);
+  }, [getPlayerHostElement]);
 
   const [showSpeedPicker, setShowSpeedPicker] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(() => clampNumber(initialPlaybackRate, 0.25, 4, 1));
@@ -2220,6 +2226,7 @@ export const MediaPlayerView = (props) => {
       onRecordingCreated={handleNativeRecordingCreated}
       onRecordingState={handleNativeRecordingState}
       getPlayerHostBounds={getPlayerHostBounds}
+      getPlayerHostElement={getPlayerHostElement}
     />
   );
   const isValidPreviewRect = isUsableInlinePreviewRect(inlinePreviewRect);
@@ -2438,6 +2445,7 @@ export const MediaPlayerView = (props) => {
 
       <View
         ref={mediaFrameRef}
+        nativeID="cinecrew-electron-player-media-frame"
         collapsable={false}
         style={[styles.mediaFrame, mediaFrameStyle]}
         onLayout={handleMediaFrameLayout}
@@ -2554,6 +2562,7 @@ export const MediaPlayerView = (props) => {
         collapsable={false}
         style={[
           isFullscreen ? styles.electronFullscreenHost : styles.inlinePlayerContainer,
+          !isFullscreen && styles.inlineAspectRatio,
           !isFullscreen && landscapeInlineStyle,
           transparentElectronOverlay && { backgroundColor: 'transparent' },
           style

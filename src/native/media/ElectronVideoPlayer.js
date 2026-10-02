@@ -178,6 +178,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
 
     let disposed = false;
     let layoutFrame = null;
+    const layoutSyncTimers = new Set();
     const requestLayoutSync = () => {
       if (layoutFrame !== null) return;
       layoutFrame = requestAnimationFrame(() => {
@@ -186,9 +187,26 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
         if (bounds) ipc.send('cinecrew:vlc:layout', bounds);
       });
     };
+    const requestStableLayoutSync = () => {
+      requestLayoutSync();
+      // Electron reports fullscreen changes before the paired controls window
+      // and renderer have finished their resize. Re-measure after that layout
+      // settles so VLC cannot retain fullscreen bounds in the inline player.
+      [80, 220, 450].forEach((delay) => {
+        const timer = window.setTimeout(() => {
+          layoutSyncTimers.delete(timer);
+          requestLayoutSync();
+        }, delay);
+        layoutSyncTimers.add(timer);
+      });
+    };
+    const handlePlayerEvent = (event, payload = {}) => {
+      handleNativeEvent(event, payload);
+      if (payload.type === 'fullscreen') requestStableLayoutSync();
+    };
 
     ipcRef.current = ipc;
-    ipc.on('cinecrew:vlc:event', handleNativeEvent);
+    ipc.on('cinecrew:vlc:event', handlePlayerEvent);
     const mountPromise = waitForPlayerBounds(stageRef.current, getContainerBounds, getContainerElement)
       .then((containerRect) => {
         if (!containerRect) throw new Error('Could not measure the Electron inline video surface.');
@@ -226,7 +244,9 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       window.removeEventListener('resize', requestLayoutSync);
       resizeObserver?.disconnect();
       if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);
-      ipc.removeListener('cinecrew:vlc:event', handleNativeEvent);
+      layoutSyncTimers.forEach((timer) => window.clearTimeout(timer));
+      layoutSyncTimers.clear();
+      ipc.removeListener('cinecrew:vlc:event', handlePlayerEvent);
       ipcRef.current = null;
       mountPromiseRef.current = null;
       void unmountBundledVlc(ipc);

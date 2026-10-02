@@ -39,6 +39,7 @@ export function PlatformMediaSurface(props) {
     onRecordingCreated,
     onRecordingState,
     getPlayerHostBounds,
+    getPlayerHostElement,
     setIsFullscreen
   } = props;
   if (isElectron()) {
@@ -47,6 +48,7 @@ export function PlatformMediaSurface(props) {
         ref={vlcRef}
         streamUrl={playerStreamUrl}
         getContainerBounds={getPlayerHostBounds}
+        getContainerElement={getPlayerHostElement}
         paused={!isPlaying}
         muted={muted || videoOnlyMode}
         volume={muted || videoOnlyMode ? 0 : volume}
