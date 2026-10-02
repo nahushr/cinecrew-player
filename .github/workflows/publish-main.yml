@@ -229,16 +229,22 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          for demo in examples/web-demo examples/expo-web-demo examples/native-demo examples/electron-demo; do
+          for demo in examples/web-demo examples/expo-web-demo examples/electron-demo; do
+            updated=false
             for attempt in $(seq 1 12); do
               if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
                 --cache="$RUNNER_TEMP/npm-release-cache" --prefix "$demo" \
                 @cinecrew/cinecrew-player --registry=https://registry.npmjs.org; then
+                updated=true
                 break
               fi
               echo "Retrying $demo lockfile update ($attempt/12)."
               sleep 10
             done
+            if [ "$updated" != true ]; then
+              echo "::error::Could not refresh $demo to @cinecrew/cinecrew-player@$VERSION."
+              exit 1
+            fi
             node - "$demo/package-lock.json" "$VERSION" <<'NODE'
           const fs = require('node:fs');
           const [file, expected] = process.argv.slice(2);
@@ -247,6 +253,19 @@ jobs:
           if (actual !== expected) throw new Error(`${file} resolves ${actual}; expected ${expected}`);
           NODE
           done
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const packageName = '@cinecrew/cinecrew-player';
+          const manifest = JSON.parse(fs.readFileSync('examples/native-demo/package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('examples/native-demo/package-lock.json', 'utf8'));
+          const declared = manifest.dependencies?.[packageName];
+          const locked = lock.packages?.['']?.dependencies?.[packageName];
+          const resolved = lock.packages?.[`node_modules/${packageName}`]?.resolved;
+          if (declared !== 'file:../..' || locked !== declared || resolved !== declared) {
+            throw new Error(`Native demo must continue resolving ${packageName} from the workspace (manifest: ${declared}; lock: ${locked}; resolved: ${resolved}).`);
+          }
+          NODE
 
       - name: Commit the released version for the next main build
         env:
