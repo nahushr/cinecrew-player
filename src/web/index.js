@@ -232,6 +232,18 @@ function WebSeekControl({ currentTime, duration, theme, onSeek }) {
     h('span', null, `−${formatTime(remainingTime)}`));
 }
 
+function WebSeekSkipButton({ direction, onSeek }) {
+  const backward = direction === 'backward';
+  const label = backward ? 'Rewind 10 seconds' : 'Forward 10 seconds';
+  return h('button', {
+    type: 'button',
+    className: 'cinecrew-player__seek-skip',
+    'aria-label': label,
+    title: label,
+    onClick: () => onSeek?.(backward ? -10 : 10),
+  }, backward ? '−10' : '+10');
+}
+
 function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect, ratios, selectedRatio }) {
   let menu = null;
   if (open) {
@@ -531,8 +543,14 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
     if (!buffering && bottomProps.recordingStatus === 'idle') {
       const playLabel = paused ? 'Play' : 'Pause';
       const playIcon = paused ? 'play' : 'pause';
+      const seekButtonsVisible = !bottomProps.isLive
+        && isControlEnabled(overrides, 'seek', true)
+        && Number.isFinite(bottomProps.duration)
+        && bottomProps.duration > 0;
       centerControls = h('div', { className: 'cinecrew-player__center-controls' },
-        renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }));
+        seekButtonsVisible ? h(WebSeekSkipButton, { direction: 'backward', onSeek: bottomProps.seekBy }) : null,
+        renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }),
+        seekButtonsVisible ? h(WebSeekSkipButton, { direction: 'forward', onSeek: bottomProps.seekBy }) : null);
     }
     bottomControls = h(WebBottomControls, bottomProps);
   }
@@ -560,7 +578,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
         h('span', { 'aria-hidden': true, style: { width: 7, height: 7, borderRadius: '50%', background: '#FFF' } }),
         'LIVE') : null,
         leftControls),
-      !locked && !inlinePreview && paused && title ? h('div', { className: 'cinecrew-player__title', title }, title) : null,
+      !locked && !inlinePreview && title ? h('div', { className: 'cinecrew-player__title', title }, title) : null,
       h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
     centerControls,
     h(WebRecordingOverlay, {
@@ -2182,6 +2200,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       emitProgressBarTime(targetSeconds, progressBarCallback, lastProgressBarSecondRef, { force: true });
     }, { seconds: Number(seconds) || 0 });
   }, [action, progressBarCallback, setPaused, isLive]);
+  const seekBy = useCallback((delta) => {
+    if (isLive) return;
+    const videoTime = Number(videoRef.current?.currentTime);
+    const baseTime = Number.isFinite(videoTime) ? videoTime : currentTime;
+    const endTime = Number.isFinite(duration) && duration > 0 ? duration : Infinity;
+    const targetTime = Math.max(0, Math.min(endTime, baseTime + (Number(delta) || 0)));
+    return seekTo(targetTime);
+  }, [currentTime, duration, isLive, seekTo]);
   const handleBack = useCallback(() => action('onBack', undefined, { title, source: media }), [action, title, media]);
   useImperativeHandle(ref, () => {
     const api = {
@@ -2201,7 +2227,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       setVideoOnly: setVideoOnlyMode,
       setPlaybackRate,
       seekTo,
-      seekBy: (delta) => isLive ? undefined : seekTo((Number(videoRef.current?.currentTime) || currentTime) + (Number(delta) || 0)),
+      seekBy,
       back: handleBack,
       setPanel: (panel) => setActivePanel(panel || null),
       closePanel: () => setActivePanel(null),
@@ -2212,7 +2238,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     };
     publicPlayerRef.current = api;
     return api;
-  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnly, setVideoOnlyMode, setPlaybackRate, seekTo, handleBack, availableTracks, tracksProp, currentTime, isLive]);
+  }, [setPaused, togglePlay, restart, toggleMute, setMuted, setAspectRatio, setAudioOnly, setVideoOnlyMode, setPlaybackRate, seekTo, seekBy, handleBack, availableTracks, tracksProp, currentTime, isLive]);
 
   const hasChat = typeof integrations.liveChat?.loadMessages === 'function' || typeof renderLiveChat === 'function' || typeof integrations.liveChat?.render === 'function' || typeof actions.onLiveChatOpen === 'function';
   const hasEpg = typeof integrations.epg?.loadListings === 'function' || typeof renderEpg === 'function' || typeof integrations.epg?.render === 'function' || typeof actions.onEpgOpen === 'function';
@@ -2270,7 +2296,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     const onWaitingEvent = () => setBuffering(true);
     video.addEventListener('loadedmetadata', onReadyEvent);
     video.addEventListener('canplay', onReadyEvent);
-    video.addEventListener('durationchange', updateMpegTsEndState);
+    video.addEventListener('durationchange', updateTime);
     video.addEventListener('playing', onPlayingEvent);
     video.addEventListener('waiting', onWaitingEvent);
     video.addEventListener('timeupdate', updateTime);
@@ -2279,7 +2305,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     return () => {
       video.removeEventListener('loadedmetadata', onReadyEvent);
       video.removeEventListener('canplay', onReadyEvent);
-      video.removeEventListener('durationchange', updateMpegTsEndState);
+      video.removeEventListener('durationchange', updateTime);
       video.removeEventListener('playing', onPlayingEvent);
       video.removeEventListener('waiting', onWaitingEvent);
       video.removeEventListener('timeupdate', updateTime);
@@ -2432,6 +2458,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     currentTime,
     duration,
     seekTo,
+    seekBy,
     muted,
     toggleMute,
     showAspectMenu,
