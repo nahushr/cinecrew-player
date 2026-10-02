@@ -77,6 +77,10 @@ export default defineConfig({
         replacement: resolveDemoPackageModule('@mediabunny/ac3'),
       },
       {
+        find: /^flv\.js$/,
+        replacement: resolveDemoPackageModule('flv.js'),
+      },
+      {
         find: /^react-native$/,
         replacement: path.join(demoDir, 'src/shims/react-native.js'),
       },
