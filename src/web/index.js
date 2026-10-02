@@ -82,6 +82,7 @@ const WEB_ICON_PATHS = {
   lock: 'M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
   'lock-open': 'M18 8h-1V6a5 5 0 0 0-9.8-1H9a3 3 0 0 1 6 .8V8H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z',
   'volume-mute': 'M3 9v6h4l5 5V4L7 9H3zm13.59 3 2.12-2.12 1.41 1.41L19 13.41l2.12 2.12-1.41 1.41-2.12-2.12-2.12 2.12-1.41-1.41 2.12-2.12-2.12-2.12 1.41-1.41z',
+  'volume-medium': 'M3 9v6h4l5 5V4L7 9H3zm13 3a4 4 0 0 0-2-3.46v6.92A4 4 0 0 0 16 12zm-2-8v2.06a7 7 0 0 1 0 11.88V20a9 9 0 0 0 0-16z',
   'volume-high': 'M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z',
   'aspect-ratio': 'M3 5h18v14H3zm2 2v10h14V7zm2 2h4v2H9v4H7zm10 6h-4v-2h2V9h2z',
   video: 'M18 7V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2l4 4V5zm-2 12H4V5h12z',
@@ -424,14 +425,8 @@ function WebRecordingSaveDialog({ saveDialog, onDismiss }) {
         h('button', { type: 'button', onClick: onDismiss, className: 'cinecrew-player__recording-dialog-done' }, 'Done'))));
 }
 
-function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
-  installBrightnessStyles();
-  const controlRef = useRef(null);
-  const valueRef = useRef(brightness);
-  const activeRef = useRef(false);
+function useWebControlLane(controlRef) {
   const [safeLane, setSafeLane] = useState(null);
-  valueRef.current = brightness;
-
   useLayoutEffect(() => {
     const control = controlRef.current;
     const controlsRoot = control?.parentElement;
@@ -467,6 +462,16 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
       if (!observer) window.removeEventListener('resize', measureLane);
     };
   }, []);
+  return safeLane;
+}
+
+function WebBrightnessControl({ brightness, onChange, onChangeEnd, accentColor }) {
+  installBrightnessStyles();
+  const controlRef = useRef(null);
+  const valueRef = useRef(brightness);
+  const activeRef = useRef(false);
+  const safeLane = useWebControlLane(controlRef);
+  valueRef.current = brightness;
 
   const finish = useCallback(() => {
     if (!activeRef.current) return;
@@ -477,11 +482,10 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
   return h('div', {
     ref: controlRef,
     className: 'cinecrew-player__brightness-control',
-    style: safeLane?.hidden
-      ? { display: 'none' }
-      : safeLane
-        ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' }
-        : undefined,
+    style: {
+      ...(safeLane?.hidden ? { display: 'none' } : safeLane ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' } : {}),
+      '--cinecrew-brightness-accent': accentColor || '#00D4FF',
+    },
   },
     h('span', { className: 'cinecrew-player__brightness-icon', 'aria-hidden': true }, '☼'),
     h('input', {
@@ -510,7 +514,58 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, theme }) {
     h('span', { className: 'cinecrew-player__brightness-value', 'aria-live': 'off' }, `${Math.round(brightness * 100)}%`));
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, showLiveBadge, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd }) {
+function WebVolumeControl({ volume, onChange, onChangeEnd, accentColor = '#FFE066', icons }) {
+  installBrightnessStyles();
+  const controlRef = useRef(null);
+  const valueRef = useRef(volume);
+  const activeRef = useRef(false);
+  const safeLane = useWebControlLane(controlRef);
+  valueRef.current = volume;
+  const percent = Math.max(0, Math.min(100, Math.round(volume * 100)));
+  const icon = percent === 0 ? 'volume-mute' : percent < 50 ? 'volume-medium' : 'volume-high';
+
+  const finish = useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    onChangeEnd?.(Math.round(valueRef.current * 100));
+  }, [onChangeEnd]);
+
+  return h('div', {
+    ref: controlRef,
+    className: 'cinecrew-player__volume-control',
+    style: {
+      ...(safeLane?.hidden ? { display: 'none' } : safeLane ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' } : {}),
+      '--cinecrew-volume-accent': accentColor,
+    },
+  },
+    h('span', { className: 'cinecrew-player__volume-icon', 'aria-hidden': true }, h(Icon, { name: icon, icons, color: accentColor })),
+    h('input', {
+      type: 'range',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: percent,
+      'aria-label': 'Device sound volume',
+      'aria-valuetext': `${percent}%`,
+      onPointerDown: (event) => {
+        activeRef.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      },
+      onChange: (event) => {
+        const nextPercent = Math.max(0, Math.min(100, Number(event.currentTarget.value) || 0));
+        valueRef.current = nextPercent / 100;
+        onChange?.(nextPercent / 100);
+      },
+      onKeyDown: () => { activeRef.current = true; },
+      onPointerUp: finish,
+      onPointerCancel: finish,
+      onKeyUp: finish,
+      onBlur: finish,
+    }),
+    h('span', { className: 'cinecrew-player__volume-value', 'aria-live': 'off' }, `${percent}%`));
+}
+
+function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, showLiveBadge, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd, brightnessAccentColor, showVolumeControl, volume, onVolumeChange, onVolumeChangeEnd, volumeAccentColor }) {
   installControlsStyles();
   const compactInline = inlinePreview && !bottomProps.fullscreen;
   if (bottomProps.recordingStatus === 'finalizing') return null;
@@ -598,7 +653,14 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       brightness,
       onChange: onBrightnessChange,
       onChangeEnd: onBrightnessChangeEnd,
-      theme,
+      accentColor: brightnessAccentColor,
+    }) : null,
+    !locked && !compactInline && showVolumeControl ? h(WebVolumeControl, {
+      volume,
+      onChange: onVolumeChange,
+      onChangeEnd: onVolumeChangeEnd,
+      accentColor: volumeAccentColor,
+      icons,
     }) : null);
 }
 
@@ -932,6 +994,12 @@ function getWebControlLayer(props) {
       brightness: props.brightness,
       onBrightnessChange: props.onBrightnessChange,
       onBrightnessChangeEnd: props.onBrightnessChangeEnd,
+      brightnessAccentColor: props.brightnessAccentColor,
+      showVolumeControl: props.showVolumeControl,
+      volume: props.volume,
+      onVolumeChange: props.onVolumeChange,
+      onVolumeChangeEnd: props.onVolumeChangeEnd,
+      volumeAccentColor: props.volumeAccentColor,
       paused: props.isPaused,
       title: props.title,
       inlinePreview: props.inlinePreview,
@@ -1635,6 +1703,14 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     paused: pausedProp,
     showProgressBar = true,
     showBrightnessControl = false,
+    brightnessColor,
+    brightnessAccentColor,
+    showVolumeControl = false,
+    showSoundControl = false,
+    volumeColor,
+    soundColor,
+    onVolumeChangeEnd,
+    onSoundChangeEnd,
     showLiveBadge = false,
     showLivePill = false,
     showLiveButton = false,
@@ -1813,6 +1889,11 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const updateBrightness = useCallback((value) => {
     const next = Math.max(0.1, Math.min(1, Number(value) || 0.1));
     setBrightness(next);
+  }, []);
+  const updateVolume = useCallback((value) => {
+    const next = Math.max(0, Math.min(1, Number(value) || 0));
+    setVolume(next);
+    if (next > 0) setMuted(false);
   }, []);
 
   useEffect(() => {
@@ -2520,6 +2601,12 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     drawerMode,
     drawerStyle,
     showBrightnessControl,
+    brightnessAccentColor: brightnessColor || brightnessAccentColor || '#00D4FF',
+    showVolumeControl: showVolumeControl || showSoundControl,
+    volume,
+    onVolumeChange: updateVolume,
+    onVolumeChangeEnd: onVolumeChangeEnd || onSoundChangeEnd,
+    volumeAccentColor: volumeColor || soundColor || '#FFE066',
     showLiveBadge: Boolean(showLiveBadge || showLivePill || showLiveButton),
     brightness,
     onBrightnessChange: updateBrightness,
@@ -2548,7 +2635,15 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   initialMuted = true,
   startTime,
   showBrightnessControl = false,
+  brightnessColor,
+  brightnessAccentColor,
+  showVolumeControl = false,
+  showSoundControl = false,
+  volumeColor,
+  soundColor,
   onBrightnessChangeEnd,
+  onVolumeChangeEnd,
+  onSoundChangeEnd,
   showLiveBadge = false,
   showLivePill = false,
   showLiveButton = false,
@@ -2607,6 +2702,12 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     onProgressBarChange,
     onPromotePreview,
     inlinePreview: true,
+    brightnessColor,
+    brightnessAccentColor,
+    showVolumeControl: showVolumeControl || showSoundControl,
+    volumeColor,
+    soundColor,
+    onVolumeChangeEnd: onVolumeChangeEnd || onSoundChangeEnd,
     style: { width: '100%', height, aspectRatio: '16 / 9', ...style },
   });
 });

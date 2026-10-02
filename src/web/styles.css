@@ -442,6 +442,64 @@
   left: 8px;
 }
 
+.cinecrew-player__volume-control {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  right: 10px;
+  display: flex;
+  width: 48px;
+  height: min(188px, calc(100% - 128px));
+  max-height: 188px;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 6px 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 999px;
+  background: rgba(8, 16, 28, .82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .45);
+  transform: translateY(-50%);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cinecrew-player__volume-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--cinecrew-volume-accent, #FFE066);
+}
+
+.cinecrew-player__volume-control input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--cinecrew-volume-accent, #FFE066);
+  cursor: pointer;
+  background: transparent;
+}
+
+.cinecrew-player__volume-value {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 1px 3px #000;
+}
+
+.cinecrew-player--drawer-resize .cinecrew-player__volume-control {
+  right: 8px;
+}
+
 .cinecrew-player__audio-card {
   position: absolute;
   inset: 0;
