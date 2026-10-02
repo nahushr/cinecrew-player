@@ -98,7 +98,7 @@ jobs:
 
       - name: Build Android Release APK
         working-directory: examples/native-demo/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Stage Android APK artifact
         run: |

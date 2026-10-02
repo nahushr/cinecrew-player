@@ -118,7 +118,10 @@ test('native inline player supports the shared drawers without clipping resize m
   assert.match(nativeDemoViewport, /showLiveChat=\{showLiveChat\}/);
   assert.match(nativeDemoViewport, /drawerMode=\{drawerMode\}/);
   assert.match(nativeDemoViewport, /integrations=\{integrations\}/);
-  assert.match(nativeDemo, /inline\s*\?\s*220/);
+  const usesCompactInlineHeight = /const portraitResizeVideoHeight = inline\s*\?\s*compactInlineHeight/.test(nativeDemo)
+    && /const compactInlineHeight = isElectronDemo\s*\?\s*defaultPlayerCardHeight\s*:\s*220/.test(nativeDemo);
+  const usesFixedInlineHeight = /const portraitResizeVideoHeight = inline\s*\?\s*220/.test(nativeDemo);
+  assert.ok(usesCompactInlineHeight || usesFixedInlineHeight);
   assert.match(nativeDemo, /portraitResizeVideoHeight \+ portraitResizeDrawerHeight \+ 2/);
 });
 
