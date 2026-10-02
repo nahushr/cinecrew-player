@@ -37,13 +37,14 @@ async function setHostStageBounds(rect) {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
   const bounds = normalizeContainerRect(rect);
   const css = `position:fixed;left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px;overflow:hidden;background:#000;`;
-  await mainWindow.webContents.executeJavaScript(`(() => {
+  const hostRect = await mainWindow.webContents.executeJavaScript(`(() => {
     const stage = document.getElementById('cinecrew-electron-vlc-stage');
     if (!stage) return false;
     stage.style.cssText = ${JSON.stringify(css)};
     const rect = stage.getBoundingClientRect();
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
   })()`);
+  console.info('[cinecrew-vlc] overlay bounds:', bounds, 'host bounds:', hostRect, 'host content:', mainWindow.getContentSize());
 }
 
 function syncControlsWindowBounds() {
@@ -135,6 +136,7 @@ async function mountPlayer(event) {
   });
   playerWindowId = mainWindow.webContents.id;
   await vlcPlayer.embed();
+  console.info('[cinecrew-vlc] native bounds:', vlcPlayer.layout?.lastNativeBounds, 'container:', vlcPlayer.layout?.containerRect);
   bindPlayerEvents();
   return { ok: true };
 }

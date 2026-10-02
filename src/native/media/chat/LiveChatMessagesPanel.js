@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -15,11 +16,8 @@ export function LiveChatPanel({
   styles,
   messagesLoading,
   messages,
-  hasMoreMessages,
   flatListRef,
   renderMessageItem,
-  loadOlderMessages,
-  loadingOlderMessages,
   chatError,
   handleQuickReaction,
   inputText,
@@ -31,6 +29,8 @@ export function LiveChatPanel({
   handleSelectEmoji,
   colors,
   bottomInset = 0,
+  inlinePortraitResize = false,
+  onChatScroll,
 }) {
   return (
     <View style={styles.chatPanelWrap}>
@@ -41,34 +41,45 @@ export function LiveChatPanel({
         </View>
       ) : (
         <>
-          {hasMoreMessages ? (
-            <TouchableOpacity
-              style={styles.loadMoreMessagesButton}
-              onPress={loadOlderMessages}
-              disabled={loadingOlderMessages}
-              accessibilityRole="button"
-              accessibilityLabel="Load more messages"
+          {inlinePortraitResize ? (
+            <ScrollView
+              ref={flatListRef}
+              style={styles.chatFlatList}
+              scrollEnabled
+              nestedScrollEnabled
+              contentContainerStyle={styles.messagesList}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              scrollEventThrottle={16}
+              onScroll={onChatScroll}
             >
-              {loadingOlderMessages ? (
-                <ActivityIndicator size="small" color="#00E5FF" />
-              ) : (
-                <Text style={styles.loadMoreMessagesText}>Load more</Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
-          <FlatList
-            ref={flatListRef}
-            style={styles.chatFlatList}
-            nestedScrollEnabled
-            data={messages}
-            keyExtractor={(item, index) => chatMessageKey(item, index)}
-            renderItem={renderMessageItem}
-            contentContainerStyle={styles.messagesList}
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-            ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
-          />
+              {messages.length > 0
+                ? messages.map((item, index) => (
+                  <View key={chatMessageKey(item, index)}>
+                    {renderMessageItem({ item, index })}
+                  </View>
+                ))
+                : <Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
+            </ScrollView>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              style={styles.chatFlatList}
+              scrollEnabled
+              nestedScrollEnabled
+              data={messages}
+              keyExtractor={(item, index) => chatMessageKey(item, index)}
+              renderItem={renderMessageItem}
+              contentContainerStyle={styles.messagesList}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              scrollEventThrottle={16}
+              onScroll={onChatScroll}
+              ListEmptyComponent={<Text style={styles.epgStatusText}>No messages yet. Start the conversation.</Text>}
+            />
+          )}
         </>
       )}
       {!!chatError && <Text style={styles.chatErrorText}>{chatError}</Text>}

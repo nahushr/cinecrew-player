@@ -30,7 +30,7 @@ function BackButton({ visible, palette, onClose, compact, scale }) {
         styles.backPill,
         compact && styles.compactPill,
         {
-          width: Math.round((compact ? 66 : 76) * buttonBoost),
+          width: Math.round((compact ? 74 : 84) * buttonBoost),
           height: buttonHeight,
           borderRadius: buttonHeight / 2,
         },
@@ -450,6 +450,7 @@ const styles = StyleSheet.create({
   backPill: {
     flexDirection: 'row',
     gap: 6,
+    paddingRight: 8,
   },
   compactPill: {
     width: 30,

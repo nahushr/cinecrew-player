@@ -14,7 +14,7 @@ import VLCPlayer from '../../packages/react-native-vlc-media-player/VLCPlayer.js
 import { PlayerCustomizationProvider, PlayerIcon } from './customization';
 import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
-import { isAndroid, isElectron, isIOS, isWeb } from '../utils/runtimePlatform';
+import { isAndroid, isElectron, isElectronOverlay, isIOS, isWeb } from '../utils/runtimePlatform';
 import { USER_AGENT } from './media/player/playerConstants';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
@@ -25,6 +25,8 @@ import { createFullscreenPlaybackState } from '../utils/fullscreenPlaybackState.
 import { formatProgressBarTime } from '../utils/progressBarTime.js';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { setAndroidImmersiveNavigationBar } from './media/player/androidSystemUi';
+
+let nextInlineSurfaceId = 0;
 
 function getArtwork(channel) {
   return channel?.logoUrl || channel?.logo || channel?.stream_icon || channel?.posterUrl || channel?.image || '';
@@ -56,6 +58,8 @@ function createInlinePlatformPlayer({
   volume,
   title,
   startTime,
+  getContainerBounds,
+  getContainerElement,
   vlcSource,
   onPlaying,
   onError,
@@ -75,7 +79,12 @@ function createInlinePlatformPlayer({
     onError,
     onProgress,
   };
-  if (isElectron()) return React.createElement(ElectronVideoPlayer, { ...commonProps, ref: playerRef });
+  if (isElectron()) return React.createElement(ElectronVideoPlayer, {
+    ...commonProps,
+    getContainerBounds,
+    getContainerElement,
+    ref: playerRef,
+  });
   if (isWeb()) return React.createElement(WebVideoPlayer, { ...commonProps, ref: playerRef, title });
   if (!isAndroid() && !isIOS()) return null;
 
@@ -296,8 +305,10 @@ function InlineLivePlayerSurface({
   drawerStyle,
   currentUser,
   users,
+  playerSurfaceBoundsRef,
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const transparentElectronOverlay = isElectronOverlay();
   const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
   const [fullscreenFrameHeight, setFullscreenFrameHeight] = useState(0);
   const handleInlineFrameLayout = React.useCallback((event) => {
@@ -319,6 +330,7 @@ function InlineLivePlayerSurface({
 
   const inlineVideoHeight = Math.max(80, Number(height) || 220);
   const portraitResize = drawerVisible && drawerMode === 'resize' && windowHeight >= windowWidth;
+  const inlinePortraitResize = portraitResize && !fullscreen;
   const landscapeResize = drawerVisible && drawerMode === 'resize' && windowWidth > windowHeight;
   const fullscreenPortraitVideoHeight = Math.min(
     Math.round(windowHeight * 0.42),
@@ -335,7 +347,7 @@ function InlineLivePlayerSurface({
         return { position: 'absolute', top: 0, left: 0, bottom: 0, width: '70%', height: '100%' };
       }
       if (portraitResize && !isFullscreen) {
-        return { position: 'absolute', top: 0, left: 0, right: 0, height: inlineVideoHeight };
+        return { position: 'relative', width: '100%', height: inlineVideoHeight };
       }
     }
     return StyleSheet.absoluteFillObject;
@@ -382,7 +394,16 @@ function InlineLivePlayerSurface({
     : null;
 
   const renderPlayerStage = (isFullscreen) => React.createElement(View, {
-    style: [videoStageStyle(isFullscreen), { backgroundColor: palette.surfaceColor }],
+    ref: (node) => {
+      if (playerSurfaceBoundsRef?.current) {
+        playerSurfaceBoundsRef.current[isFullscreen ? 'fullscreen' : 'inline'] = node;
+      }
+    },
+    nativeID: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
+    style: [
+      videoStageStyle(isFullscreen),
+      { backgroundColor: transparentElectronOverlay ? 'transparent' : palette.surfaceColor },
+    ],
     onLayout: isFullscreen ? handleFullscreenFrameLayout : handleInlineFrameLayout,
   },
     createInlinePlayerLayer(player, isFullscreen || !fullscreen),
@@ -394,7 +415,7 @@ function InlineLivePlayerSurface({
     volumeControl(showControls && shouldRenderVideo),
   );
 
-  const renderDrawer = (isFullscreen) => drawerVisible ? React.createElement(LiveChatDrawer, {
+  const renderDrawer = (isFullscreen, inlineFlow = false) => drawerVisible ? React.createElement(LiveChatDrawer, {
     videoId: mediaId || title || 'live',
     userId: currentUser?.id || '0',
     username: currentUser?.username || 'Viewer',
@@ -415,20 +436,31 @@ function InlineLivePlayerSurface({
     messagePageSize,
     drawerStyle,
     fullscreen: isFullscreen,
+    inlinePortraitResize: inlineFlow,
+    portraitDrawerHeight: inlineFlow ? inlineResizeDrawerHeight : undefined,
     portraitVideoHeight: drawerMode === 'resize'
       ? (isFullscreen ? fullscreenPortraitVideoHeight : inlineVideoHeight)
       : undefined,
   }) : null;
 
   return React.createElement(View, {
-    style: [styles.frame, { height: fullscreen ? '100%' : inlineFrameTotalHeight, backgroundColor: palette.surfaceColor }, style],
+    style: [
+      styles.frame,
+      inlinePortraitResize && { flexDirection: 'column', justifyContent: 'flex-start' },
+      {
+        height: fullscreen ? '100%' : inlineFrameTotalHeight,
+        backgroundColor: transparentElectronOverlay ? 'transparent' : palette.surfaceColor,
+      },
+      style,
+    ],
   },
       fullscreen ? null : renderPlayerStage(false),
-      // Only wrap with the box-none View when the drawer is actually visible.
-      // An empty absoluteFill View (even with pointerEvents='box-none') still
-      // interferes with Android scroll gesture detection on the parent FlatList,
-      // making the whole home screen unscrollable when no drawer is open.
-      fullscreen ? null : (drawerVisible
+      // Keep the inline portrait resize drawer in normal layout flow below
+      // the video so its message list owns a bounded, independently scrollable
+      // viewport instead of competing through overlapping absolute layers.
+      fullscreen ? null : (inlinePortraitResize
+        ? renderDrawer(false, true)
+        : drawerVisible
         ? React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
             renderDrawer(false))
         : null),
@@ -437,7 +469,9 @@ function InlineLivePlayerSurface({
       animationType: 'none',
       statusBarTranslucent: true,
       onRequestClose: () => changeFullscreenWithPosition(false),
-    }, React.createElement(View, { style: styles.fullscreenFrame },
+    }, React.createElement(View, {
+      style: [styles.fullscreenFrame, transparentElectronOverlay && { backgroundColor: 'transparent' }],
+    },
       renderPlayerStage(true),
       renderDrawer(true))));
 }
@@ -493,6 +527,30 @@ function InlineLivePlayerView({
   const streamUrl = useMemo(() => rawUrl || '', [rawUrl]);
   const requestedStartTime = parsePlaybackStartTime(startTime);
   const playerRef = useRef(null);
+  const playerSurfaceBoundsRef = useRef({ inline: null, fullscreen: null, ids: null });
+  if (!playerSurfaceBoundsRef.current.ids) {
+    const surfaceId = `cinecrew-inline-surface-${nextInlineSurfaceId += 1}`;
+    playerSurfaceBoundsRef.current.ids = {
+      inline: `${surfaceId}-inline`,
+      fullscreen: `${surfaceId}-fullscreen`,
+    };
+  }
+  const fullscreenRef = useRef(fullscreen);
+  fullscreenRef.current = fullscreen;
+  const getPlayerSurfaceElement = useCallback(
+    () => {
+      const surface = fullscreenRef.current ? 'fullscreen' : 'inline';
+      const surfaceId = playerSurfaceBoundsRef.current.ids[surface];
+      const domElement = typeof document !== 'undefined' ? document.getElementById(surfaceId) : null;
+      return domElement || playerSurfaceBoundsRef.current[surface];
+    },
+    [],
+  );
+  const getPlayerSurfaceBounds = useCallback(() => {
+    const rect = getPlayerSurfaceElement()?.getBoundingClientRect?.();
+    if (!rect || rect.width < 64 || rect.height < 64) return null;
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+  }, [getPlayerSurfaceElement]);
   const playbackPositionRef = useRef(requestedStartTime ?? 0);
   const playbackPositionSourceRef = useRef(streamUrl);
   const playbackDurationRef = useRef(0);
@@ -744,6 +802,8 @@ function InlineLivePlayerView({
     title,
     vlcSource,
     startTime: vlcSource.startTime ?? requestedStartTime,
+    getContainerBounds: getPlayerSurfaceBounds,
+    getContainerElement: getPlayerSurfaceElement,
     onPlaying: handlePlaying,
     onProgress: handleProgress,
     onError: handleError,
@@ -850,6 +910,7 @@ function InlineLivePlayerView({
       drawerStyle,
       currentUser: integrations.user,
       users: users || integrations.users,
+      playerSurfaceBoundsRef,
     }),
   );
 }

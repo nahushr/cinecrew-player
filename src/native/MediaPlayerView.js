@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isWeb, isElectron, isElectronOverlay } from '../utils/runtimePlatform';
@@ -1031,13 +1031,14 @@ export const MediaPlayerView = (props) => {
     waitForNativeRecordingFile
   ]);
 
+  const fullscreenActionRef = useRef(null);
   const handleBackAction = useCallback(() => {
     if (isFullscreen) {
-      handleFullscreenAction();
+      fullscreenActionRef.current?.();
       return;
     }
     invokeAction('onBack', undefined, { title, streamUrl, mediaId });
-  }, [isFullscreen, handleFullscreenAction, invokeAction, title, streamUrl, mediaId]);
+  }, [isFullscreen, invokeAction, title, streamUrl, mediaId]);
 
   useEffect(() => {
     if (!visible || isWeb()) return undefined;
@@ -1876,6 +1877,7 @@ export const MediaPlayerView = (props) => {
       )),
     [invokeAction, toggleFullscreen, isFullscreen]
   );
+  fullscreenActionRef.current = handleFullscreenAction;
   const handleRecordingAction = useCallback(
     (name, fallback, event) => {
       event?.stopPropagation?.();
@@ -2386,6 +2388,16 @@ export const MediaPlayerView = (props) => {
   // transport is visible. Its capture phase otherwise steals pause/stop taps
   // from the recording overlay and top-bar controls when normal controls hide.
   const recordingInProgress = recStatus === 'recording' || recStatus === 'paused';
+  // The parent PanResponder intentionally yields while a drawer is open so
+  // its message list can scroll. In resize mode, keep a tap target scoped to
+  // the video frame so a video tap can still reveal controls without stealing
+  // gestures from the adjacent/below drawer.
+  const showResizeVideoTapTarget = !isWeb()
+    && !isElectron()
+    && drawerMode === 'resize'
+    && showLiveChat
+    && !showControls
+    && !isAudioOnly;
   const nativeGestureHandlers = !isWeb() && !isElectron() && !recordingInProgress && panResponder?.panHandlers
     ? panResponder.panHandlers
     : null;
@@ -2452,6 +2464,15 @@ export const MediaPlayerView = (props) => {
             onTouchEnd: handleWebTouchEnd
           }}
         />
+
+        {showResizeVideoTapTarget ? (
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={toggleControls}
+            accessibilityRole="button"
+            accessibilityLabel="Show video controls"
+          />
+        ) : null}
 
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls

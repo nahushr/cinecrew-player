@@ -15,10 +15,26 @@ function getStageBounds(stage) {
   };
 }
 
+function isUsableBounds(bounds) {
+  return Boolean(bounds && bounds.width >= 64 && bounds.height >= 64);
+}
+
 function getPlayerBounds(stage, getContainerBounds) {
-  const bounds = getContainerBounds?.();
-  if (bounds && bounds.width > 1 && bounds.height > 1) return bounds;
-  return getStageBounds(stage);
+  const containerBounds = getContainerBounds?.();
+  if (isUsableBounds(containerBounds)) return containerBounds;
+  const stageBounds = getStageBounds(stage);
+  return isUsableBounds(stageBounds) ? stageBounds : null;
+}
+
+async function waitForPlayerBounds(stage, getContainerBounds, getContainerElement) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const bounds = getPlayerBounds(stage, getContainerBounds);
+    if (bounds) return bounds;
+    const elementBounds = getStageBounds(getContainerElement?.());
+    if (isUsableBounds(elementBounds)) return elementBounds;
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+  return null;
 }
 
 async function unmountBundledVlc(ipc) {
@@ -43,6 +59,7 @@ function getElectronIpcRenderer() {
 export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
   streamUrl,
   getContainerBounds,
+  getContainerElement,
   paused,
   muted,
   volume = 100,
@@ -165,18 +182,24 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       if (layoutFrame !== null) return;
       layoutFrame = requestAnimationFrame(() => {
         layoutFrame = null;
-        ipc.send('cinecrew:vlc:layout', getPlayerBounds(stageRef.current, getContainerBounds));
+        const bounds = getPlayerBounds(stageRef.current, getContainerBounds);
+        if (bounds) ipc.send('cinecrew:vlc:layout', bounds);
       });
     };
 
     ipcRef.current = ipc;
     ipc.on('cinecrew:vlc:event', handleNativeEvent);
-    const mountPromise = ipc.invoke('cinecrew:vlc:mount', {
-      container: `#${PLAYER_STAGE_ID}`,
-      containerRect: getPlayerBounds(stageRef.current, getContainerBounds),
-    }).then((result) => {
+    const mountPromise = waitForPlayerBounds(stageRef.current, getContainerBounds, getContainerElement)
+      .then((containerRect) => {
+        if (!containerRect) throw new Error('Could not measure the Electron inline video surface.');
+        return ipc.invoke('cinecrew:vlc:mount', {
+          container: `#${PLAYER_STAGE_ID}`,
+          containerRect,
+        });
+      }).then((result) => {
       if (!result?.ok) throw new Error(result?.error || 'Could not initialize CineCrew’s bundled VLC player.');
       if (disposed) void unmountBundledVlc(ipc);
+      requestLayoutSync();
       return result;
     }).catch((error) => {
       if (!disposed) {
@@ -190,9 +213,11 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
     window.addEventListener('scroll', requestLayoutSync, true);
     window.addEventListener('resize', requestLayoutSync);
     let resizeObserver = null;
-    if (typeof ResizeObserver !== 'undefined' && stageRef.current) {
+    if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(requestLayoutSync);
-      resizeObserver.observe(stageRef.current);
+      if (stageRef.current) resizeObserver.observe(stageRef.current);
+      const containerElement = getContainerElement?.();
+      if (containerElement && containerElement !== stageRef.current) resizeObserver.observe(containerElement);
     }
 
     return () => {
@@ -206,7 +231,7 @@ export const ElectronVideoPlayer = forwardRef(function ElectronVideoPlayer({
       mountPromiseRef.current = null;
       void unmountBundledVlc(ipc);
     };
-  }, [handleNativeEvent]);
+  }, [getContainerBounds, getContainerElement, handleNativeEvent]);
 
   useEffect(() => {
     let cancelled = false;

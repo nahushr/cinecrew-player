@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { asPlayerSource, sampleSources } from './src/samples.js';
 import { PlayerViewport } from './src/components/PlayerViewport.js';
@@ -119,7 +119,7 @@ export default function App() {
 
   const handleFullscreenChange = useCallback((isFullscreen, payload) => {
     const resumeAt = payload?.startTime ?? payload?.currentTime;
-    // Fullscreen changes the parent from FlatList to View, remounting the
+    // Fullscreen changes the parent from ScrollView to View, remounting the
     // embedded main player too. Supply its current timestamp before that
     // remount, just as we do when promoting the compact inline player.
     if (resumeAt !== undefined && resumeAt !== null) setStartTime(resumeAt);
@@ -309,24 +309,24 @@ export default function App() {
           {pageContent}
         </ScrollView>
       ) : (
-        <FlatList
+        <ScrollView
           ref={scrollViewRef}
           style={[styles.scroll, isImmersive && { height: '100%' }]}
           contentContainerStyle={[pageContentStyle, isImmersive && { flex: 1, height: '100%' }]}
-          data={[]}
-          ListHeaderComponent={pageContent}
           nestedScrollEnabled
-          // The inline player's chat list is nested inside this page list.
-          // Let the native nested-scroll chain route its drags to that child
-          // instead of having this parent JS responder take them first.
+          // Inline drawer lists switch to non-virtualized ScrollViews in this
+          // nested context. Disable this pan responder so the drawer can own
+          // drags while the page remains scrollable elsewhere.
           disableScrollViewPanResponder
           keyboardShouldPersistTaps="handled"
-          // Keep the page scrollable while a drawer is open. Nested scrolling
-          // lets the drawer list consume vertical movement first and the page
-          // take over only when that list reaches its scroll boundary.
+          // Keep both the page and the bounded drawer list scrollable. Android
+          // nested scrolling lets the active list consume movement and hands
+          // it back to the page when the list reaches either edge.
           scrollEnabled={!isImmersive}
           onContentSizeChange={revealLandscapePlayer}
-        />
+        >
+          {pageContent}
+        </ScrollView>
       )}
       <ToastViewport toast={toast} onDismiss={() => setToast(null)} viewportWidth={width} />
       </SafeAreaView>

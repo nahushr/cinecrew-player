@@ -122,20 +122,28 @@ test('native inline player supports the shared drawers without clipping resize m
   assert.match(nativeDemo, /portraitResizeVideoHeight \+ portraitResizeDrawerHeight \+ 2/);
 });
 
-test('native resize drawers retain their own scroll while the demo page stays scrollable', () => {
+test('native resize drawer and demo page support nested scroll handoff', () => {
   const nativeDemo = readFileSync(path.join(root, 'examples/native-demo/App.js'), 'utf8');
   const gestures = readFileSync(path.join(root, 'src/native/media/player/useMediaPlayerGestures.js'), 'utf8');
   const drawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
   const messagesPanel = readFileSync(path.join(root, 'src/native/media/chat/LiveChatMessagesPanel.js'), 'utf8');
   const diagnostics = readFileSync(path.join(root, 'src/native/media/chat/DiagnosticsTab.js'), 'utf8');
 
+  assert.match(nativeDemo, /<ScrollView[\s\S]*?disableScrollViewPanResponder[\s\S]*?scrollEnabled=\{!isImmersive\}/);
+  assert.match(nativeDemo, /disableScrollViewPanResponder/);
   assert.match(nativeDemo, /nestedScrollEnabled/);
   assert.match(nativeDemo, /scrollEnabled=\{!isImmersive\}/);
+  assert.doesNotMatch(nativeDemo, /scrollEnabled=\{[^}]*portraitResizeOpen/);
   assert.doesNotMatch(nativeDemo, /scrollEnabled=\{[^}]*showLiveChat/);
   assert.match(gestures, /onStartShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
   assert.match(gestures, /onMoveShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
   assert.match(drawer, /flex: 1,[\s\S]*?elevation: 0/);
-  assert.match(messagesPanel, /<FlatList[\s\S]*?nestedScrollEnabled/);
+  assert.match(drawer, /inlinePortraitResize[\s\S]*?height: Math\.max\(0, Number\(portraitDrawerHeight\)/);
+  assert.match(readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8'), /renderDrawer\(false, true\)/);
+  assert.match(messagesPanel, /inlinePortraitResize \? \([\s\S]*?<ScrollView[\s\S]*?nestedScrollEnabled[\s\S]*?onScroll=\{onChatScroll\}/);
+  assert.doesNotMatch(messagesPanel, /Load more/);
+  assert.match(messagesPanel, /<FlatList[\s\S]*?scrollEnabled[\s\S]*?nestedScrollEnabled/);
+  assert.match(drawer, /if \(inlinePortraitResize\)[\s\S]*?<ScrollView[\s\S]*?nestedScrollEnabled[\s\S]*?epgListings\.map/);
   assert.match(drawer, /<FlatList[\s\S]*?nestedScrollEnabled[\s\S]*?data=\{epgListings\}/);
   assert.match(diagnostics, /<ScrollView[\s\S]*?nestedScrollEnabled/);
 });
@@ -147,6 +155,8 @@ test('native fullscreen video taps dismiss controls and landscape drawers overla
   assert.match(nativePlayer, /const handleFullscreenTouchEnd = useCallback/);
   assert.match(nativePlayer, /onTouchEnd=\{isFullscreen \? handleFullscreenTouchEnd : undefined\}/);
   assert.match(nativePlayer, /onTouchStart=\{markControlSurfaceTouch\}/);
+  assert.match(nativePlayer, /showResizeVideoTapTarget = !isWeb\(\)[\s\S]*?drawerMode === 'resize'[\s\S]*?showLiveChat[\s\S]*?!showControls/);
+  assert.match(nativePlayer, /showResizeVideoTapTarget \? \([\s\S]*?<Pressable[\s\S]*?onPress=\{toggleControls\}[\s\S]*?accessibilityLabel="Show video controls"/);
   assert.match(nativeDrawer, /fullscreenLandscapeStyle = fullscreenLandscape/);
   assert.match(nativeDrawer, /width: Math\.max\(0, windowWidth - fullscreenLeftInset - fullscreenRightInset\)/);
 });
@@ -284,8 +294,8 @@ test('web player exposes manual chat paging and customizable aspect modes', () =
   assert.match(webEntry, /if \(name === 'onAspectRatioChange'\) callback = callback \|\| props\.onAspectRatioChange/);
   assert.match(webChatPanel, /cinecrew-player__chat-load-more/);
   assert.doesNotMatch(webChatPanel, /onScroll/);
-  assert.match(nativeChatPanel, /Load more/);
-  assert.doesNotMatch(nativeChatPanel, /onScroll/);
+  assert.doesNotMatch(nativeChatPanel, /Load more/);
+  assert.match(nativeChatPanel, /onScroll=\{onChatScroll\}/);
   assert.doesNotMatch(webEntry, /See more messages/);
   assert.doesNotMatch(webEntry, /name: 'videoOnly'/);
   assert.match(webStyles, /cinecrew-player__menu-option\.is-selected/);

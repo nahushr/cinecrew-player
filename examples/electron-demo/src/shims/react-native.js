@@ -5,4 +5,10 @@ export const BackHandler = {
   addEventListener: () => ({ remove() {} }),
   removeEventListener() {},
 };
+export const PermissionsAndroid = {
+  PERMISSIONS: { POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS' },
+  RESULTS: { GRANTED: 'granted' },
+  check: async () => false,
+  request: async () => 'denied',
+};
 export default ReactNativeWeb;

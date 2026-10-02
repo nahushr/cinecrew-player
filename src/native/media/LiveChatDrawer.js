@@ -75,6 +75,8 @@ export const LiveChatDrawer = ({
   messagePageSize = 50,
   drawerStyle,
   portraitVideoHeight: propPortraitVideoHeight,
+  inlinePortraitResize = false,
+  portraitDrawerHeight,
   fullscreen = false,
   landscapeFullWidth = false,
   safeAreaInsets,
@@ -119,9 +121,9 @@ export const LiveChatDrawer = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
-  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [chatError, setChatError] = useState('');
   const flatListRef = useRef(null);
+  const loadingOlderRef = useRef(false);
   const messageOffsetRef = useRef(0);
   const loadedInitialPageRef = useRef(false);
   const scrollChatToEndRef = useRef(false);
@@ -148,7 +150,6 @@ export const LiveChatDrawer = ({
     setMessages([]);
     setHasMoreMessages(false);
     setChatError('');
-    setLoadingOlderMessages(false);
     messageOffsetRef.current = 0;
     loadedInitialPageRef.current = false;
     scrollChatToEndRef.current = true;
@@ -196,8 +197,8 @@ export const LiveChatDrawer = ({
   }, [visible, videoId, chatAvailable, integrations.liveChat, pageSize]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!hasMoreMessages || loadingOlderMessages || !chatAvailable) return;
-    setLoadingOlderMessages(true);
+    if (!hasMoreMessages || loadingOlderRef.current || !chatAvailable) return;
+    loadingOlderRef.current = true;
     setChatError('');
     try {
       const offset = messageOffsetRef.current;
@@ -220,9 +221,15 @@ export const LiveChatDrawer = ({
     } catch (error) {
       setChatError(error?.message || 'Could not load older messages.');
     } finally {
-      setLoadingOlderMessages(false);
+      loadingOlderRef.current = false;
     }
-  }, [hasMoreMessages, loadingOlderMessages, chatAvailable, integrations.liveChat, videoId, pageSize]);
+  }, [hasMoreMessages, chatAvailable, integrations.liveChat, videoId, pageSize]);
+
+  const handleChatScroll = useCallback((event) => {
+    if (scrollChatToEndRef.current) return;
+    const offsetY = Number(event?.nativeEvent?.contentOffset?.y);
+    if (Number.isFinite(offsetY) && offsetY <= 12) void loadOlderMessages();
+  }, [loadOlderMessages]);
 
   const epgStreamId = streamId || videoId;
   const [epgListings, setEpgListings] = useState([]);
@@ -230,6 +237,7 @@ export const LiveChatDrawer = ({
   const [epgError, setEpgError] = useState('');
   const [epgNow, setEpgNow] = useState(() => Date.now());
   const epgListRef = useRef(null);
+  const epgNowOffsetRef = useRef(0);
 
   useEffect(() => {
     if (!visible || !epgAvailable || activeTab !== 'epg') return undefined;
@@ -271,25 +279,23 @@ export const LiveChatDrawer = ({
     const nowIndex = epgListings.findIndex((item) => item.startMs <= Date.now() && Date.now() < item.endMs);
     if (nowIndex < 0) return;
     const timer = setTimeout(() => {
-      epgListRef.current?.scrollToIndex({ index: nowIndex, animated: true, viewPosition: 0.2 });
+      if (inlinePortraitResize) {
+        epgListRef.current?.scrollTo({ y: epgNowOffsetRef.current, animated: true });
+      } else {
+        epgListRef.current?.scrollToIndex({ index: nowIndex, animated: true, viewPosition: 0.2 });
+      }
     }, 80);
     return () => clearTimeout(timer);
-  }, [activeTab, epgListings]);
+  }, [activeTab, epgListings, inlinePortraitResize]);
 
   // Avoid snapping to the bottom when an older page is prepended.
   useEffect(() => {
     if (scrollChatToEndRef.current && messages.length > 0 && flatListRef.current && activeTab === 'chat') {
       const timer = setTimeout(() => {
         const list = flatListRef.current;
-        const scrollView = list?.getNativeScrollRef?.();
-
-        // VirtualizedList warns when scrollToEnd is called without a native
-        // scroll host (for example, while a platform-specific list is mounting).
-        if (typeof scrollView?.scrollTo === 'function') {
-          list.scrollToEnd({ animated: true });
-        }
+        if (typeof list?.scrollToEnd === 'function') list.scrollToEnd({ animated: true });
+        scrollChatToEndRef.current = false;
       }, 80);
-      scrollChatToEndRef.current = false;
 
       return () => clearTimeout(timer);
     }
@@ -386,10 +392,7 @@ export const LiveChatDrawer = ({
       // the same page length after a send, even though the newest row is updated.
       setTimeout(() => {
         const list = flatListRef.current;
-        const scrollView = list?.getNativeScrollRef?.();
-        if (typeof scrollView?.scrollTo === 'function') {
-          list.scrollToEnd({ animated: true });
-        }
+        if (typeof list?.scrollToEnd === 'function') list.scrollToEnd({ animated: true });
       }, 80);
     } catch {
       // Error handled
@@ -545,7 +548,31 @@ export const LiveChatDrawer = ({
     : null;
 
   const portraitResizeStyle = isPortrait && drawerMode === 'resize' && !popupMode
-    ? {
+    ? inlinePortraitResize
+      ? {
+        // Inline portrait resize is laid out after the video, not absolutely
+        // over it. Giving the drawer a concrete height bounds its FlatList so
+        // it can consume vertical drags without stealing page scrolling.
+        position: 'relative',
+        top: undefined,
+        right: undefined,
+        bottom: undefined,
+        left: undefined,
+        width: '100%',
+        maxWidth: '100%',
+        height: Math.max(0, Number(portraitDrawerHeight) || 0),
+        maxHeight: Math.max(0, Number(portraitDrawerHeight) || 0),
+        flex: 0,
+        borderLeftWidth: 0,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.14)',
+        backgroundColor: '#07111E',
+        borderRadius: 0,
+        zIndex: 1,
+        elevation: 0,
+        shadowOpacity: 0,
+      }
+      : {
         position: 'absolute',
         top: portraitVideoHeight,
         bottom: fullscreen ? fullscreenBottomInset : 0,
@@ -655,11 +682,8 @@ export const LiveChatDrawer = ({
           styles,
           messagesLoading,
           messages,
-          hasMoreMessages,
           flatListRef,
           renderMessageItem,
-          loadOlderMessages,
-          loadingOlderMessages,
           chatError,
           handleQuickReaction,
           inputText,
@@ -671,6 +695,8 @@ export const LiveChatDrawer = ({
           handleSelectEmoji,
           colors,
           bottomInset: bottomModal ? fullscreenBottomInset : 0,
+          inlinePortraitResize,
+          onChatScroll: handleChatScroll,
         }}
       />
 
@@ -710,6 +736,32 @@ export const LiveChatDrawer = ({
                 </View>
               );
             }
+            if (inlinePortraitResize) {
+              return (
+                <ScrollView
+                  ref={epgListRef}
+                  nestedScrollEnabled
+                  style={styles.epgFlatList}
+                  contentContainerStyle={styles.epgList}
+                  showsVerticalScrollIndicator
+                >
+                  {epgListings.map((item, index) => {
+                    const isNow = item.startMs <= epgNow && epgNow < item.endMs;
+                    return (
+                      <View
+                        key={`${String(item.id || 'epg')}-${index}`}
+                        onLayout={isNow ? (event) => {
+                          epgNowOffsetRef.current = event.nativeEvent.layout.y;
+                        } : undefined}
+                      >
+                        {renderEpgItem({ item, index })}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              );
+            }
+
             return (
               <FlatList
                 ref={epgListRef}
@@ -953,24 +1005,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'space-between',
   },
-  loadMoreMessagesButton: {
-    minHeight: 30,
-    alignSelf: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    marginTop: 4,
-    marginBottom: 2,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 229, 255, 0.28)',
-  },
-  loadMoreMessagesText: {
-    color: '#00E5FF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   chatFlatList: {
     flex: 1,
     minHeight: 0,
@@ -981,19 +1015,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 6,
     flexGrow: 1,
-  },
-  loadingOlderMessages: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 6,
-  },
-  loadingOlderMessagesText: {
-    color: '#00E5FF',
-    fontSize: 12,
-    fontWeight: '600',
   },
   chatErrorText: {
     color: '#FF7A8A',
