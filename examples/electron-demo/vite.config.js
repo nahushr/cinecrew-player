@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
@@ -7,6 +8,13 @@ import react from '@vitejs/plugin-react';
 
 const demoDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(demoDir, '../..');
+const resolveDemoPackageModule = (packageName) => {
+  const packageDir = path.join(demoDir, 'node_modules', packageName);
+  const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+  const entry = packageJson.module || packageJson.main;
+  return path.resolve(packageDir, entry);
+};
+
 export default defineConfig({
   root: demoDir,
   // React Native libraries (including the player's icon sets) expect Metro's
@@ -59,6 +67,14 @@ export default defineConfig({
       {
         find: /^@cinecrew\/cinecrew-player$/,
         replacement: path.join(repoRoot, 'src/native/index.js'),
+      },
+      {
+        find: /^mediabunny$/,
+        replacement: resolveDemoPackageModule('mediabunny'),
+      },
+      {
+        find: /^@mediabunny\/ac3$/,
+        replacement: resolveDemoPackageModule('@mediabunny/ac3'),
       },
       {
         find: /^react-native$/,
