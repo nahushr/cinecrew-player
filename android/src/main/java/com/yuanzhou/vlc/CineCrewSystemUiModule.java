@@ -28,15 +28,21 @@ public final class CineCrewSystemUiModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void setImmersiveNavigationBar(boolean hidden) {
     Activity activity = getCurrentActivity();
-    if (activity == null) return;
+    if (activity == null) {
+      return;
+    }
 
     activity.runOnUiThread(() -> {
-      if (hidden == immersiveNavigationBar) return;
+      if (hidden == immersiveNavigationBar) {
+        return;
+      }
 
       Window window = activity.getWindow();
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         WindowInsetsController controller = window.getInsetsController();
-        if (controller == null) return;
+        if (controller == null) {
+          return;
+        }
 
         int navigationBars = WindowInsets.Type.navigationBars();
         if (hidden) {
@@ -49,8 +55,11 @@ public final class CineCrewSystemUiModule extends ReactContextBaseJavaModule {
               WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
           controller.hide(navigationBars);
         } else {
-          if (navigationBarWasVisible) controller.show(navigationBars);
-          else controller.hide(navigationBars);
+          if (navigationBarWasVisible) {
+            controller.show(navigationBars);
+          } else {
+            controller.hide(navigationBars);
+          }
           controller.setSystemBarsBehavior(previousSystemBarsBehavior);
         }
       } else {

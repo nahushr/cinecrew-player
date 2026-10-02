@@ -10994,6 +10994,7 @@
             }
             (n.default.install(),
               e.addEventListener("message", function (n) {
+                if (n.origin !== e.location.origin) return;
                 switch (n.data.cmd) {
                   case "init":
                     ((t = new r.default(n.data.param[0], n.data.param[1])).on(
@@ -14853,6 +14854,7 @@
               e.postMessage({ msg: "player_event", event: t, extraData: i });
             }
             e.addEventListener("message", function (r) {
+              if (r.origin !== e.location.origin) return;
               if (!S) {
                 var d = r.data;
                 switch (d.cmd) {
