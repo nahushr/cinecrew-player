@@ -1156,7 +1156,7 @@ function WebPlayerLayout(props) {
   getWebAudioCard(props),
   h('div', { className: 'cinecrew-player__shade' }),
   getWebLoadingNotice(props),
-  getWebControlLayer(props),
+  getWebControlLayer({ ...props, showInteractionControls: revealInteractionControls }),
   h(WebRecordingSaveDialog, { saveDialog: props.recordingSaveDialog, onDismiss: props.onDismissRecordingSave }),
   getWebPanelNode(props));
 }
@@ -2633,7 +2633,6 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     renderBackButton: () => control('back', 'Close player', () => action('onBack', undefined, { title, source: media }), { icon: 'close' }),
     onSwitchToVideo: () => setAudioOnlyMode(false),
     locked,
-    showInteractionControls: revealInteractionControls,
     controlOverrides,
     icons,
     unlockedControls,

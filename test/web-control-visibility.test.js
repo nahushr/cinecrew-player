@@ -15,6 +15,7 @@ test('web player surface clicks toggle controls without intercepting control cli
   assert.match(webEntry, /if \(props\.locked\) return;/);
   assert.match(webEntry, /target\?\.closest\?\.\('button, input, select, textarea, a/);
   assert.match(webEntry, /onFocusCapture: revealInteractionControls/);
+  assert.match(webEntry, /getWebControlLayer\(\{ \.\.\.props, showInteractionControls: revealInteractionControls \}\)/);
 });
 
 test('web controls stay clickable only when visible and the lock remains visible', () => {
