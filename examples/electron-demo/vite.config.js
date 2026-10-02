@@ -8,6 +8,8 @@ import react from '@vitejs/plugin-react';
 
 const demoDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(demoDir, '../..');
+const normalizePath = (value) => value.replace(/\\/g, '/');
+const normalizedRepoRoot = normalizePath(repoRoot);
 const resolveDemoPackageModule = (packageName) => {
   const packageDir = path.join(demoDir, 'node_modules', packageName);
   const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
@@ -29,9 +31,10 @@ export default defineConfig({
       enforce: 'pre',
       async transform(code, id) {
         if (!/\.js(?:\?.*)?$/.test(id)) return null;
-        const sharedDemoSource = !id.includes('/node_modules/')
-          && (id.startsWith(repoRoot) || id.includes('/examples/native-demo/'));
-        const iconSource = /\/node_modules\/(?:@expo\/vector-icons|react-native-vector-icons)\//.test(id);
+        const normalizedId = normalizePath(id);
+        const sharedDemoSource = !normalizedId.includes('/node_modules/')
+          && (normalizedId.startsWith(normalizedRepoRoot) || normalizedId.includes('/examples/native-demo/'));
+        const iconSource = /\/node_modules\/(?:@expo\/vector-icons|react-native-vector-icons)\//.test(normalizedId);
         if (!sharedDemoSource && !iconSource) return null;
         const result = await transformAsync(code, {
           filename: id,
