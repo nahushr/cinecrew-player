@@ -122,6 +122,24 @@ test('native inline player supports the shared drawers without clipping resize m
   assert.match(nativeDemo, /portraitResizeVideoHeight \+ portraitResizeDrawerHeight \+ 2/);
 });
 
+test('native resize drawers retain their own scroll while the demo page stays scrollable', () => {
+  const nativeDemo = readFileSync(path.join(root, 'examples/native-demo/App.js'), 'utf8');
+  const gestures = readFileSync(path.join(root, 'src/native/media/player/useMediaPlayerGestures.js'), 'utf8');
+  const drawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');
+  const messagesPanel = readFileSync(path.join(root, 'src/native/media/chat/LiveChatMessagesPanel.js'), 'utf8');
+  const diagnostics = readFileSync(path.join(root, 'src/native/media/chat/DiagnosticsTab.js'), 'utf8');
+
+  assert.match(nativeDemo, /nestedScrollEnabled/);
+  assert.match(nativeDemo, /scrollEnabled=\{!isImmersive\}/);
+  assert.doesNotMatch(nativeDemo, /scrollEnabled=\{[^}]*showLiveChat/);
+  assert.match(gestures, /onStartShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
+  assert.match(gestures, /onMoveShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
+  assert.match(drawer, /flex: 1,[\s\S]*?elevation: 0/);
+  assert.match(messagesPanel, /<FlatList[\s\S]*?nestedScrollEnabled/);
+  assert.match(drawer, /<FlatList[\s\S]*?nestedScrollEnabled[\s\S]*?data=\{epgListings\}/);
+  assert.match(diagnostics, /<ScrollView[\s\S]*?nestedScrollEnabled/);
+});
+
 test('native fullscreen video taps dismiss controls and landscape drawers overlay full-width video', () => {
   const nativePlayer = readFileSync(path.join(root, 'src/native/MediaPlayerView.js'), 'utf8');
   const nativeDrawer = readFileSync(path.join(root, 'src/native/media/LiveChatDrawer.js'), 'utf8');

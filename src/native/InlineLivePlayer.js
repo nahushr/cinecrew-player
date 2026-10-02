@@ -424,7 +424,14 @@ function InlineLivePlayerSurface({
     style: [styles.frame, { height: fullscreen ? '100%' : inlineFrameTotalHeight, backgroundColor: palette.surfaceColor }, style],
   },
       fullscreen ? null : renderPlayerStage(false),
-      fullscreen ? null : renderDrawer(false),
+      // Only wrap with the box-none View when the drawer is actually visible.
+      // An empty absoluteFill View (even with pointerEvents='box-none') still
+      // interferes with Android scroll gesture detection on the parent FlatList,
+      // making the whole home screen unscrollable when no drawer is open.
+      fullscreen ? null : (drawerVisible
+        ? React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
+            renderDrawer(false))
+        : null),
     React.createElement(Modal, {
       visible: fullscreen,
       animationType: 'none',

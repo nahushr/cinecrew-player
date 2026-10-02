@@ -315,7 +315,15 @@ export default function App() {
           contentContainerStyle={[pageContentStyle, isImmersive && { flex: 1, height: '100%' }]}
           data={[]}
           ListHeaderComponent={pageContent}
+          nestedScrollEnabled
+          // The inline player's chat list is nested inside this page list.
+          // Let the native nested-scroll chain route its drags to that child
+          // instead of having this parent JS responder take them first.
+          disableScrollViewPanResponder
           keyboardShouldPersistTaps="handled"
+          // Keep the page scrollable while a drawer is open. Nested scrolling
+          // lets the drawer list consume vertical movement first and the page
+          // take over only when that list reaches its scroll boundary.
           scrollEnabled={!isImmersive}
           onContentSizeChange={revealLandscapePlayer}
         />

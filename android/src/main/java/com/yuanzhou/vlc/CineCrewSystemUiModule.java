@@ -41,7 +41,8 @@ public final class CineCrewSystemUiModule extends ReactContextBaseJavaModule {
         int navigationBars = WindowInsets.Type.navigationBars();
         if (hidden) {
           if (!immersiveNavigationBar) {
-            navigationBarWasVisible = controller.isVisible(navigationBars);
+            WindowInsets rootInsets = window.getDecorView().getRootWindowInsets();
+            navigationBarWasVisible = rootInsets == null || rootInsets.isVisible(navigationBars);
             previousSystemBarsBehavior = controller.getSystemBarsBehavior();
           }
           controller.setSystemBarsBehavior(

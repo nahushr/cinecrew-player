@@ -130,16 +130,14 @@ export function useMediaPlayerGestures({
       // When a drawer is open, let its FlatList/ScrollView own the gesture;
       // otherwise the parent can claim the touch before a list starts scrolling.
       onStartShouldSetPanResponder: (event) => {
+        // Drawers can cover the full width in portrait resize/modal layouts,
+        // so do not assume they only occupy the rightmost 30% of the player.
+        if (drawerOpenRef.current) return false;
         // The lock button remains available while controls are locked. Never
         // let the video responder claim a touch while the controls are shown,
         // or it can swallow the unlock press (especially in landscape).
         if (showControlsRef.current) return false;
         if (isSeekScrubGesture(event)) return false;
-        if (drawerOpenRef.current) {
-          const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);
-          const width = windowWidthRef.current || 0;
-          if (width > 0 && x > width * 0.7) return false;
-        }
         return true;
       },
       onStartShouldSetPanResponderCapture: (event) => {
@@ -147,18 +145,14 @@ export function useMediaPlayerGestures({
         // the player-level responder gets a chance to reveal auto-hidden
         // controls. Capture only while controls are hidden; when a drawer is
         // open, leave its scrollable/content area entirely to the drawer.
-        if (showControlsRef.current) return false;
         if (drawerOpenRef.current) return false;
+        if (showControlsRef.current) return false;
         return !isSeekScrubGesture(event);
       },
       onMoveShouldSetPanResponder: (event, gestureState) => {
+        if (drawerOpenRef.current) return false;
         if (showControlsRef.current) return false;
         if (isSeekScrubGesture(event)) return false;
-        if (drawerOpenRef.current) {
-          const x = Number(event?.nativeEvent?.pageX ?? event?.nativeEvent?.locationX ?? 0);
-          const width = windowWidthRef.current || 0;
-          if (width > 0 && x > width * 0.7) return false;
-        }
         return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
       },
       onMoveShouldSetPanResponderCapture: () => false,

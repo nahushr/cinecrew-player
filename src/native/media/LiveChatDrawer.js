@@ -555,12 +555,21 @@ export const LiveChatDrawer = ({
         maxWidth: '100%',
         height: undefined,
         maxHeight: undefined,
+        // flex: 1 is critical on Android – KAV does not derive its own height
+        // from top/bottom constraints, so without flex: 1 the inner FlatList
+        // has no bounded height and collapses (scroll breaks).
+        flex: 1,
         borderLeftWidth: 0,
         borderTopWidth: 1,
         borderTopColor: 'rgba(255, 255, 255, 0.14)',
         backgroundColor: '#07111E',
         borderRadius: 0,
         zIndex: 160,
+        // Remove elevation in portrait resize: the frame already clips
+        // overflow and elevation shadow on Android causes the drawer to
+        // intercept taps on the video area directly above it.
+        elevation: 0,
+        shadowOpacity: 0,
       }
     : null;
 
