@@ -465,6 +465,14 @@ function useWebControlLane(controlRef) {
   return safeLane;
 }
 
+function useWebLevelChangeEnd(activeRef, valueRef, onChangeEnd) {
+  return useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    onChangeEnd?.(Math.round(valueRef.current * 100));
+  }, [onChangeEnd]);
+}
+
 function WebBrightnessControl({ brightness, onChange, onChangeEnd, accentColor }) {
   installBrightnessStyles();
   const controlRef = useRef(null);
@@ -472,12 +480,7 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, accentColor }
   const activeRef = useRef(false);
   const safeLane = useWebControlLane(controlRef);
   valueRef.current = brightness;
-
-  const finish = useCallback(() => {
-    if (!activeRef.current) return;
-    activeRef.current = false;
-    onChangeEnd?.(Math.round(valueRef.current * 100));
-  }, [onChangeEnd]);
+  const finish = useWebLevelChangeEnd(activeRef, valueRef, onChangeEnd);
 
   return h('div', {
     ref: controlRef,
@@ -523,12 +526,7 @@ function WebVolumeControl({ volume, onChange, onChangeEnd, accentColor = '#FFE06
   valueRef.current = volume;
   const percent = Math.max(0, Math.min(100, Math.round(volume * 100)));
   const icon = percent === 0 ? 'volume-mute' : percent < 50 ? 'volume-medium' : 'volume-high';
-
-  const finish = useCallback(() => {
-    if (!activeRef.current) return;
-    activeRef.current = false;
-    onChangeEnd?.(Math.round(valueRef.current * 100));
-  }, [onChangeEnd]);
+  const finish = useWebLevelChangeEnd(activeRef, valueRef, onChangeEnd);
 
   return h('div', {
     ref: controlRef,
