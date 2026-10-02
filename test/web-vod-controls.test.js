@@ -12,7 +12,7 @@ test('web VOD center controls provide clamped 10-second skips', () => {
   assert.match(webEntry, /function WebSeekSkipButton\(\{ direction, onSeek \}\)/);
   assert.match(webEntry, /Rewind 10 seconds/);
   assert.match(webEntry, /Forward 10 seconds/);
-  assert.match(webEntry, /seekButtonsVisible = !bottomProps\.isLive[\s\S]*isControlEnabled\(overrides, 'seek', true\)[\s\S]*Number\.isFinite\(bottomProps\.duration\)[\s\S]*bottomProps\.duration > 0/);
+  assert.match(webEntry, /seekButtonsVisible = !bottomProps\.isLive\s*&& isControlEnabled\(overrides, 'seek', true\)/);
   assert.match(webEntry, /const seekBy = useCallback\(\(delta\) => \{[\s\S]*Math\.max\(0, Math\.min\(endTime, baseTime \+ \(Number\(delta\) \|\| 0\)\)\)/);
   assert.match(controlsCss, /\.cinecrew-player__seek-skip[\s\S]*width: 46px[\s\S]*height: 46px/);
 });
@@ -20,6 +20,9 @@ test('web VOD center controls provide clamped 10-second skips', () => {
 test('web duration changes refresh VOD duration and progress bar state', () => {
   assert.match(webEntry, /video\.addEventListener\('durationchange', updateTime\)/);
   assert.match(webEntry, /video\.removeEventListener\('durationchange', updateTime\)/);
+  assert.match(webEntry, /const durationHint = getPositiveDuration\(props\.durationSecs, media\.durationSecs, media\.duration_secs\)/);
+  assert.match(webEntry, /const \[duration, setDuration\] = useState\(durationHint\)/);
+  assert.match(webEntry, /if \(Number\.isFinite\(mediaDuration\) && mediaDuration > 0\) setDuration\(mediaDuration\)/);
   assert.match(webEntry, /duration > 0 && progressBarVisible/);
 });
 

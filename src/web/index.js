@@ -597,9 +597,7 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       const playLabel = paused ? 'Play' : 'Pause';
       const playIcon = paused ? 'play' : 'pause';
       const seekButtonsVisible = !bottomProps.isLive
-        && isControlEnabled(overrides, 'seek', true)
-        && Number.isFinite(bottomProps.duration)
-        && bottomProps.duration > 0;
+        && isControlEnabled(overrides, 'seek', true);
       centerControls = h('div', { className: 'cinecrew-player__center-controls' },
         seekButtonsVisible ? h(WebSeekSkipButton, { direction: 'backward', onSeek: bottomProps.seekBy }) : null,
         renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }),
@@ -1138,6 +1136,14 @@ function getStreamMode({ mpegTs, isFlv, useHls, useDash, useOgv }) {
   if (useDash) return 'dash';
   if (useOgv) return 'ogv';
   return 'native';
+}
+
+function getPositiveDuration(...values) {
+  for (const value of values) {
+    const duration = Number(value);
+    if (Number.isFinite(duration) && duration > 0) return duration;
+  }
+  return 0;
 }
 
 function normalizeTracks(video, suppliedTracks) {
@@ -1754,12 +1760,13 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   const resolution = useResolvedPlayerSource(source, url, resolveSource, getWebRuntimePlatform());
   const media = resolution.source || {};
   const streamUrl = String(media.uri || media.url || '');
+  const durationHint = getPositiveDuration(props.durationSecs, media.durationSecs, media.duration_secs);
   const declaredLive = liveProp ?? media.isLive ?? (media.mediaType === 'live' || media.mediaType === 'channel');
   const mpegTsSource = isMpegTsSource(streamUrl, media.type || media.mimeType || props.type || props.mimeType);
   const mpegTsSourceKey = JSON.stringify([streamUrl, media.type, media.mimeType, props.type, props.mimeType]);
   const [mpegTsEndState, setMpegTsEndState] = useState(null);
   const mpegTsHasKnownEnd = mpegTsEndState?.sourceKey === mpegTsSourceKey && mpegTsEndState.hasKnownEnd;
-  const isLive = declaredLive || (mpegTsSource && !mpegTsHasKnownEnd);
+  const isLive = declaredLive || (mpegTsSource && !mpegTsHasKnownEnd && durationHint <= 0);
   const progressBarVisible = showProgressBar !== false
     && isControlEnabled(controlOverrides, 'seek', true)
     && !isLive;
@@ -1784,7 +1791,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   corsModeRef.current = corsMode;
   const [error, setError] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(durationHint);
   const [showAspectMenu, setShowAspectMenu] = useState(false);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [activePanel, setActivePanel] = useState(null);
@@ -1851,7 +1858,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     setError('');
     setBuffering(Boolean(streamUrl) || resolution.loading);
     setCurrentTime(0);
-    setDuration(0);
+    setDuration(durationHint);
     lastProgressBarSecondRef.current = null;
     setAvailableTracks([]);
     setCorsMode('anonymous');
@@ -1863,7 +1870,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     if (!streamUrl) {
       setBuffering(Boolean(resolution.loading));
     }
-  }, [streamUrl, resolution.loading, resolution.error, handleError]);
+  }, [streamUrl, resolution.loading, resolution.error, handleError, durationHint]);
 
   useEffect(() => {
     if (pausedProp !== undefined) setIsPaused(!!pausedProp);
@@ -2353,17 +2360,19 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       updateMpegTsEndState();
       setCurrentTime(Number(video.currentTime) || 0);
       const mediaDuration = Number(video.duration);
-      if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
+      const hasMediaDuration = Number.isFinite(mediaDuration) && mediaDuration > 0;
+      if (hasMediaDuration) setDuration(mediaDuration);
       const hasFiniteEnd = Number.isFinite(mediaDuration) && mediaDuration > 0;
       if (!mpegTsSource || hasFiniteEnd) {
         emitProgressBarTime(Number(video.currentTime) || 0, progressBarCallback, lastProgressBarSecondRef);
       }
-      onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: (Number(video.duration) || 0) * 1000, target: video.currentTime });
+      const knownDuration = hasMediaDuration ? mediaDuration : durationHint;
+      onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: knownDuration * 1000, target: video.currentTime });
     };
     const onReadyEvent = () => {
       updateMpegTsEndState();
       const mediaDuration = Number(video.duration);
-      if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
+      if (Number.isFinite(mediaDuration) && mediaDuration > 0) setDuration(mediaDuration);
       setBuffering(false);
       updateTracks();
       onReady?.(video);
@@ -2390,7 +2399,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('ended', endedHandler);
     };
-  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType]);
+  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType, durationHint]);
 
   useEffect(() => {
     if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;
