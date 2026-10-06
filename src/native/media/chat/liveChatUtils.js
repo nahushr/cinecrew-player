@@ -15,7 +15,7 @@ export function findUserMetadata(username = '', userId = '', users = []) {
     if (!u) return false;
     const uName = String(u.username || u.name || '').trim().toLowerCase();
     const uId = String(u.id || u.userId || '').trim().toLowerCase();
-    return (cleanId && uId === cleanId) || (cleanUser && uName === cleanUser);
+    return Boolean((cleanId && uId === cleanId) || (cleanUser && uName === cleanUser));
   }) || {};
 }
 

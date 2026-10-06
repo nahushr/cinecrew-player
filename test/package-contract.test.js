@@ -332,7 +332,7 @@ test('web player exposes manual chat paging and customizable aspect modes', () =
   assert.match(webEntry, /status === 'finalizing'\) return \{ finalizing: true/);
   assert.match(webEntry, /cinecrew-player__recording-dialog-backdrop/);
   assert.match(webStyles, /cinecrew-player__recording-progress/);
-  assert.match(nativeEntry, /!recordingInProgress && showControls/);
+  assert.match(nativeEntry, /!fullscreenLayout\.recordingInProgress && showControls/);
   assert.match(nativeEntry, /saveDialog=\{recSaveDialog\}/);
   assert.match(recording, /new MediaRecorder|MediaRecorder/);
   assert.match(recording, /canvas\.captureStream/);

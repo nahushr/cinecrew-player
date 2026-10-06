@@ -251,6 +251,78 @@ function PlayerTopActions({ locked, props }) {
   return <UnlockedTopActions {...props} />;
 }
 
+function PlayerTopBarLayout({
+  topBarStyle,
+  headerRowStyle,
+  topRightActionsStyle,
+  topBarRef,
+  onLayout,
+  onHeaderLayout,
+  backButton,
+  headerTitle,
+  actions,
+  landscapeTitle,
+  portraitTitle,
+}) {
+  return (
+    <View ref={topBarRef} style={topBarStyle} onLayout={onLayout} pointerEvents="box-none">
+      <View
+        style={headerRowStyle}
+        onLayout={onHeaderLayout}
+      >
+        {backButton}
+        {headerTitle}
+        <View style={topRightActionsStyle}>{actions}</View>
+      </View>
+      {landscapeTitle}
+      {portraitTitle}
+    </View>
+  );
+}
+
+function getTopBarStyles({ isPortrait, compact, landscapeTopOffset, electronFullscreen, compactImmersiveAndroid, isFullscreen, insets }) {
+  return [
+    styles.topBar,
+    isPortrait ? styles.portraitTopBar : null,
+    compact ? styles.compactLandscapeTopBar : null,
+    compact ? { top: landscapeTopOffset } : null,
+    {
+      paddingTop: getTopBarPaddingTop({ electronFullscreen, compactImmersiveAndroid, isFullscreen, insets }),
+      paddingHorizontal: getTopBarPaddingHorizontal({ electronFullscreen, isFullscreen, isPortrait, insets, compact }),
+    },
+  ];
+}
+
+function getHeaderRowStyles({ isPortrait, compact, compactAndroidLandscape }) {
+  return [
+    styles.headerRow,
+    isPortrait ? styles.portraitHeaderRow : styles.landscapeHeaderRow,
+    compact ? styles.compactLandscapeHeaderRow : null,
+    compactAndroidLandscape ? styles.compactAndroidLandscapeHeaderRow : null,
+  ];
+}
+
+function getTopRightActionsStyles({ isPortrait, compact, compactAndroidLandscape }) {
+  return [
+    styles.topRightActions,
+    isPortrait ? styles.portraitTopRightActions : null,
+    compact ? styles.compactTopRightActions : null,
+    compactAndroidLandscape ? styles.compactAndroidTopRightActions : null,
+  ];
+}
+
+function getTopBarTitleElements({ locked, isPortrait, shouldShowLandscapeTitle, titleProps, palette, scale }) {
+  return {
+    headerTitle: !locked && (isPortrait || shouldShowLandscapeTitle)
+      ? <PlayerTitle {...titleProps} />
+      : null,
+    landscapeTitle: !locked && shouldShowLandscapeTitle
+      ? <CompactLandscapeTitle compact={titleProps.compact} displayTitle={titleProps.displayTitle} palette={palette} scale={scale} />
+      : null,
+    portraitTitle: !locked ? <PortraitPlayerTitle {...titleProps} /> : null,
+  };
+}
+
 export const PlayerTopBar = ({
   insets,
   scale,
@@ -333,60 +405,34 @@ export const PlayerTopBar = ({
     landscapeTopOffsetRef,
     setLandscapeTopOffset,
   });
-
-  const displayTitle = useMemo(() => {
-    return cleanPlayerTitle(title, episodeLabel, isMobile);
-  }, [title, episodeLabel, isMobile]);
-
+  const displayTitle = useMemo(
+    () => cleanPlayerTitle(title, episodeLabel, isMobile),
+    [title, episodeLabel, isMobile],
+  );
   const showEpisodeSubtitle = useMemo(
     () => shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle),
     [isMobile, episodeLabel, displayTitle],
   );
+  const titleProps = { isPortrait, compact, displayTitle, episodeLabel, showEpisodeSubtitle, palette, scale };
+  const titleElements = getTopBarTitleElements({ locked, isPortrait, shouldShowLandscapeTitle, titleProps, palette, scale });
 
   return (
-    <View
-      style={[
-        styles.topBar,
-        isPortrait && styles.portraitTopBar,
-        compact && styles.compactLandscapeTopBar,
-        compact && { top: landscapeTopOffset },
-        {
-          paddingTop: getTopBarPaddingTop({ electronFullscreen, compactImmersiveAndroid, isFullscreen, insets }),
-          paddingHorizontal: getTopBarPaddingHorizontal({ electronFullscreen, isFullscreen, isPortrait, insets, compact }),
-        },
-      ]}
-      ref={(node) => { topBarRef.current = node; }}
+    <PlayerTopBarLayout
+      topBarRef={(node) => { topBarRef.current = node; }}
+      topBarStyle={getTopBarStyles({ isPortrait, compact, landscapeTopOffset, electronFullscreen, compactImmersiveAndroid, isFullscreen, insets })}
+      headerRowStyle={getHeaderRowStyles({ isPortrait, compact, compactAndroidLandscape })}
+      topRightActionsStyle={getTopRightActionsStyles({ isPortrait, compact, compactAndroidLandscape })}
       onLayout={(event) => {
         alignCompactLandscapeTopBar();
         onPlayerLayout?.(event);
       }}
-      pointerEvents="box-none"
-    >
-      <View
-        style={[
-          styles.headerRow,
-          !isPortrait && styles.landscapeHeaderRow,
-          isPortrait && styles.portraitHeaderRow,
-          compact && styles.compactLandscapeHeaderRow,
-          compactAndroidLandscape && styles.compactAndroidLandscapeHeaderRow,
-        ]}
-        onLayout={onHeaderLayout}
-      >
-        <BackButton visible={!locked && controls.back !== false} palette={palette} onClose={onClose} compact={compact} scale={scale} />
-        {!locked && (isPortrait || shouldShowLandscapeTitle) ? <PlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
-
-        <View style={[
-          styles.topRightActions,
-          isPortrait && styles.portraitTopRightActions,
-          compact && styles.compactTopRightActions,
-          compactAndroidLandscape && styles.compactAndroidTopRightActions,
-        ]}>
-          <PlayerTopActions locked={locked} props={{ ...topActionsProps, onToggleLock, scale, compact }} />
-        </View>
-      </View>
-      {!locked && shouldShowLandscapeTitle ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} scale={scale} /> : null}
-      {!locked ? <PortraitPlayerTitle isPortrait={isPortrait} compact={compact} displayTitle={displayTitle} episodeLabel={episodeLabel} showEpisodeSubtitle={showEpisodeSubtitle} palette={palette} scale={scale} /> : null}
-    </View>
+      onHeaderLayout={onHeaderLayout}
+      backButton={<BackButton visible={!locked && controls.back !== false} palette={palette} onClose={onClose} compact={compact} scale={scale} />}
+      headerTitle={titleElements.headerTitle}
+      actions={<PlayerTopActions locked={locked} props={{ ...topActionsProps, onToggleLock, scale, compact }} />}
+      landscapeTitle={titleElements.landscapeTitle}
+      portraitTitle={titleElements.portraitTitle}
+    />
   );
 };
 

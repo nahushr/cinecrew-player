@@ -2367,6 +2367,7 @@ export const MediaPlayerView = (props) => {
 
   const transparentElectronOverlay = isElectronOverlay();
 
+  const renderActivePlayer = () => {
   if (!visible || !streamUrl) return null;
 
   const videoPlayer = (
@@ -2572,64 +2573,66 @@ export const MediaPlayerView = (props) => {
     handleVideoOnlyAction
   };
 
-  // Keep the player-level PanResponder off the native view while the recording
-  // transport is visible. Its capture phase otherwise steals pause/stop taps
-  // from the recording overlay and top-bar controls when normal controls hide.
-  const recordingInProgress = recStatus === 'recording' || recStatus === 'paused';
-  // The parent PanResponder intentionally yields while a drawer is open so
-  // its message list can scroll. In resize mode, keep a tap target scoped to
-  // the video frame so a video tap can still reveal controls without stealing
-  // gestures from the adjacent/below drawer.
-  const showResizeVideoTapTarget = !isWeb()
-    && !isElectron()
-    && drawerMode === 'resize'
-    && showLiveChat
-    && !showControls
-    && !isAudioOnly;
-  const nativeGestureHandlers = !isWeb() && !isElectron() && !recordingInProgress && panResponder?.panHandlers
-    ? panResponder.panHandlers
-    : null;
-  // Resize mode places the video and drawer side by side in landscape and
-  // stacks them in portrait so the drawer doesn't cover the video.
-  const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat && windowWidth >= windowHeight;
-  // Resize mode stacks the video above the drawer in portrait, including when
-  // the player is fullscreen. Only Overlay and Modal should cover the video.
-  const portraitResizeOpen = drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
-  const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
-  const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
-  const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
-  let mediaFrameStyle = null;
-  if (resizeDrawerOpen) {
-    mediaFrameStyle = { right: 'auto', width: '70%' };
-  } else if (portraitResizeOpen) {
-    mediaFrameStyle = {
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 'auto',
-      height: portraitVideoHeight,
-      width: '100%',
+  const getFullscreenLayout = () => {
+    // Keep the player-level PanResponder off the native view while recording;
+    // otherwise it steals taps from the recording and top-bar controls.
+    const recordingInProgress = recStatus === 'recording' || recStatus === 'paused';
+    const showResizeVideoTapTarget = !isWeb()
+      && !isElectron()
+      && drawerMode === 'resize'
+      && showLiveChat
+      && !showControls
+      && !isAudioOnly;
+    const nativeGestureHandlers = !isWeb() && !isElectron() && !recordingInProgress && panResponder?.panHandlers
+      ? panResponder.panHandlers
+      : null;
+    // Resize mode puts the drawer beside the video in landscape and below it
+    // in portrait so it does not cover the video.
+    const resizeDrawerOpen = drawerMode === 'resize' && showLiveChat && windowWidth >= windowHeight;
+    const portraitResizeOpen = drawerMode === 'resize' && showLiveChat && windowWidth < windowHeight;
+    const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
+    const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
+    const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
+    let mediaFrameStyle = null;
+    if (resizeDrawerOpen) {
+      mediaFrameStyle = { right: 'auto', width: '70%' };
+    } else if (portraitResizeOpen) {
+      mediaFrameStyle = {
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 'auto',
+        height: portraitVideoHeight,
+        width: '100%',
+      };
+    }
+    return {
+      recordingInProgress,
+      showResizeVideoTapTarget,
+      nativeGestureHandlers,
+      portraitResizeOpen,
+      portraitVideoHeight,
+      portraitResizeContainerHeight,
+      mediaFrameStyle,
+      hideSysUI: isHorizontalFullscreen,
     };
-  }
-  // Landscape orientation alone must not turn an embedded player into a
-  // screen-sized surface or hide system UI. The host controls inline bounds;
-  // the fullscreen Modal handles edge-to-edge playback separately.
-  const hideSysUI = isHorizontalFullscreen;
+  };
+  const fullscreenLayout = getFullscreenLayout();
 
-  const fullscreenContent = (
+  const renderFullscreenContent = () => (
     <View
       ref={handlePlayerHostRef}
       collapsable={false}
       style={[styles.fullscreenPlayerContainer, transparentElectronOverlay && { backgroundColor: 'transparent' }, !isWeb() && !isFullscreen && styles.boundedInlinePlayerContent]}
-      {...(nativeGestureHandlers || {})}
+      {...(fullscreenLayout.nativeGestureHandlers || {})}
     >
-      <StatusBar hidden={hideSysUI} translucent={hideSysUI} backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar hidden={fullscreenLayout.hideSysUI} translucent={fullscreenLayout.hideSysUI} backgroundColor="transparent" barStyle="light-content" />
 
       <View
         ref={mediaFrameRef}
         nativeID="cinecrew-electron-player-media-frame"
         collapsable={false}
-        style={[styles.mediaFrame, mediaFrameStyle]}
+        style={[styles.mediaFrame, fullscreenLayout.mediaFrameStyle]}
         onLayout={handleMediaFrameLayout}
         onTouchStartCapture={isFullscreen ? handleFullscreenTouchStartCapture : undefined}
         onTouchEnd={isFullscreen ? handleFullscreenTouchEnd : undefined}
@@ -2655,7 +2658,7 @@ export const MediaPlayerView = (props) => {
           }}
         />
 
-        {showResizeVideoTapTarget ? (
+        {fullscreenLayout.showResizeVideoTapTarget ? (
           <Pressable
             style={StyleSheet.absoluteFillObject}
             onPress={toggleControls}
@@ -2667,7 +2670,7 @@ export const MediaPlayerView = (props) => {
         {/* Do not leave an empty elevated native view over VLC's TextureView.
             Android can retain translucent composition tiles after the controls
             are hidden if the elevated overlay remains mounted. */}
-        {!recordingInProgress && showControls && !isAudioOnly && !(drawerMode === 'overlay' && showLiveChat) && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
+        {!fullscreenLayout.recordingInProgress && showControls && !isAudioOnly && !(drawerMode === 'overlay' && showLiveChat) && mediaFrameSize.width > 0 && mediaFrameSize.height > 0 ? (
           <View style={styles.controlsShell} pointerEvents="box-none" onTouchStart={markControlSurfaceTouch}>
             <FullscreenControlsPanel {...fullscreenControlsProps} frameSize={mediaFrameSize} />
           </View>
@@ -2721,7 +2724,7 @@ export const MediaPlayerView = (props) => {
         landscapeFullWidth={landscapeFullWidth}
         drawerTab={drawerTab}
         drawerMode={drawerMode}
-        portraitVideoHeight={portraitVideoHeight}
+        portraitVideoHeight={fullscreenLayout.portraitVideoHeight}
         playbackUrl={playbackUrl}
         streamUrl={streamUrl}
         isLive={isLive}
@@ -2736,6 +2739,9 @@ export const MediaPlayerView = (props) => {
       />
     </View>
   );
+
+  const renderPlayerHost = () => {
+  const fullscreenContent = renderFullscreenContent();
 
   if (isElectron()) {
     return (
@@ -2806,8 +2812,8 @@ export const MediaPlayerView = (props) => {
         collapsable={false}
         style={[
           styles.inlinePlayerContainer,
-          portraitResizeOpen
-            ? { height: portraitResizeContainerHeight, aspectRatio: undefined }
+          fullscreenLayout.portraitResizeOpen
+            ? { height: fullscreenLayout.portraitResizeContainerHeight, aspectRatio: undefined }
             : [styles.inlineAspectRatio, landscapeInlineStyle],
           transparentElectronOverlay && { backgroundColor: 'transparent' },
           style,
@@ -2823,4 +2829,10 @@ export const MediaPlayerView = (props) => {
       {fullscreenContent}
     </View>
   );
+  };
+
+  return renderPlayerHost();
+  };
+
+  return <>{renderActivePlayer()}</>;
 };

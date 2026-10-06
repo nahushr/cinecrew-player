@@ -295,6 +295,13 @@ class ReactVlcPlayerView extends TextureView
         long currentTime = 0;
         long totalLength = 0;
 
+        private String getRecordingEventPath(boolean recording, String pathForEvent) {
+          if (recording) {
+            return pathForEvent;
+          }
+          return findCompletedRecordingPath(pathForEvent);
+        }
+
         @Override
         public void onEvent(MediaPlayer.Event event) {
           if (mMediaPlayer == null) {
@@ -756,13 +763,6 @@ class ReactVlcPlayerView extends TextureView
       return 0;
     }
     return source.getDouble(SOURCE_KEY_START_TIME);
-  }
-
-  private String getRecordingEventPath(boolean recording, String pathForEvent) {
-    if (recording) {
-      return pathForEvent;
-    }
-    return findCompletedRecordingPath(pathForEvent);
   }
 
   /**

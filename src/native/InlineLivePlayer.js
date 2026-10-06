@@ -423,12 +423,7 @@ function InlineLivePlayerSurface({
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const transparentElectronOverlay = isElectronOverlay();
-  const [inlineFrameHeight, setInlineFrameHeight] = useState(0);
   const [fullscreenFrameHeight, setFullscreenFrameHeight] = useState(0);
-  const handleInlineFrameLayout = React.useCallback((event) => {
-    const nextHeight = event?.nativeEvent?.layout?.height || 0;
-    setInlineFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
-  }, []);
   const handleFullscreenFrameLayout = React.useCallback((event) => {
     const { height: nextHeight = 0 } = event?.nativeEvent?.layout || {};
     setFullscreenFrameHeight((current) => Math.abs(current - nextHeight) > 1 ? nextHeight : current);
@@ -452,8 +447,6 @@ function InlineLivePlayerSurface({
   }, [fullscreen, windowWidth, windowHeight]);
 
   const {
-    inlineVideoHeight,
-    portraitResize,
     inlinePortraitResize,
     inlineResizeDrawerHeight,
     drawerPortraitVideoHeight,
@@ -511,7 +504,6 @@ function InlineLivePlayerSurface({
       ],
       onLayout: (event) => {
         if (isFullscreen) handleFullscreenFrameLayout(event);
-        else handleInlineFrameLayout(event);
         if (isElectron()) playerRef.current?.syncLayout?.();
       },
     },

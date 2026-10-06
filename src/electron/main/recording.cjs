@@ -32,25 +32,25 @@ async function pipeRecordingSegments(segments, output, index = 0) {
   return pipeRecordingSegments(segments, output, index + 1);
 }
 
+async function mergeSegments(recording) {
+  const outputPath = recording.finalPath;
+  const output = nodeFs.createWriteStream(outputPath);
+  try {
+    await pipeRecordingSegments(recording.segments, output);
+    output.end();
+    await once(output, 'finish');
+  } catch (error) {
+    output.destroy();
+    throw error;
+  } finally {
+    if (!output.closed) output.destroy();
+  }
+  await Promise.all(recording.segments.map((segment) => fs.unlink(segment).catch(() => {})));
+  return waitForRecordingFile(outputPath);
+}
+
 function createVlcRecordingController({ app, getPlayer, sendEvent }) {
   let activeRecording = null;
-
-  async function mergeSegments(recording) {
-    const outputPath = recording.finalPath;
-    const output = nodeFs.createWriteStream(outputPath);
-    try {
-      await pipeRecordingSegments(recording.segments, output);
-      output.end();
-      await once(output, 'finish');
-    } catch (error) {
-      output.destroy();
-      throw error;
-    } finally {
-      if (!output.closed) output.destroy();
-    }
-    await Promise.all(recording.segments.map((segment) => fs.unlink(segment).catch(() => {})));
-    return waitForRecordingFile(outputPath);
-  }
 
   async function writeSegment(recording) {
     const player = getPlayer();
@@ -118,7 +118,7 @@ function createVlcRecordingController({ app, getPlayer, sendEvent }) {
 
   async function resume() {
     const recording = activeRecording;
-    if (!recording || !recording.paused) throw new Error('There is no paused recording to resume.');
+    if (!recording?.paused) throw new Error('There is no paused recording to resume.');
     return writeSegment(recording);
   }
 
