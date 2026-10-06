@@ -229,16 +229,12 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          npm install --package-lock-only --ignore-scripts --save-exact --prefer-online \
-            --cache="$RUNNER_TEMP/npm-release-cache" --prefix examples/native-demo \
-            "@cinecrew/cinecrew-player@$VERSION" --registry=https://registry.npmjs.org
-
           for demo in examples/web-demo examples/expo-web-demo examples/native-demo examples/electron-demo; do
             updated=false
             for attempt in $(seq 1 12); do
-              if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
+              if npm install --package-lock-only --ignore-scripts --save-exact --prefer-online \
                 --cache="$RUNNER_TEMP/npm-release-cache" --prefix "$demo" \
-                @cinecrew/cinecrew-player --registry=https://registry.npmjs.org; then
+                "@cinecrew/cinecrew-player@$VERSION" --registry=https://registry.npmjs.org; then
                 updated=true
                 break
               fi
