@@ -9,7 +9,7 @@ export function parsePlaybackStartTime(value) {
   if (typeof value !== 'string') return null;
 
   const trimmed = value.trim();
-  const matchHms = trimmed.match(/^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/);
+  const matchHms = /^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/.exec(trimmed);
   if (matchHms) {
     const hours = Number(matchHms[1]);
     const minutes = Number(matchHms[2]);
@@ -18,7 +18,7 @@ export function parsePlaybackStartTime(value) {
     return Number.isFinite(totalSeconds) ? totalSeconds : null;
   }
 
-  const matchMs = trimmed.match(/^([0-5]?\d):([0-5]\d(?:\.\d+)?)$/);
+  const matchMs = /^([0-5]?\d):([0-5]\d(?:\.\d+)?)$/.exec(trimmed);
   if (matchMs) {
     const minutes = Number(matchMs[1]);
     const seconds = Number(matchMs[2]);

@@ -264,16 +264,23 @@ function WebAspectRatioMenu({ open, theme, icons, onToggle, onSelect, ratios, se
 
 function WebAudioTrackMenu({ open, tracks, selectedTrackId, theme, icons, onToggle, onSelect }) {
   let menu = null;
+  const trackOptions = tracks.map((track, index) => {
+    const selected = String(track.id) === String(selectedTrackId);
+    const className = selected
+      ? 'cinecrew-player__menu-option is-selected'
+      : 'cinecrew-player__menu-option';
+    return h('button', {
+      key: track.id ?? index,
+      type: 'button',
+      className,
+      'aria-pressed': selected,
+      onClick: () => onSelect(track.id),
+    }, track.name || track.language || `Track ${index + 1}`);
+  });
   if (open) {
     menu = h('div', { className: 'cinecrew-player__menu' },
-      tracks.length
-        ? tracks.map((track, index) => h('button', {
-          key: track.id ?? index,
-          type: 'button',
-          className: String(track.id) === String(selectedTrackId) ? 'cinecrew-player__menu-option is-selected' : 'cinecrew-player__menu-option',
-          'aria-pressed': String(track.id) === String(selectedTrackId),
-          onClick: () => onSelect(track.id),
-        }, track.name || track.language || `Track ${index + 1}`))
+      trackOptions.length > 0
+        ? trackOptions
         : h('div', { className: 'cinecrew-player__menu-empty', role: 'status' }, 'No audio tracks available'));
   }
   return h('div', { className: 'cinecrew-player__menu-wrap', key: 'audioTracks' },
@@ -386,7 +393,7 @@ function getRecordingOverlayContent({ status, elapsed, error, downloadLink, onPa
 }
 
 function WebRecordingOverlay(props) {
-  const { status, error, theme, onDismiss } = props;
+  const { status, error, onDismiss } = props;
   if (status === 'idle' && !error) return null;
   installRecordingStyles();
   const dismissButton = error
@@ -473,6 +480,23 @@ function useWebLevelChangeEnd(activeRef, valueRef, onChangeEnd) {
   }, [onChangeEnd]);
 }
 
+function getWebControlLaneStyle(safeLane) {
+  if (!safeLane) return {};
+  if (safeLane.hidden) return { display: 'none' };
+  return { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' };
+}
+
+function getWebVolumeIcon(percent) {
+  if (percent === 0) return 'volume-mute';
+  return percent < 50 ? 'volume-medium' : 'volume-high';
+}
+
+function getWebPlaybackPosition(videoRef, currentTime) {
+  const videoTime = videoRef.current?.currentTime;
+  if (Number.isFinite(videoTime)) return videoTime;
+  return typeof currentTime === 'number' ? currentTime : 0;
+}
+
 function WebBrightnessControl({ brightness, onChange, onChangeEnd, accentColor }) {
   installBrightnessStyles();
   const controlRef = useRef(null);
@@ -486,7 +510,7 @@ function WebBrightnessControl({ brightness, onChange, onChangeEnd, accentColor }
     ref: controlRef,
     className: 'cinecrew-player__brightness-control',
     style: {
-      ...(safeLane?.hidden ? { display: 'none' } : safeLane ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' } : {}),
+      ...getWebControlLaneStyle(safeLane),
       '--cinecrew-brightness-accent': accentColor || '#00D4FF',
     },
   },
@@ -525,14 +549,14 @@ function WebVolumeControl({ volume, onChange, onChangeEnd, accentColor = '#FFE06
   const safeLane = useWebControlLane(controlRef);
   valueRef.current = volume;
   const percent = Math.max(0, Math.min(100, Math.round(volume * 100)));
-  const icon = percent === 0 ? 'volume-mute' : percent < 50 ? 'volume-medium' : 'volume-high';
+  const icon = getWebVolumeIcon(percent);
   const finish = useWebLevelChangeEnd(activeRef, valueRef, onChangeEnd);
 
   return h('div', {
     ref: controlRef,
     className: 'cinecrew-player__volume-control',
     style: {
-      ...(safeLane?.hidden ? { display: 'none' } : safeLane ? { top: safeLane.top, height: safeLane.height, bottom: 'auto', transform: 'none' } : {}),
+      ...getWebControlLaneStyle(safeLane),
       '--cinecrew-volume-accent': accentColor,
     },
   },
@@ -563,14 +587,17 @@ function WebVolumeControl({ volume, onChange, onChangeEnd, accentColor = '#FFE06
     h('span', { className: 'cinecrew-player__volume-value', 'aria-live': 'off' }, `${percent}%`));
 }
 
-function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title, inlinePreview, showLiveBadge, togglePlay, bottomProps, showBrightnessControl, brightness, onBrightnessChange, onBrightnessChangeEnd, brightnessAccentColor, showVolumeControl, volume, onVolumeChange, onVolumeChangeEnd, volumeAccentColor }) {
-  installControlsStyles();
-  const compactInline = inlinePreview && !bottomProps.fullscreen;
-  if (!locked && bottomProps.recordingStatus === 'finalizing') return null;
-  if (!locked && (bottomProps.recordingStatus === 'recording' || bottomProps.recordingStatus === 'paused')) {
-    return h('div', { className: 'cinecrew-player__controls is-recording' },
+function getWebRecordingState({ locked, bottomProps, theme }) {
+  const status = bottomProps.recordingStatus;
+  if (locked) return { finalizing: false, activeOverlay: null };
+  if (status === 'finalizing') return { finalizing: true, activeOverlay: null };
+  if (status !== 'recording' && status !== 'paused') return { finalizing: false, activeOverlay: null };
+
+  return {
+    finalizing: false,
+    activeOverlay: h('div', { className: 'cinecrew-player__controls is-recording' },
       h(WebRecordingOverlay, {
-        status: bottomProps.recordingStatus,
+        status,
         elapsed: bottomProps.recordingElapsed,
         error: bottomProps.recordingError,
         theme,
@@ -578,60 +605,108 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
         onResume: bottomProps.resumeRecording,
         onStop: bottomProps.stopRecording,
         onDismiss: bottomProps.clearRecordingError,
-      }));
+      })),
+  };
+}
+
+function getWebControlColumns({ compactInline, locked, unlockedControls, toggleLock, overrides, icons, theme }) {
+  const leftControls = locked || compactInline ? null : unlockedControls.left;
+  if (locked && !compactInline) {
+    return {
+      leftControls,
+      rightControls: renderControlButton({
+        name: 'lock', label: 'Unlock controls', callback: toggleLock,
+        options: { active: true, defaultVisible: true }, overrides, icons, theme,
+      }),
+    };
   }
-  let leftControls = locked || compactInline ? null : unlockedControls.left;
-  let rightControls = compactInline
+  const rightControls = compactInline
     ? unlockedControls.right.filter((controlElement) => controlElement?.key === 'mute')
     : unlockedControls.right;
-  if (locked && !compactInline) {
-    rightControls = renderControlButton({
-      name: 'lock', label: 'Unlock controls', callback: toggleLock,
-      options: { active: true, defaultVisible: true }, overrides, icons, theme,
-    });
-  }
-  let centerControls = null;
-  let bottomControls = null;
-  if (!locked) {
-    if (!buffering && bottomProps.recordingStatus === 'idle') {
-      const playLabel = paused ? 'Play' : 'Pause';
-      const playIcon = paused ? 'play' : 'pause';
-      const seekButtonsVisible = !bottomProps.isLive
-        && isControlEnabled(overrides, 'seek', true);
-      centerControls = h('div', { className: 'cinecrew-player__center-controls' },
-        seekButtonsVisible ? h(WebSeekSkipButton, { direction: 'backward', onSeek: bottomProps.seekBy }) : null,
-        renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }),
-        seekButtonsVisible ? h(WebSeekSkipButton, { direction: 'forward', onSeek: bottomProps.seekBy }) : null);
-    }
-    bottomControls = h(WebBottomControls, bottomProps);
-  }
+  return { leftControls, rightControls };
+}
+
+function WebLiveBadge({ visible }) {
+  if (!visible) return null;
+  return h('span', {
+    className: 'cinecrew-player__inline-live-badge',
+    role: 'status',
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '5px 9px',
+      borderRadius: 999,
+      background: 'rgba(183, 40, 47, 0.92)',
+      color: '#FFF',
+      fontSize: 10,
+      fontWeight: 800,
+      letterSpacing: '0.5px',
+      lineHeight: 1,
+    },
+  },
+  h('span', { 'aria-hidden': true, style: { width: 7, height: 7, borderRadius: '50%', background: '#FFF' } }),
+  'LIVE');
+}
+
+function WebTopControls({ locked, compactInline, showLiveBadge, leftControls, inlinePreview, title, rightControls }) {
+  return h('div', { className: 'cinecrew-player__top-controls' },
+    h('div', { className: 'cinecrew-player__top-left-actions' },
+      h(WebLiveBadge, { visible: compactInline && showLiveBadge }),
+      leftControls),
+    !locked && !inlinePreview && title ? h('div', { className: 'cinecrew-player__title', title }, title) : null,
+    h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls));
+}
+
+function WebCenterControls({ locked, buffering, bottomProps, paused, togglePlay, overrides, icons, theme }) {
+  if (locked || buffering || bottomProps.recordingStatus !== 'idle') return null;
+  const playLabel = paused ? 'Play' : 'Pause';
+  const playIcon = paused ? 'play' : 'pause';
+  const showSeekButtons = !bottomProps.isLive && isControlEnabled(overrides, 'seek', true);
+  return h('div', { className: 'cinecrew-player__center-controls' },
+    showSeekButtons ? h(WebSeekSkipButton, { direction: 'backward', onSeek: bottomProps.seekBy }) : null,
+    renderControlButton({ name: 'playPause', label: playLabel, callback: togglePlay, options: { icon: playIcon }, overrides, icons, theme }),
+    showSeekButtons ? h(WebSeekSkipButton, { direction: 'forward', onSeek: bottomProps.seekBy }) : null);
+}
+
+function WebVerticalControls({ locked, compactInline, props }) {
+  if (locked || compactInline) return null;
+  const brightness = props.showBrightnessControl
+    ? h(WebBrightnessControl, {
+      brightness: props.brightness,
+      onChange: props.onBrightnessChange,
+      onChangeEnd: props.onBrightnessChangeEnd,
+      accentColor: props.brightnessAccentColor,
+    })
+    : null;
+  const volume = props.showVolumeControl
+    ? h(WebVolumeControl, {
+      volume: props.volume,
+      onChange: props.onVolumeChange,
+      onChangeEnd: props.onVolumeChangeEnd,
+      accentColor: props.volumeAccentColor,
+      icons: props.icons,
+    })
+    : null;
+  return h(React.Fragment, null, brightness, volume);
+}
+
+function WebPlayerControls(props) {
+  installControlsStyles();
+  const { locked, buffering, overrides, theme, icons, unlockedControls, toggleLock, paused, title,
+    inlinePreview, showLiveBadge, togglePlay, bottomProps } = props;
+  const compactInline = inlinePreview && !bottomProps.fullscreen;
+  const recordingState = getWebRecordingState({ locked, bottomProps, theme });
+  if (recordingState.finalizing) return null;
+  if (recordingState.activeOverlay) return recordingState.activeOverlay;
+
+  const { leftControls, rightControls } = getWebControlColumns({
+    compactInline, locked, unlockedControls, toggleLock, overrides, icons, theme,
+  });
   const recordingUiVisible = !locked && (bottomProps.recordingStatus !== 'idle' || Boolean(bottomProps.recordingError));
   return h('div', { className: `cinecrew-player__controls${recordingUiVisible ? ' is-recording' : ''}` },
-    h('div', { className: 'cinecrew-player__top-controls' },
-      h('div', { className: 'cinecrew-player__top-left-actions' },
-        compactInline && showLiveBadge ? h('span', {
-          className: 'cinecrew-player__inline-live-badge',
-          role: 'status',
-          style: {
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '5px 9px',
-            borderRadius: 999,
-            background: 'rgba(183, 40, 47, 0.92)',
-            color: '#FFF',
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: '0.5px',
-            lineHeight: 1,
-          },
-        },
-        h('span', { 'aria-hidden': true, style: { width: 7, height: 7, borderRadius: '50%', background: '#FFF' } }),
-        'LIVE') : null,
-        leftControls),
-      !locked && !inlinePreview && title ? h('div', { className: 'cinecrew-player__title', title }, title) : null,
-      h('div', { className: 'cinecrew-player__top-right-actions' }, rightControls)),
-    centerControls,
+    h(WebTopControls, { locked, compactInline, showLiveBadge, leftControls, inlinePreview, title, rightControls }),
+    h(WebCenterControls, { locked, buffering, bottomProps, paused, togglePlay, overrides, icons, theme }),
     h(WebRecordingOverlay, {
       status: locked ? 'idle' : bottomProps.recordingStatus,
       elapsed: bottomProps.recordingElapsed,
@@ -644,20 +719,8 @@ function WebPlayerControls({ locked, buffering, overrides, theme, icons, unlocke
       onDownload: bottomProps.downloadRecording,
       onDismiss: bottomProps.clearRecordingError,
     }),
-    bottomControls,
-    !locked && !compactInline && showBrightnessControl ? h(WebBrightnessControl, {
-      brightness,
-      onChange: onBrightnessChange,
-      onChangeEnd: onBrightnessChangeEnd,
-      accentColor: brightnessAccentColor,
-    }) : null,
-    !locked && !compactInline && showVolumeControl ? h(WebVolumeControl, {
-      volume,
-      onChange: onVolumeChange,
-      onChangeEnd: onVolumeChangeEnd,
-      accentColor: volumeAccentColor,
-      icons,
-    }) : null);
+    !locked ? h(WebBottomControls, bottomProps) : null,
+    h(WebVerticalControls, { locked, compactInline, props }));
 }
 
 function getDrawerResizedVideoStyle(drawerResize, videoStyle) {
@@ -1344,7 +1407,7 @@ function getUserInitial(username = '') {
 }
 
 function findUserMetadata(username = '', userId = '', users = []) {
-  if (!Array.isArray(users) || users.length === 0) return null;
+  if (!Array.isArray(users) || users.length === 0) return {};
   const cleanUser = String(username || '').trim().toLowerCase();
   const cleanId = String(userId || '').trim().toLowerCase();
   return users.find((u) => {
@@ -1352,7 +1415,7 @@ function findUserMetadata(username = '', userId = '', users = []) {
     const uName = String(u.username || u.name || '').trim().toLowerCase();
     const uId = String(u.id || u.userId || '').trim().toLowerCase();
     return (cleanId && uId === cleanId) || (cleanUser && uName === cleanUser);
-  }) || null;
+  }) || {};
 }
 
 function resolveUserAvatar(author = {}, users = []) {
@@ -1704,14 +1767,14 @@ function WebIntegrationPanel({ kind, integration, integrations, users: usersProp
   h('header', { className: 'cinecrew-player__panel-heading' },
     h('strong', null, isChat ? 'Live chat' : `${title || 'Channel'} · EPG`),
     h('button', { type: 'button', onClick: onClose, 'aria-label': 'Close panel' }, '×')),
-  isChat && hasMoreMessages ? h('button', {
+  isChat && hasMoreMessages && h('button', {
     type: 'button',
     className: 'cinecrew-player__chat-load-more',
     onClick: () => { void loadOlderMessages(); },
     disabled: loadingOlder,
     'aria-busy': loadingOlder,
     'aria-label': loadingOlder ? 'Loading older messages' : 'Load more messages',
-  }, loadingOlder ? 'Loading…' : 'Load more') : null,
+    }, loadingOlder ? 'Loading…' : 'Load more'),
   loading ? h('div', { className: 'cinecrew-player__panel-state' }, 'Loading…') : null,
   error ? h('div', { className: 'cinecrew-player__panel-state is-error', role: 'status' }, error) : null,
   !loading && !error && rows.length === 0 ? h('div', { className: 'cinecrew-player__panel-state' }, emptyStateMessage) : null,
@@ -2457,9 +2520,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       const isNowFullscreen = document.fullscreenElement === playerRef.current;
       setFullscreen(isNowFullscreen);
       if (!isNowFullscreen && typeof actions.onFullscreen === 'function') {
-        const currentPos = Number.isFinite(videoRef.current?.currentTime)
-          ? videoRef.current.currentTime
-          : (typeof currentTime === 'number' ? currentTime : 0);
+        const currentPos = getWebPlaybackPosition(videoRef, currentTime);
         actions.onFullscreen({
           isFullscreen: false,
           currentTime: currentPos,
@@ -2474,9 +2535,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   }, [actions, currentTime]);
 
   const toggleFullscreen = () => {
-    const currentPos = Number.isFinite(videoRef.current?.currentTime)
-      ? videoRef.current.currentTime
-      : (typeof currentTime === 'number' ? currentTime : 0);
+    const currentPos = getWebPlaybackPosition(videoRef, currentTime);
     return action(
       'onFullscreen',
       () => toggleBrowserFullscreen(playerRef.current),

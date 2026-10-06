@@ -13,6 +13,28 @@ import { CenterControls } from './CenterControls';
 import { PlayerBottomBar } from './PlayerBottomBar';
 import { VerticalBrightnessControl } from './VerticalBrightnessControl';
 import { VerticalVolumeControl } from './VerticalVolumeControl';
+
+function getFallbackTopInset(compact, isPortrait, insets) {
+  if (compact) return 38;
+  if (isPortrait) return Math.max(insets?.top || 0, 24) + 44;
+  return 44;
+}
+
+function getBottomInset(bounds, frame, compact, isPortrait, insets) {
+  if (bounds.bottomHeight > 0) {
+    if (bounds.bottom > 0 && frame.height > 0) return Math.max(0, frame.height - bounds.bottom);
+    return bounds.bottomHeight;
+  }
+  if (compact) return 70;
+  if (isPortrait) return Math.max(insets?.bottom || 0, 16) + 104;
+  return 76;
+}
+
+function getFullscreenSideInset(isFullscreen, isPortrait, insets, compact, isElectron) {
+  if (isFullscreen && isElectron) return 8;
+  if (isFullscreen || !isPortrait) return Math.max(insets?.left || 0, insets?.right || 0, 20);
+  return compact ? 4 : 10;
+}
 import { AudioOnlyView } from './AudioOnlyView';
 import { LiveChatDrawer } from '../LiveChatDrawer';
 import { LiveRecordingOverlay, LiveRecordingNotice, RecordingSaveDialog } from '../LiveRecordingOverlay';
@@ -76,6 +98,133 @@ export function FullscreenGestureLayer({
   );
 }
 
+function FullscreenPanelHeader({ props, isPortrait, compact, onTopBarLayout, onHeaderLayout }) {
+  return (
+    <PlayerTopBar
+      insets={props.insets}
+      scale={props.scale}
+      title={props.title}
+      episodeLabel={props.episodeLabel}
+      isLive={props.isLive}
+      isFullscreen={props.isFullscreen}
+      isScreenRecorderEnabled={props.isScreenRecorderEnabled}
+      canRecord={props.canRecord}
+      recStatus={props.recStatus}
+      isLoading={props.isLoading}
+      showLiveChat={props.showLiveChat}
+      drawerTab={props.drawerTab}
+      isLiveCommentsEnabled={props.isLiveCommentsEnabled}
+      isEpgEnabled={props.isEpgEnabled}
+      diagnosticsOverlayEnabled={props.diagnosticsOverlayEnabled}
+      muted={props.muted}
+      controls={props.controls}
+      locked={props.isLocked}
+      playerIsPortrait={isPortrait}
+      compact={compact}
+      isPlaying={props.isPlaying}
+      paused={props.paused ?? !props.isPlaying}
+      onClose={props.onClose}
+      onStartRecording={(event) => props.handleRecordingAction('onRecordingStart', props.handleStartRecording, event)}
+      onResumeRecording={(event) => props.handleRecordingAction('onRecordingResume', props.handleResumeRecording, event)}
+      onPauseRecording={(event) => props.handleRecordingAction('onRecordingPause', props.handlePauseRecording, event)}
+      onStopRecording={(event) => props.handleRecordingAction('onRecordingStop', props.handleStopRecording, event)}
+      onToggleChatTab={props.handlePanelAction}
+      onRestart={props.handleRestartAction}
+      onToggleMute={props.handleMuteAction}
+      onToggleLock={props.handleLockAction}
+      onPlayerLayout={onTopBarLayout}
+      onHeaderLayout={onHeaderLayout}
+    />
+  );
+}
+
+function FullscreenPanelPlaybackControls({ props, compact, onBottomBarLayout }) {
+  if (props.isLocked) return null;
+  return (
+    <>
+      <CenterControls
+        compact={compact}
+        visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
+        isLive={props.isLive}
+        showSeekButtons={isElectron() && !props.isLive && Number(props.duration) > 0}
+        isPlaying={props.isPlaying}
+        onSeekBy={props.handleSeekByAction}
+        onTogglePlayPause={props.handlePlayPauseAction}
+        scale={props.scale}
+      />
+      <PlayerBottomBar
+        compact={compact}
+        isLive={props.isLive}
+        insets={props.insets}
+        scale={props.scale}
+        isSeeking={props.isSeeking}
+        sliderPos={props.sliderPos}
+        currentTime={props.currentTime}
+        duration={props.duration}
+        isAudioOnlyFeatureEnabled={props.isAudioOnlyFeatureEnabled}
+        isAudioOnly={props.isAudioOnly}
+        aspectRatios={props.aspectRatios}
+        controls={props.controls}
+        showAspectPicker={props.showAspectPicker}
+        aspectRatio={props.aspectRatio}
+        showSpeedPicker={props.showSpeedPicker}
+        playbackRate={props.playbackRate}
+        showAudioPicker={props.showAudioPicker}
+        audioTracks={props.audioTracks}
+        selectedAudioTrack={props.selectedAudioTrack}
+        isFullscreen={props.isFullscreen}
+        onSliderValueChange={props.onSliderValueChange}
+        onSliderSlidingStart={props.onSliderSlidingStart}
+        onSliderSlidingComplete={props.onSliderSlidingComplete}
+        onToggleAudioOnly={props.onToggleAudioOnly}
+        onToggleAspectPicker={props.onToggleAspectPicker}
+        onSelectAspectRatio={props.onSelectAspectRatio}
+        onToggleSpeedPicker={props.onToggleSpeedPicker}
+        onSelectSpeed={props.handleSpeedSelect}
+        onToggleAudioPicker={props.onToggleAudioPicker}
+        onSelectAudioTrack={props.handleAudioTrackAction}
+        onToggleFullscreen={props.handleFullscreenAction}
+        onPlayerLayout={onBottomBarLayout}
+      />
+    </>
+  );
+}
+
+function FullscreenPanelAdjustments({ props, compact, frame, topInset, bottomInset, sideInset, isPortrait }) {
+  return (
+    <>
+      {props.showBrightnessControl && !props.isLocked && (
+        <VerticalBrightnessControl
+          compact={compact}
+          value={props.brightness}
+          onChange={props.onBrightnessChange}
+          onChangeEnd={props.onBrightnessChangeEnd}
+          accentColor={props.brightnessAccentColor}
+          availableHeight={frame.height}
+          fullscreenLandscape={props.isFullscreen && !isPortrait}
+          topInset={topInset}
+          bottomInset={bottomInset}
+          leftInset={sideInset}
+        />
+      )}
+      {props.showVolumeControl && !props.isLocked && (
+        <VerticalVolumeControl
+          compact={compact}
+          value={props.volume}
+          onChange={props.onVolumeChange}
+          onChangeEnd={props.onVolumeChangeEnd}
+          accentColor={props.volumeAccentColor || props.brightnessAccentColor}
+          availableHeight={frame.height}
+          fullscreenLandscape={props.isFullscreen && !isPortrait}
+          topInset={topInset}
+          bottomInset={bottomInset}
+          rightInset={sideInset}
+        />
+      )}
+    </>
+  );
+}
+
 export function FullscreenControlsPanel(props) {
   const [controlBounds, setControlBounds] = useState({
     topBarY: 0,
@@ -111,152 +260,61 @@ export function FullscreenControlsPanel(props) {
     ? controlBounds.topBarY + controlBounds.headerY + controlBounds.headerHeight
     : 0;
 
-  const topInset = headerBottom > 0
-    ? headerBottom
-    : (compact ? 38 : isPortrait ? Math.max(props.insets?.top || 0, 24) + 44 : 44);
-
-  const bottomInset = controlBounds.bottomHeight > 0
-    ? (controlBounds.bottom > 0 && frame.height > 0
-        ? Math.max(0, frame.height - controlBounds.bottom)
-        : controlBounds.bottomHeight)
-    : (compact ? 70 : isPortrait ? Math.max(props.insets?.bottom || 0, 16) + 104 : 76);
-
+  const topInset = headerBottom > 0 ? headerBottom : getFallbackTopInset(compact, isPortrait, props.insets);
+  const bottomInset = getBottomInset(controlBounds, frame, compact, isPortrait, props.insets);
+  const sideInset = getFullscreenSideInset(props.isFullscreen, isPortrait, props.insets, compact, isElectronOverlay());
   return (
     <View
       style={styles.controlsPanel}
       pointerEvents="box-none"
     >
-      <PlayerTopBar
-        insets={props.insets}
-        scale={props.scale}
-        title={props.title}
-        episodeLabel={props.episodeLabel}
-        isLive={props.isLive}
-        isFullscreen={props.isFullscreen}
-        isScreenRecorderEnabled={props.isScreenRecorderEnabled}
-        canRecord={props.canRecord}
-        recStatus={props.recStatus}
-        isLoading={props.isLoading}
-        showLiveChat={props.showLiveChat}
-        drawerTab={props.drawerTab}
-        isLiveCommentsEnabled={props.isLiveCommentsEnabled}
-        isEpgEnabled={props.isEpgEnabled}
-        diagnosticsOverlayEnabled={props.diagnosticsOverlayEnabled}
-        muted={props.muted}
-        controls={props.controls}
-        locked={props.isLocked}
-        playerIsPortrait={isPortrait}
+      <FullscreenPanelHeader
+        props={props}
+        isPortrait={isPortrait}
         compact={compact}
-        isPlaying={props.isPlaying}
-        paused={props.paused ?? !props.isPlaying}
-        onClose={props.onClose}
-        onStartRecording={(event) => props.handleRecordingAction('onRecordingStart', props.handleStartRecording, event)}
-        onResumeRecording={(event) => props.handleRecordingAction('onRecordingResume', props.handleResumeRecording, event)}
-        onPauseRecording={(event) => props.handleRecordingAction('onRecordingPause', props.handlePauseRecording, event)}
-        onStopRecording={(event) => props.handleRecordingAction('onRecordingStop', props.handleStopRecording, event)}
-        onToggleChatTab={props.handlePanelAction}
-        onRestart={props.handleRestartAction}
-        onToggleMute={props.handleMuteAction}
-        onToggleLock={props.handleLockAction}
-        onPlayerLayout={onTopBarLayout}
+        onTopBarLayout={onTopBarLayout}
         onHeaderLayout={onHeaderLayout}
       />
-      {!props.isLocked ? <CenterControls
+      <FullscreenPanelPlaybackControls props={props} compact={compact} onBottomBarLayout={onBottomBarLayout} />
+      <FullscreenPanelAdjustments
+        props={props}
         compact={compact}
-        visible={!props.isAudioOnly && !props.isLoading && props.controls.playPause !== false}
-        isLive={props.isLive}
-        showSeekButtons={isElectron() && !props.isLive && Number(props.duration) > 0}
-        isPlaying={props.isPlaying}
-        onSeekBy={props.handleSeekByAction}
-        onTogglePlayPause={props.handlePlayPauseAction}
-        scale={props.scale}
-      /> : null}
-      {!props.isLocked ? <PlayerBottomBar
-        compact={compact}
-        isLive={props.isLive}
-        insets={props.insets}
-        scale={props.scale}
-        isSeeking={props.isSeeking}
-        sliderPos={props.sliderPos}
-        currentTime={props.currentTime}
-        duration={props.duration}
-        isAudioOnlyFeatureEnabled={props.isAudioOnlyFeatureEnabled}
-        isAudioOnly={props.isAudioOnly}
-        aspectRatios={props.aspectRatios}
-        controls={props.controls}
-        showAspectPicker={props.showAspectPicker}
-        aspectRatio={props.aspectRatio}
-        showSpeedPicker={props.showSpeedPicker}
-        playbackRate={props.playbackRate}
-        showAudioPicker={props.showAudioPicker}
-        audioTracks={props.audioTracks}
-        selectedAudioTrack={props.selectedAudioTrack}
-        isFullscreen={props.isFullscreen}
-        onSliderValueChange={props.onSliderValueChange}
-        onSliderSlidingStart={props.onSliderSlidingStart}
-        onSliderSlidingComplete={props.onSliderSlidingComplete}
-        onToggleAudioOnly={props.onToggleAudioOnly}
-        onToggleAspectPicker={props.onToggleAspectPicker}
-        onSelectAspectRatio={props.onSelectAspectRatio}
-        onToggleSpeedPicker={props.onToggleSpeedPicker}
-        onSelectSpeed={props.handleSpeedSelect}
-        onToggleAudioPicker={props.onToggleAudioPicker}
-        onSelectAudioTrack={props.handleAudioTrackAction}
-        onToggleFullscreen={props.handleFullscreenAction}
-        onPlayerLayout={onBottomBarLayout}
-      /> : null}
-      {props.showBrightnessControl && !props.isLocked ? (
-        <VerticalBrightnessControl
-          compact={compact}
-          value={props.brightness}
-          onChange={props.onBrightnessChange}
-          onChangeEnd={props.onBrightnessChangeEnd}
-          accentColor={props.brightnessAccentColor}
-          availableHeight={frame.height}
-          fullscreenLandscape={props.isFullscreen && !isPortrait}
-          topInset={topInset}
-          bottomInset={bottomInset}
-          leftInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}
-        />
-      ) : null}
-      {props.showVolumeControl && !props.isLocked ? (
-        <VerticalVolumeControl
-          compact={compact}
-          value={props.volume}
-          onChange={props.onVolumeChange}
-          onChangeEnd={props.onVolumeChangeEnd}
-          accentColor={props.volumeAccentColor || props.brightnessAccentColor}
-          availableHeight={frame.height}
-          fullscreenLandscape={props.isFullscreen && !isPortrait}
-          topInset={topInset}
-          bottomInset={bottomInset}
-          rightInset={props.isFullscreen && isElectronOverlay() ? 8 : (props.isFullscreen || !isPortrait) ? Math.max(props.insets?.left || 0, props.insets?.right || 0, 20) : (compact ? 4 : 10)}
-        />
-      ) : null}
+        frame={frame}
+        topInset={topInset}
+        bottomInset={bottomInset}
+        sideInset={sideInset}
+        isPortrait={isPortrait}
+      />
     </View>
   );
 }
 
 export function FullscreenVisualFeedback({ isAudioOnly, brightness, zoomBadgeText, seekRipple }) {
+  const showBrightnessOverlay = !isAudioOnly && brightness < 1;
+  const showZoomBadge = Boolean(zoomBadgeText) && !isAudioOnly;
+  const showSeekRipple = Boolean(seekRipple) && !isAudioOnly;
+  const rippleOnLeft = seekRipple?.side === 'left';
+  const ripplePositionStyle = rippleOnLeft ? styles.seekRippleLeft : styles.seekRippleRight;
+  const rippleIcon = rippleOnLeft ? 'rewind-10' : 'fast-forward-10';
   return (
     <>
-      {!isAudioOnly && brightness < 1 ? (
+      {showBrightnessOverlay && (
         <View
           style={[styles.brightnessDimOverlay, { opacity: 1 - brightness }]}
           pointerEvents="none"
         />
-      ) : null}
-      {zoomBadgeText && !isAudioOnly ? (
+      )}
+      {showZoomBadge && (
         <View style={styles.zoomBadge} pointerEvents="none"><Text style={styles.zoomBadgeText}>{zoomBadgeText}</Text></View>
-      ) : null}
-      {seekRipple && !isAudioOnly ? (
-        <View style={[styles.seekRippleOverlay, seekRipple.side === 'left' ? styles.seekRippleLeft : styles.seekRippleRight]} pointerEvents="none">
+      )}
+      {showSeekRipple && (
+        <View style={[styles.seekRippleOverlay, ripplePositionStyle]} pointerEvents="none">
           <View style={styles.seekRippleCircle}>
-            <PlayerIcon name={seekRipple.side === 'left' ? 'rewind-10' : 'fast-forward-10'} size={48} color="#FFFFFF" />
+            <PlayerIcon name={rippleIcon} size={48} color="#FFFFFF" />
             <Text style={styles.seekRippleText}>{seekRipple.text}</Text>
           </View>
         </View>
-      ) : null}
+      )}
     </>
   );
 }

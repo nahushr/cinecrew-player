@@ -192,49 +192,67 @@ public class ReactVlcPlayerViewManager extends SimpleViewManager<ReactVlcPlayerV
   public void receiveCommand(ReactVlcPlayerView root, int commandId, @Nullable ReadableArray args) {
     switch (commandId) {
       case 1:
-      {
-        String path = args != null && args.size() > 0 && !args.isNull(0)
-            ? args.getString(0)
-            : null;
-        root.startRecording(path);
+        handleStartRecording(root, args);
         break;
-      }
-
       case 2:
         root.stopRecording();
         break;
-
       case 3:
-        if (args != null && args.size() > 0 && !args.isNull(0)) {
-          String path = args.getString(0);
-          root.doSnapshot(path);
-        }
+        handleSnapshot(root, args);
         break;
-
       case 4:
         root.restartPlayback();
         break;
-
       case 5:
-        if (args != null && args.size() > 0 && !args.isNull(0)) {
-          boolean muted = args.getBoolean(0);
-          int volume = args.size() > 1 && !args.isNull(1) ? args.getInt(1) : 100;
-          root.setAudioState(muted, volume);
-        }
+        handleAudioState(root, args);
         break;
-
       case 6:
-        root.mergeRecordingSegments(args != null && args.size() > 0 && !args.isNull(0) ? args.getArray(0) : null);
+        handleMergeRecording(root, args);
         break;
-
       case 7:
-        if (args != null && args.size() > 0 && !args.isNull(0)) {
-          root.seekTo(args.getDouble(0));
-        }
+        handleSeekTo(root, args);
         break;
-
       default:
         break;
     }
+  }
+
+  private void handleStartRecording(ReactVlcPlayerView root, @Nullable ReadableArray args) {
+    root.startRecording(readFirstString(args));
+  }
+
+  private void handleSnapshot(ReactVlcPlayerView root, @Nullable ReadableArray args) {
+    String path = readFirstString(args);
+    if (path != null) {
+      root.doSnapshot(path);
+    }
+  }
+
+  private void handleAudioState(ReactVlcPlayerView root, @Nullable ReadableArray args) {
+    if (!hasFirstArgument(args)) {
+      return;
+    }
+    boolean muted = args.getBoolean(0);
+    int volume = args.size() > 1 && !args.isNull(1) ? args.getInt(1) : 100;
+    root.setAudioState(muted, volume);
+  }
+
+  private void handleMergeRecording(ReactVlcPlayerView root, @Nullable ReadableArray args) {
+    ReadableArray paths = hasFirstArgument(args) ? args.getArray(0) : null;
+    root.mergeRecordingSegments(paths);
+  }
+
+  private void handleSeekTo(ReactVlcPlayerView root, @Nullable ReadableArray args) {
+    if (hasFirstArgument(args)) {
+      root.seekTo(args.getDouble(0));
+    }
+  }
+
+  private boolean hasFirstArgument(@Nullable ReadableArray args) {
+    return args != null && args.size() > 0 && !args.isNull(0);
+  }
+
+  private String readFirstString(@Nullable ReadableArray args) {
+    return hasFirstArgument(args) ? args.getString(0) : null;
   }
 }

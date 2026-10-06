@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, TouchableOpacity, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { View, Pressable, Alert, StatusBar, useWindowDimensions, BackHandler, Modal, StyleSheet, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import { LiveChatDrawer } from './media/LiveChatDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isWeb, isElectron, isElectronOverlay } from '../utils/runtimePlatform';
@@ -14,7 +14,6 @@ import { isMpegTsSource } from '../utils/sourceUtils.js';
 import { setAndroidImmersiveNavigationBar } from './media/player/androidSystemUi';
 import {
   USER_AGENT,
-  ASPECT_OPTIONS,
   calculateScreenAspectRatio,
   applyTrackDefaults,
   VLC_AVAILABLE,
@@ -30,7 +29,6 @@ import {
   DEFAULT_ASPECT_RATIO,
   getPanelActionName,
   normalizeProgressEvent,
-  applyPendingSeek,
   applyProgressState,
   useMediaPlayerGestures,
   isUsableInlinePreviewRect,
@@ -45,6 +43,301 @@ import {
   FullscreenChatLayer,
   FullscreenRecordingLayer
 } from './media/player';
+
+function formatRecordingFileSize(bytes) {
+  if (bytes <= 0) return 'size unavailable';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getNativePlaybackStartPosition({
+  activeSource,
+  streamUrl,
+  fullscreenTarget,
+  hasStartedPlayback,
+  lastKnownTime,
+  requestedStartTime,
+}) {
+  if (activeSource !== streamUrl) return requestedStartTime;
+  if (fullscreenTarget !== null && fullscreenTarget !== undefined) return fullscreenTarget;
+  if (hasStartedPlayback) return lastKnownTime;
+  return requestedStartTime;
+}
+
+function getBrowserFullscreenElement(documentObject) {
+  return documentObject.fullscreenElement
+    || documentObject.webkitFullscreenElement
+    || documentObject.mozFullScreenElement
+    || documentObject.msFullscreenElement;
+}
+
+function requestBrowserFullscreen(node) {
+  if (node.requestFullscreen) node.requestFullscreen().catch(() => {});
+  else if (node.webkitRequestFullscreen) node.webkitRequestFullscreen();
+  else if (node.mozRequestFullScreen) node.mozRequestFullScreen();
+  else if (node.msRequestFullscreen) node.msRequestFullscreen();
+}
+
+function toggleBrowserFullscreen(node, exitFullscreen) {
+  if (!node) return false;
+  if (getBrowserFullscreenElement(document)) exitFullscreen();
+  else requestBrowserFullscreen(node);
+  return true;
+}
+
+function restoreNativeFullscreenPosition({
+  fullscreenSeekRestoreRef,
+  lastKnownTimeRef,
+  requestedStartTime,
+  setCurrentTime,
+  setSliderPos,
+  seekCompletedAt,
+}) {
+  const position = Number(fullscreenSeekRestoreRef.current?.target ?? lastKnownTimeRef.current ?? requestedStartTime ?? 0);
+  if (!Number.isFinite(position) || position <= 0) return;
+  fullscreenSeekRestoreRef.current = { target: position, lastAttemptAt: 0, expiresAt: Date.now() + 8000 };
+  lastKnownTimeRef.current = position;
+  setCurrentTime(position);
+  setSliderPos(position);
+  seekCompletedAt.current = Date.now();
+}
+
+function setNativeFullscreenSystemUi(next, windowWidth, windowHeight) {
+  const immersiveLandscape = next && windowWidth >= windowHeight;
+  StatusBar.setTranslucent(immersiveLandscape);
+  StatusBar.setHidden(immersiveLandscape, 'none');
+  if (Platform.OS !== 'android') return;
+  try {
+    NativeModules.StatusBarManager?.setStyle?.('dark-content');
+  } catch (_) {
+    // Some Android versions do not expose a status-bar style manager.
+  }
+}
+
+async function stopRecordingForClose({
+  recording,
+  recordingStatus,
+  playerApiRef,
+  waitForNativeRecordingFile,
+  clearRecordingTimer,
+  setRecStatus,
+  setRecElapsedMs,
+}) {
+  if (recording?.isActive?.()) {
+    try {
+      const result = await recording.stop?.();
+      if (result?.filename) Alert.alert('Recording saved', result.filename);
+    } catch (error) {
+      Alert.alert('Recording', error?.message || 'Could not save the recording.');
+    }
+    return;
+  }
+  if (recordingStatus === 'idle') return;
+  try {
+    if (isElectron()) {
+      const result = await playerApiRef?.current?.stopNativeRecording?.();
+      if (result?.filename) Alert.alert('Recording saved', result.filename);
+    } else {
+      const completedFile = waitForNativeRecordingFile();
+      const accepted = await playerApiRef?.current?.stopNativeRecording?.();
+      if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
+      const path = await completedFile;
+      Alert.alert('Recording saved', String(path).split(/[\\/]/).pop());
+    }
+  } catch (error) {
+    Alert.alert('Recording', error?.message || 'Could not save the recording.');
+  }
+  clearRecordingTimer();
+  setRecStatus('idle');
+  setRecElapsedMs(0);
+}
+
+async function finalizeNativeRecordingSegments({
+  playerApiRef,
+  recStatusRef,
+  nativeRecordingSegmentsRef,
+  waitForNativeRecordingFile,
+  waitForNativeRecordingMerge,
+  stopState,
+}) {
+  const segments = nativeRecordingSegmentsRef.current.slice();
+  if (recStatusRef.current === 'recording') {
+    const completedFile = waitForNativeRecordingFile();
+    const accepted = await playerApiRef?.current?.stopNativeRecording?.();
+    if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
+    stopState.nativeStopAccepted = true;
+    const file = await completedFile;
+    if (!file?.path) throw new Error('VLC did not return the completed recording segment.');
+    segments.push(file);
+  }
+  if (!segments.length) throw new Error('No recording segments were saved.');
+  const completedFile = waitForNativeRecordingMerge();
+  const accepted = await playerApiRef?.current?.mergeNativeRecordingSegments?.(
+    segments.map((segment) => segment.path),
+  );
+  if (accepted === false || accepted == null) throw new Error('VLC could not assemble the recording segments.');
+  const file = await completedFile;
+  return {
+    ...file,
+    filename: file.filename || String(file.path).split(/[\\/]/).pop(),
+    platform: 'native',
+  };
+}
+
+async function finalizeRecording({
+  recording,
+  playerApiRef,
+  recStatusRef,
+  nativeRecordingSegmentsRef,
+  waitForNativeRecordingFile,
+  waitForNativeRecordingMerge,
+  stopState,
+}) {
+  if (recording?.stop) return recording.stop();
+  if (isElectron()) {
+    const result = await playerApiRef?.current?.stopNativeRecording?.();
+    if (result === false || !result?.path) throw new Error('LibVLC could not finalize the recording file.');
+    return result;
+  }
+  return finalizeNativeRecordingSegments({
+    playerApiRef,
+    recStatusRef,
+    nativeRecordingSegmentsRef,
+    waitForNativeRecordingFile,
+    waitForNativeRecordingMerge,
+    stopState,
+  });
+}
+
+function getRecordingSaveMessage(result, notificationPosted, notificationPermissionGranted) {
+  const size = formatRecordingFileSize(Number(result.size) || 0);
+  const location = result.location || result.path || 'the app recording folder';
+  let message;
+  if (result.platform === 'web' && result.saveMethod === 'share') {
+    message = `Recording saved: ${result.filename} · ${size} · Share sheet opened`;
+  } else if (result.platform === 'web' && result.saveMethod === 'open') {
+    message = `Recording saved: ${result.filename} · ${size} · Use Share to save it on this iPad`;
+  } else if (result.platform === 'web') {
+    message = `Recording saved: ${result.filename} · ${size}`;
+  } else {
+    message = `Recording saved: ${result.filename} · ${size} · ${location}`;
+  }
+  if (result.platform === 'native' && Platform.OS === 'android' && !notificationPosted) {
+    message += notificationPermissionGranted
+      ? ' · Android could not show the download notification'
+      : ' · Enable notifications to see it in the notification shade';
+  }
+  return message;
+}
+
+function updateMpegTsEndState({ isMpegTs, progress, durationSecs, sourceKey, currentState, setState }) {
+  if (!isMpegTs || !progress) return;
+  const progressDuration = Number(progress.durationMs);
+  const hasKnownEnd = (Number.isFinite(progressDuration) && progressDuration > 0)
+    || Number(durationSecs) > 0
+    || (currentState?.sourceKey === sourceKey && currentState.hasKnownEnd);
+  setState((previous) => {
+    if (previous?.sourceKey === sourceKey && previous.hasKnownEnd === hasKnownEnd) return previous;
+    return { sourceKey, hasKnownEnd };
+  });
+}
+
+function completeFullscreenSeekRestore({
+  observedTime,
+  fullscreenSeekRestoreRef,
+  requestedStartTimeAppliedRef,
+  lastKnownTimeRef,
+  setCurrentTime,
+  setSliderPos,
+}) {
+  fullscreenSeekRestoreRef.current = null;
+  requestedStartTimeAppliedRef.current = true;
+  lastKnownTimeRef.current = observedTime;
+  setCurrentTime(observedTime);
+  setSliderPos(observedTime);
+}
+
+function retryFullscreenSeekRestore({
+  fullscreenRestore,
+  audioOffsetSeconds,
+  lastKnownDurRef,
+  vlcRef,
+  lastKnownTimeRef,
+  setCurrentTime,
+  setSliderPos,
+  seekCompletedAt,
+}) {
+  const now = Date.now();
+  const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffsetSeconds);
+  const playerTarget = Math.max(0, fullscreenRestore.target - audioOffsetSeconds);
+  const player = vlcRef.current;
+  const canSeek = typeof player?.seekTo === 'function'
+    || (playerDuration > 0 && typeof player?.seek === 'function');
+  if (!canSeek || now - fullscreenRestore.lastAttemptAt < 400) return;
+  try {
+    if (typeof player.seekTo === 'function') player.seekTo(playerTarget);
+    else player.seek(Math.max(0, Math.min(1, playerTarget / playerDuration)));
+    fullscreenRestore.lastAttemptAt = now;
+    lastKnownTimeRef.current = fullscreenRestore.target;
+    setCurrentTime(fullscreenRestore.target);
+    setSliderPos(fullscreenRestore.target);
+    seekCompletedAt.current = now;
+  } catch {
+    // Retry on the next native progress event while the fullscreen surface settles.
+  }
+}
+
+function applyFullscreenSeekRestoreProgress({
+  progress,
+  fullscreenRestore,
+  fullscreenSeekRestoreRef,
+  requestedStartTimeAppliedRef,
+  audioOffsetSeconds,
+  lastKnownDurRef,
+  vlcRef,
+  lastKnownTimeRef,
+  setCurrentTime,
+  setSliderPos,
+  seekCompletedAt,
+}) {
+  if (!fullscreenRestore || !progress) return;
+  const observedTime = progress.seconds;
+  if (Math.abs(observedTime - fullscreenRestore.target) <= 1) {
+    completeFullscreenSeekRestore({
+      observedTime,
+      fullscreenSeekRestoreRef,
+      requestedStartTimeAppliedRef,
+      lastKnownTimeRef,
+      setCurrentTime,
+      setSliderPos,
+    });
+    return;
+  }
+  if (Date.now() >= fullscreenRestore.expiresAt) {
+    fullscreenSeekRestoreRef.current = null;
+    return;
+  }
+  retryFullscreenSeekRestore({
+    fullscreenRestore,
+    audioOffsetSeconds,
+    lastKnownDurRef,
+    vlcRef,
+    lastKnownTimeRef,
+    setCurrentTime,
+    setSliderPos,
+    seekCompletedAt,
+  });
+}
+
+function applyNativeBufferingEvent({ payload, onBuffering, scheduleBufferingIndicator, clearBufferingIndicator, hasStartedPlayback }) {
+  const rate = payload?.bufferRate ?? payload?.buffering;
+  let isBuffering = null;
+  if (typeof payload?.isBuffering === 'boolean') isBuffering = payload.isBuffering;
+  else if (rate !== undefined && rate !== null) isBuffering = rate < 100;
+  if (isBuffering !== null) onBuffering?.(isBuffering);
+  if (isBuffering) scheduleBufferingIndicator();
+  else if (isBuffering === false && hasStartedPlayback) clearBufferingIndicator();
+}
 
 export const MediaPlayerView = (props) => {
   const {
@@ -96,7 +389,6 @@ export const MediaPlayerView = (props) => {
     integrations = {},
     users: usersProp,
     theme,
-    icons,
     videoOnly = false,
     initialAudioOnly = false,
     initialPaused = false,
@@ -422,7 +714,7 @@ export const MediaPlayerView = (props) => {
 
   const exitFullscreen = useCallback(() => {
     if (!isWeb() || typeof document === 'undefined') return;
-    const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    const fsElem = getBrowserFullscreenElement(document);
     if (!fsElem) return;
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -437,55 +729,25 @@ export const MediaPlayerView = (props) => {
 
   const toggleFullscreen = useCallback(() => {
     if (isWeb() && typeof document !== 'undefined') {
-      const node = playerRef.current;
-      if (!node) return;
-      const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
-      if (!fsElem) {
-        if (node.requestFullscreen) {
-          node.requestFullscreen().catch(() => {});
-        } else if (node.webkitRequestFullscreen) {
-          node.webkitRequestFullscreen();
-        } else if (node.mozRequestFullScreen) {
-          node.mozRequestFullScreen();
-        } else if (node.msRequestFullscreen) {
-          node.msRequestFullscreen();
-        }
-      } else {
-        exitFullscreen();
-      }
+      if (!toggleBrowserFullscreen(playerRef.current, exitFullscreen)) return;
     } else if (isElectron()) {
       const next = !isFullscreen;
       setIsFullscreen(next);
       void vlcRef.current?.setFullscreen?.(next);
     } else {
       const next = !isFullscreen;
-      const position = Number(fullscreenSeekRestoreRef.current?.target ?? lastKnownTimeRef.current ?? requestedStartTime ?? 0);
-      if (Number.isFinite(position) && position > 0) {
-        fullscreenSeekRestoreRef.current = {
-          target: position,
-          lastAttemptAt: 0,
-          expiresAt: Date.now() + 8000
-        };
-        lastKnownTimeRef.current = position;
-        setCurrentTime(position);
-        setSliderPos(position);
-        seekCompletedAt.current = Date.now();
-      }
+      restoreNativeFullscreenPosition({
+        fullscreenSeekRestoreRef,
+        lastKnownTimeRef,
+        requestedStartTime,
+        setCurrentTime,
+        setSliderPos,
+        seekCompletedAt,
+      });
       setIsFullscreen(next);
       // Keep portrait fullscreen below the notification/status bar. Only
       // landscape fullscreen uses the immersive, cutout-edge-to-edge layout.
-      if (!isWeb() && !isElectron()) {
-        const immersiveLandscape = next && windowWidth >= windowHeight;
-        StatusBar.setTranslucent(immersiveLandscape);
-        StatusBar.setHidden(immersiveLandscape, 'none');
-        if (Platform.OS === 'android') {
-          // Request short-edges cutout mode so the window draws behind the
-          // front-facing camera hole punch / notch in landscape fullscreen.
-          try {
-            NativeModules.StatusBarManager?.setStyle?.('dark-content');
-          } catch (_) {}
-        }
-      }
+      setNativeFullscreenSystemUi(next, windowWidth, windowHeight);
     }
     badgeService.emit('player.fullscreen', {}).catch(() => {});
   }, [exitFullscreen, isFullscreen, windowWidth, windowHeight, badgeService, requestedStartTime]);
@@ -994,34 +1256,15 @@ export const MediaPlayerView = (props) => {
     exitFullscreen();
     saveCurrentProgress();
     onCwRefresh?.();
-    if (recording?.isActive?.()) {
-      try {
-        const result = await recording.stop?.();
-        if (result?.filename) {
-          Alert.alert('Recording saved', result.filename);
-        }
-      } catch (err) {
-        Alert.alert('Recording', err?.message || 'Could not save the recording.');
-      }
-    } else if (recStatusRef.current !== 'idle') {
-      try {
-        if (isElectron()) {
-          const result = await playerApiRef?.current?.stopNativeRecording?.();
-          if (result?.filename) Alert.alert('Recording saved', result.filename);
-        } else {
-          const completedFile = waitForNativeRecordingFile();
-          const accepted = await playerApiRef?.current?.stopNativeRecording?.();
-          if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
-          const path = await completedFile;
-          Alert.alert('Recording saved', String(path).split(/[\\/]/).pop());
-        }
-      } catch (err) {
-        Alert.alert('Recording', err?.message || 'Could not save the recording.');
-      }
-      clearRecordingTimer();
-      setRecStatus('idle');
-      setRecElapsedMs(0);
-    }
+    await stopRecordingForClose({
+      recording,
+      recordingStatus: recStatusRef.current,
+      playerApiRef,
+      waitForNativeRecordingFile,
+      clearRecordingTimer,
+      setRecStatus,
+      setRecElapsedMs,
+    });
     onClose();
   }, [
     clearAudioOnlyFallbackTimer,
@@ -1250,75 +1493,39 @@ export const MediaPlayerView = (props) => {
       e?.stopPropagation?.();
       setRecNotice(null);
       setRecSaveDialog({ status: 'saving' });
-      let nativeStopAccepted = recStatusRef.current === 'paused' && nativeRecordingSegmentsRef.current.length > 0;
+      const stopState = {
+        nativeStopAccepted: recStatusRef.current === 'paused' && nativeRecordingSegmentsRef.current.length > 0,
+      };
       try {
-        let result;
-        if (recording?.stop) {
-          result = await recording.stop();
-        } else if (isElectron()) {
-          result = await playerApiRef?.current?.stopNativeRecording?.();
-          if (result === false || !result?.path) throw new Error('LibVLC could not finalize the recording file.');
-        } else {
-          const segments = nativeRecordingSegmentsRef.current.slice();
-          if (recStatusRef.current === 'recording') {
-            const completedFile = waitForNativeRecordingFile();
-            const accepted = await playerApiRef?.current?.stopNativeRecording?.();
-            if (accepted === false) throw new Error('VLC rejected the request to stop recording.');
-            nativeStopAccepted = true;
-            const file = await completedFile;
-            if (!file?.path) throw new Error('VLC did not return the completed recording segment.');
-            segments.push(file);
-          }
-          if (!segments.length) throw new Error('No recording segments were saved.');
-          const completedFile = waitForNativeRecordingMerge();
-          const accepted = await playerApiRef?.current?.mergeNativeRecordingSegments?.(segments.map((segment) => segment.path));
-          if (accepted === false || accepted == null) throw new Error('VLC could not assemble the recording segments.');
-          const file = await completedFile;
-          result = {
-            ...file,
-            filename: file.filename || String(file.path).split(/[\\/]/).pop(),
-            platform: 'native',
-          };
-        }
+        const result = await finalizeRecording({
+          recording,
+          playerApiRef,
+          recStatusRef,
+          nativeRecordingSegmentsRef,
+          waitForNativeRecordingFile,
+          waitForNativeRecordingMerge,
+          stopState,
+        });
         clearRecordingTimer();
         recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
         nativeRecordingSegmentsRef.current = [];
         setRecStatus('idle');
         setRecElapsedMs(0);
-        if (result?.filename) {
-          const bytes = Number(result.size) || 0;
-          const size = bytes <= 0
-            ? 'size unavailable'
-            : bytes < 1024 * 1024
-              ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-              : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-          const location = result.location || result.path || 'the app recording folder';
-          let where;
-          if (result.platform === 'web') {
-            if (result.saveMethod === 'share') {
-              where = `Recording saved: ${result.filename} · ${size} · Share sheet opened`;
-            } else if (result.saveMethod === 'open') {
-              where = `Recording saved: ${result.filename} · ${size} · Use Share to save it on this iPad`;
-            } else {
-              where = `Recording saved: ${result.filename} · ${size}`;
-            }
-          } else {
-            where = `Recording saved: ${result.filename} · ${size} · ${location}`;
-          }
-          const notificationPosted = await postRecordingSavedNotification(result);
-          if (result.platform === 'native' && Platform.OS === 'android' && !notificationPosted) {
-            where += recordingNotificationPermissionRef.current
-              ? ' · Android could not show the download notification'
-              : ' · Enable notifications to see it in the notification shade';
-          }
-          setRecSaveDialog({ status: 'saved', message: where, filename: result.filename });
-          if (result.path) onRecordingComplete?.({ ...result, filename: result.filename });
-        } else {
+        if (!result?.filename) {
           setRecSaveDialog(null);
+          return;
         }
+        const notificationPosted = await postRecordingSavedNotification(result);
+        const message = getRecordingSaveMessage(
+          result,
+          notificationPosted,
+          recordingNotificationPermissionRef.current,
+        );
+        setRecSaveDialog({ status: 'saved', message, filename: result.filename });
+        if (result.path) onRecordingComplete?.({ ...result, filename: result.filename });
       } catch (err) {
         setRecSaveDialog(null);
-        if (nativeStopAccepted) {
+        if (stopState.nativeStopAccepted) {
           clearRecordingTimer();
           recordingClockRef.current = { startedAt: 0, elapsedMs: 0 };
           nativeRecordingSegmentsRef.current = [];
@@ -1620,13 +1827,14 @@ export const MediaPlayerView = (props) => {
     const hasKnownEnd = (Number.isFinite(progressDuration) && progressDuration > 0)
       || Number(durationSecs) > 0
       || (mpegTsEndState?.sourceKey === mpegTsSourceKey && mpegTsEndState.hasKnownEnd);
-    if (isMpegTs && progress) {
-      setMpegTsEndState((previous) => (
-        previous?.sourceKey === mpegTsSourceKey && previous.hasKnownEnd === hasKnownEnd
-          ? previous
-          : { sourceKey: mpegTsSourceKey, hasKnownEnd }
-      ));
-    }
+    updateMpegTsEndState({
+      isMpegTs,
+      progress,
+      durationSecs,
+      sourceKey: mpegTsSourceKey,
+      currentState: mpegTsEndState,
+      setState: setMpegTsEndState,
+    });
     const fullscreenRestore = fullscreenSeekRestoreRef.current;
     if (fullscreenRestore) {
       // Ignore stale zero/old-position progress while the new VLC surface is
@@ -1648,42 +1856,19 @@ export const MediaPlayerView = (props) => {
       lastKnownTimeRef,
       setSliderPosition: setSliderPos
     });
-    if (fullscreenRestore && progress) {
-      const observedTime = progress.seconds;
-      if (Math.abs(observedTime - fullscreenRestore.target) <= 1) {
-        fullscreenSeekRestoreRef.current = null;
-        requestedStartTimeAppliedRef.current = true;
-        lastKnownTimeRef.current = observedTime;
-        setCurrentTime(observedTime);
-        setSliderPos(observedTime);
-      } else if (Date.now() < fullscreenRestore.expiresAt) {
-        const now = Date.now();
-        const playerDuration = Math.max(0, lastKnownDurRef.current - audioOffsetSeconds);
-        const playerTarget = Math.max(0, fullscreenRestore.target - audioOffsetSeconds);
-        const player = vlcRef.current;
-        if (
-          (typeof player?.seekTo === 'function' || (playerDuration > 0 && typeof player?.seek === 'function'))
-          && now - fullscreenRestore.lastAttemptAt >= 400
-        ) {
-          try {
-            if (typeof player.seekTo === 'function') {
-              player.seekTo(playerTarget);
-            } else {
-              vlcRef.current.seek(Math.max(0, Math.min(1, playerTarget / playerDuration)));
-            }
-            fullscreenRestore.lastAttemptAt = now;
-            lastKnownTimeRef.current = fullscreenRestore.target;
-            setCurrentTime(fullscreenRestore.target);
-            setSliderPos(fullscreenRestore.target);
-            seekCompletedAt.current = now;
-          } catch {
-            // Retry on the next native progress event while the fullscreen surface settles.
-          }
-        }
-      } else {
-        fullscreenSeekRestoreRef.current = null;
-      }
-    }
+    applyFullscreenSeekRestoreProgress({
+      progress,
+      fullscreenRestore,
+      fullscreenSeekRestoreRef,
+      requestedStartTimeAppliedRef,
+      audioOffsetSeconds,
+      lastKnownDurRef,
+      vlcRef,
+      lastKnownTimeRef,
+      setCurrentTime,
+      setSliderPos,
+      seekCompletedAt,
+    });
     if (progress && !fullscreenSeekRestoreRef.current
       && (!isMpegTs || hasKnownEnd)) {
       emitProgressBarTime(progress.seconds, progressBarCallback, lastProgressBarSecondRef);
@@ -1757,22 +1942,13 @@ export const MediaPlayerView = (props) => {
 
   const handleNativeBuffering = (event) => {
     const payload = event?.nativeEvent || event || {};
-    const rate = payload?.bufferRate ?? payload?.buffering;
-    if (typeof payload?.isBuffering === 'boolean') onBuffering?.(payload.isBuffering);
-    else if (rate !== undefined && rate !== null) onBuffering?.(rate < 100);
-    if (rate !== undefined && rate !== null) {
-      if (rate < 100) {
-        scheduleBufferingIndicator();
-      } else if (hasStartedPlaybackRef.current) {
-        clearBufferingIndicator();
-      }
-    } else if (typeof payload?.isBuffering === 'boolean') {
-      if (payload.isBuffering) {
-        scheduleBufferingIndicator();
-      } else if (hasStartedPlaybackRef.current) {
-        clearBufferingIndicator();
-      }
-    }
+    applyNativeBufferingEvent({
+      payload,
+      onBuffering,
+      scheduleBufferingIndicator,
+      clearBufferingIndicator,
+      hasStartedPlayback: hasStartedPlaybackRef.current,
+    });
   };
 
   const handleTracksChanged = useCallback((tracks) => {
@@ -1948,27 +2124,27 @@ export const MediaPlayerView = (props) => {
       startNativeRecording: (path) => {
         if (typeof vlcRef.current?.startRecording !== 'function') return false;
         const result = vlcRef.current.startRecording(path);
-        return typeof result === 'undefined' ? true : result;
+        return result === undefined ? true : result;
       },
       pauseNativeRecording: () => {
         if (typeof vlcRef.current?.pauseRecording !== 'function') return false;
         const result = vlcRef.current.pauseRecording();
-        return typeof result === 'undefined' ? true : result;
+        return result === undefined ? true : result;
       },
       resumeNativeRecording: () => {
         if (typeof vlcRef.current?.resumeRecording !== 'function') return false;
         const result = vlcRef.current.resumeRecording();
-        return typeof result === 'undefined' ? true : result;
+        return result === undefined ? true : result;
       },
       stopNativeRecording: () => {
         if (typeof vlcRef.current?.stopRecording !== 'function') return false;
         const result = vlcRef.current.stopRecording();
-        return typeof result === 'undefined' ? true : result;
+        return result === undefined ? true : result;
       },
       mergeNativeRecordingSegments: (paths) => {
         if (typeof vlcRef.current?.mergeRecordingSegments !== 'function') return false;
         const result = vlcRef.current.mergeRecordingSegments(paths);
-        return typeof result === 'undefined' ? true : result;
+        return result === undefined ? true : result;
       }
     };
     Object.assign(playerApiRef.current, api);
@@ -2163,10 +2339,14 @@ export const MediaPlayerView = (props) => {
     () => {
       // Apply the handoff at the demuxer before playback begins. A setPosition
       // command alone can be ignored while a newly mounted VLC view opens.
-      const initialPosition = lastKnownTimeSourceRef.current === streamUrl
-        ? (fullscreenSeekRestoreRef.current?.target
-          ?? (hasStartedPlaybackRef.current ? lastKnownTimeRef.current : requestedStartTime))
-        : requestedStartTime;
+      const initialPosition = getNativePlaybackStartPosition({
+        activeSource: lastKnownTimeSourceRef.current,
+        streamUrl,
+        fullscreenTarget: fullscreenSeekRestoreRef.current?.target,
+        hasStartedPlayback: hasStartedPlaybackRef.current,
+        lastKnownTime: lastKnownTimeRef.current,
+        requestedStartTime,
+      });
       return {
         uri: playerStreamUrl,
         startTime: initialPosition ?? 0,
@@ -2418,18 +2598,19 @@ export const MediaPlayerView = (props) => {
   const portraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
   const portraitChatHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
   const portraitResizeContainerHeight = portraitVideoHeight + portraitChatHeight;
-  const mediaFrameStyle = resizeDrawerOpen
-    ? { right: 'auto', width: '70%' }
-    : portraitResizeOpen
-      ? {
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 'auto',
-          height: portraitVideoHeight,
-          width: '100%'
-        }
-      : null;
+  let mediaFrameStyle = null;
+  if (resizeDrawerOpen) {
+    mediaFrameStyle = { right: 'auto', width: '70%' };
+  } else if (portraitResizeOpen) {
+    mediaFrameStyle = {
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 'auto',
+      height: portraitVideoHeight,
+      width: '100%',
+    };
+  }
   // Landscape orientation alone must not turn an embedded player into a
   // screen-sized surface or hide system UI. The host controls inline bounds;
   // the fullscreen Modal handles edge-to-edge playback separately.

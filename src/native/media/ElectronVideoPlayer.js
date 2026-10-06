@@ -26,15 +26,14 @@ function getPlayerBounds(stage, getContainerBounds) {
   return isUsableBounds(stageBounds) ? stageBounds : null;
 }
 
-async function waitForPlayerBounds(stage, getContainerBounds, getContainerElement) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const bounds = getPlayerBounds(stage, getContainerBounds);
-    if (bounds) return bounds;
-    const elementBounds = getStageBounds(getContainerElement?.());
-    if (isUsableBounds(elementBounds)) return elementBounds;
-    await new Promise((resolve) => window.setTimeout(resolve, 50));
-  }
-  return null;
+async function waitForPlayerBounds(stage, getContainerBounds, getContainerElement, attempt = 0) {
+  const bounds = getPlayerBounds(stage, getContainerBounds);
+  if (bounds) return bounds;
+  const elementBounds = getStageBounds(getContainerElement?.());
+  if (isUsableBounds(elementBounds)) return elementBounds;
+  if (attempt >= 39) return null;
+  await new Promise((resolve) => window.setTimeout(resolve, 50));
+  return waitForPlayerBounds(stage, getContainerBounds, getContainerElement, attempt + 1);
 }
 
 async function unmountBundledVlc(ipc) {

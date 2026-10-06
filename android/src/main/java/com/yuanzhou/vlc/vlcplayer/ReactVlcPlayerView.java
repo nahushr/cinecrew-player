@@ -56,6 +56,12 @@ class ReactVlcPlayerView extends TextureView
   private static final String EVENT_PROP_SUCCESS = "success";
   private static final String EVENT_PROP_ERROR = "error";
   private static final String EVENT_PROP_IS_RECORDING = "isRecording";
+  private static final String EVENT_PROP_RECORD_PATH = "recordPath";
+  private static final String EVENT_PROP_OPERATION = "operation";
+  private static final String EVENT_PROP_REQUEST_ACCEPTED = "requestAccepted";
+  private static final String EVENT_TYPE_RECORDING_PATH = "RecordingPath";
+  private static final String SOURCE_KEY_START_TIME = "startTime";
+  private static final String FILE_URI_SCHEME = "file://";
 
   private final VideoEventEmitter eventEmitter;
   private LibVLC libvlc;
@@ -346,14 +352,13 @@ class ReactVlcPlayerView extends TextureView
               eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_SEEK);
               break;
             case MediaPlayer.Event.RecordChanged:
-              map.putString("type", "RecordingPath");
+              map.putString("type", EVENT_TYPE_RECORDING_PATH);
               map.putBoolean(EVENT_PROP_IS_RECORDING, event.getRecording());
               String eventPath = event.getRecordPath();
-              String completedPath = event.getRecording()
-                  ? (eventPath != null ? eventPath : recordingPath)
-                  : findCompletedRecordingPath(eventPath != null ? eventPath : recordingPath);
+              String pathForEvent = eventPath != null ? eventPath : recordingPath;
+              String completedPath = getRecordingEventPath(event.getRecording(), pathForEvent);
               if (completedPath != null) {
-                map.putString("recordPath", completedPath);
+                map.putString(EVENT_PROP_RECORD_PATH, completedPath);
               }
               if (event.getRecording()) {
                 eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
@@ -538,7 +543,7 @@ class ReactVlcPlayerView extends TextureView
     boolean useUri =
         isNetwork
             || (uriString != null
-                && (uriString.startsWith("file://") || uriString.startsWith("content://")));
+                && (uriString.startsWith(FILE_URI_SCHEME) || uriString.startsWith("content://")));
     Media media;
     if (useUri) {
       media = new Media(libvlc, Uri.parse(uriString));
@@ -736,8 +741,7 @@ class ReactVlcPlayerView extends TextureView
       // Release before assigning the new seek so the previous source's
       // playback time cannot replace this source's requested startTime.
       releasePlayer();
-      double startTime = src.hasKey("startTime") && !src.isNull("startTime")
-          ? src.getDouble("startTime") : 0;
+      double startTime = getRequestedStartTime(src);
       pendingSeekTimeMs = startTime > 0 && !Double.isInfinite(startTime)
           ? Math.round(startTime * 1000) : -1;
       pendingSeekAttemptAtMs = 0;
@@ -745,6 +749,20 @@ class ReactVlcPlayerView extends TextureView
 
     this.srcMap = src;
     createPlayer(true, false);
+  }
+
+  private double getRequestedStartTime(ReadableMap source) {
+    if (!source.hasKey(SOURCE_KEY_START_TIME) || source.isNull(SOURCE_KEY_START_TIME)) {
+      return 0;
+    }
+    return source.getDouble(SOURCE_KEY_START_TIME);
+  }
+
+  private String getRecordingEventPath(boolean recording, String pathForEvent) {
+    if (recording) {
+      return pathForEvent;
+    }
+    return findCompletedRecordingPath(pathForEvent);
   }
 
   /**
@@ -941,7 +959,10 @@ class ReactVlcPlayerView extends TextureView
     } catch (IOException exception) {
       error = exception.getMessage();
     }
-    String targetPath = targetDirectory == null ? null : targetDirectory.getAbsolutePath();
+    String targetPath = null;
+    if (targetDirectory != null) {
+      targetPath = targetDirectory.getAbsolutePath();
+    }
     boolean accepted = mMediaPlayer != null && targetPath != null && mMediaPlayer.record(targetPath);
     if (accepted) {
       this.recordingPath = targetPath;
@@ -950,14 +971,14 @@ class ReactVlcPlayerView extends TextureView
       clearRecordingStopVerification();
     }
     WritableMap map = Arguments.createMap();
-    map.putString("operation", "start");
-    map.putBoolean("requestAccepted", accepted);
+    map.putString(EVENT_PROP_OPERATION, "start");
+    map.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, accepted);
     map.putBoolean(EVENT_PROP_IS_RECORDING, accepted);
     if (!accepted) {
       map.putString(EVENT_PROP_ERROR, error != null ? error : "VLC rejected the recording request for this media source.");
     }
     if (targetPath != null) {
-      map.putString("recordPath", targetPath);
+      map.putString(EVENT_PROP_RECORD_PATH, targetPath);
     }
     eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
@@ -965,13 +986,13 @@ class ReactVlcPlayerView extends TextureView
   public void stopRecording() {
     boolean accepted = mMediaPlayer != null && mMediaPlayer.record(null);
     WritableMap map = Arguments.createMap();
-    map.putString("operation", "stop");
-    map.putBoolean("requestAccepted", accepted);
+    map.putString(EVENT_PROP_OPERATION, "stop");
+    map.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, accepted);
     // Keep the logical recording state active until LibVLC emits its final
     // RecordChanged event, which is when the output file is actually closed.
     map.putBoolean(EVENT_PROP_IS_RECORDING, true);
     if (this.recordingPath != null) {
-      map.putString("recordPath", this.recordingPath);
+      map.putString(EVENT_PROP_RECORD_PATH, this.recordingPath);
     }
     if (!accepted) {
       map.putString(EVENT_PROP_ERROR, "VLC rejected the request to stop recording.");
@@ -995,39 +1016,13 @@ class ReactVlcPlayerView extends TextureView
         }
         recordingStopVerificationAttempts += 1;
         String completedPath = findCompletedRecordingPath(recordingPath);
-        File candidate = completedPath == null ? null : new File(completedPath);
-        if (candidate != null && candidate.isFile() && candidate.length() > 0) {
-          long candidateSize = candidate.length();
-          String candidatePath = candidate.getAbsolutePath();
-          if (candidatePath.equals(lastRecordingCandidatePath)
-              && candidateSize == lastRecordingCandidateSize) {
-            stableRecordingCandidateSamples += 1;
-          } else {
-            lastRecordingCandidatePath = candidatePath;
-            lastRecordingCandidateSize = candidateSize;
-            stableRecordingCandidateSamples = 1;
-          }
-          if (stableRecordingCandidateSamples >= 4) {
-            WritableMap completedEvent = Arguments.createMap();
-            completedEvent.putString("type", "RecordingPath");
-            completeRecordingStop(candidatePath, completedEvent);
-            return;
-          }
-        } else {
-          resetRecordingCandidateObservation();
+        String stablePath = observeRecordingCandidate(completedPath);
+        if (stablePath != null) {
+          emitCompletedRecording(stablePath);
+          return;
         }
-
         if (recordingStopVerificationAttempts >= 30) {
-          WritableMap failedEvent = Arguments.createMap();
-          failedEvent.putString("type", "RecordingPath");
-          failedEvent.putString("operation", "stop");
-          failedEvent.putBoolean(EVENT_PROP_IS_RECORDING, false);
-          failedEvent.putBoolean("requestAccepted", false);
-          failedEvent.putString(EVENT_PROP_ERROR, "VLC accepted the stop request but no completed recording file became available.");
-          recordingStopRequested = false;
-          recordingPath = null;
-          clearRecordingStopVerification();
-          eventEmitter.sendEvent(failedEvent, VideoEventEmitter.EVENT_RECORDING_STATE);
+          emitRecordingStopTimeout();
           return;
         }
         mProgressUpdateHandler.postDelayed(this, 750);
@@ -1036,19 +1031,61 @@ class ReactVlcPlayerView extends TextureView
     mProgressUpdateHandler.postDelayed(recordingStopVerificationRunnable, 750);
   }
 
+  private String observeRecordingCandidate(String completedPath) {
+    if (completedPath == null) {
+      resetRecordingCandidateObservation();
+      return null;
+    }
+    File candidate = new File(completedPath);
+    if (!candidate.isFile() || candidate.length() <= 0) {
+      resetRecordingCandidateObservation();
+      return null;
+    }
+    long candidateSize = candidate.length();
+    String candidatePath = candidate.getAbsolutePath();
+    if (candidatePath.equals(lastRecordingCandidatePath)
+        && candidateSize == lastRecordingCandidateSize) {
+      stableRecordingCandidateSamples += 1;
+    } else {
+      lastRecordingCandidatePath = candidatePath;
+      lastRecordingCandidateSize = candidateSize;
+      stableRecordingCandidateSamples = 1;
+    }
+    return stableRecordingCandidateSamples >= 4 ? candidatePath : null;
+  }
+
+  private void emitCompletedRecording(String candidatePath) {
+    WritableMap completedEvent = Arguments.createMap();
+    completedEvent.putString("type", EVENT_TYPE_RECORDING_PATH);
+    completeRecordingStop(candidatePath, completedEvent);
+  }
+
+  private void emitRecordingStopTimeout() {
+    WritableMap failedEvent = Arguments.createMap();
+    failedEvent.putString("type", EVENT_TYPE_RECORDING_PATH);
+    failedEvent.putString(EVENT_PROP_OPERATION, "stop");
+    failedEvent.putBoolean(EVENT_PROP_IS_RECORDING, false);
+    failedEvent.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, false);
+    failedEvent.putString(EVENT_PROP_ERROR, "VLC accepted the stop request but no completed recording file became available.");
+    recordingStopRequested = false;
+    recordingPath = null;
+    clearRecordingStopVerification();
+    eventEmitter.sendEvent(failedEvent, VideoEventEmitter.EVENT_RECORDING_STATE);
+  }
+
   private void completeRecordingStop(String completedPath, WritableMap map) {
     if (recordingStopEventEmitted) {
       return;
     }
-    map.putString("operation", "stop");
+    map.putString(EVENT_PROP_OPERATION, "stop");
     map.putBoolean(EVENT_PROP_IS_RECORDING, false);
     File completedFile = completedPath == null ? null : new File(completedPath);
     if (completedFile != null && completedFile.isFile() && completedFile.length() > 0) {
-      map.putString("recordPath", completedFile.getAbsolutePath());
-      map.putBoolean("requestAccepted", true);
+      map.putString(EVENT_PROP_RECORD_PATH, completedFile.getAbsolutePath());
+      map.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, true);
       map.putDouble("size", completedFile.length());
     } else {
-      map.putBoolean("requestAccepted", false);
+      map.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, false);
       map.putString(EVENT_PROP_ERROR, "VLC stopped recording without creating a non-empty media file.");
     }
     recordingStopEventEmitted = true;
@@ -1072,121 +1109,151 @@ class ReactVlcPlayerView extends TextureView
   }
 
   public void mergeRecordingSegments(ReadableArray inputPaths) {
+    List<String> paths = getRecordingSegmentPaths(inputPaths);
+    new Thread(() -> mergeRecordingSegmentsOnWorker(paths), "cinecrew-recording-merge").start();
+  }
+
+  private List<String> getRecordingSegmentPaths(ReadableArray inputPaths) {
     List<String> paths = new ArrayList<>();
-    if (inputPaths != null) {
-      for (int index = 0; index < inputPaths.size(); index += 1) {
-        if (!inputPaths.isNull(index)) {
-          paths.add(inputPaths.getString(index));
-        }
+    if (inputPaths == null) {
+      return paths;
+    }
+    for (int index = 0; index < inputPaths.size(); index += 1) {
+      if (!inputPaths.isNull(index)) {
+        paths.add(inputPaths.getString(index));
       }
     }
-    new Thread(() -> {
-      String outputPath = null;
-      String publishedPath = null;
-      String filename = null;
-      String error = null;
-      long size = 0;
-      try {
-        if (paths.isEmpty()) {
-          throw new IOException("No recording segments were provided.");
-        }
-        List<File> segments = new ArrayList<>();
-        boolean transportStream = false;
-        boolean mp4 = false;
-        for (String path : paths) {
-          File segment = new File(path);
-          if (!segment.isFile() || segment.length() <= 0) {
-            throw new IOException("A VLC recording segment is missing or empty: " + path);
-          }
-          segments.add(segment);
-          transportStream |= path.toLowerCase().endsWith(".ts");
-          mp4 |= path.toLowerCase().endsWith(".mp4");
-        }
-        if (transportStream && mp4) {
-          throw new IOException("VLC returned mixed TS and MP4 recording segments; they cannot be combined safely.");
-        }
-        if (!transportStream && !mp4) {
-          throw new IOException("VLC returned an unsupported recording container.");
-        }
+    return paths;
+  }
 
-        File firstSegment = segments.get(0);
-        File segmentDirectory = firstSegment.getParentFile();
-        File recordingsDirectory = segmentDirectory == null ? null : segmentDirectory.getParentFile();
-        if (recordingsDirectory == null) {
-          recordingsDirectory = segmentDirectory;
-        }
-        if (recordingsDirectory == null) {
-          throw new IOException("Could not locate the recording output directory.");
-        }
-        String extension = mp4 ? ".mp4" : ".ts";
-        filename = "cinecrew-recording-" + System.currentTimeMillis() + extension;
-        File output = new File(recordingsDirectory, filename);
-        outputPath = output.getAbsolutePath();
-        File parent = output.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) {
-          throw new IOException("Could not create the recording output directory.");
-        }
-        if (mp4 && segments.size() > 1) {
-          remuxMp4Segments(segments, output);
-        } else {
-          try (FileOutputStream destination = new FileOutputStream(output, false)) {
-            byte[] buffer = new byte[64 * 1024];
-            for (File segment : segments) {
-              try (FileInputStream source = new FileInputStream(segment)) {
-                int read;
-                while ((read = source.read(buffer)) >= 0) {
-                  destination.write(buffer, 0, read);
-                }
-              }
-            }
-            destination.getFD().sync();
+  private void mergeRecordingSegmentsOnWorker(List<String> paths) {
+    RecordingMergeResult result;
+    try {
+      result = assembleRecordingSegments(paths);
+    } catch (Exception exception) {
+      String message = exception.getMessage();
+      result = RecordingMergeResult.failure(
+          message == null ? "Could not assemble recording segments." : message);
+    }
+    RecordingMergeResult completed = result;
+    themedReactContext.runOnUiQueueThread(() -> emitRecordingMergeResult(completed));
+  }
+
+  private RecordingMergeResult assembleRecordingSegments(List<String> paths) throws IOException {
+    if (paths.isEmpty()) {
+      throw new IOException("No recording segments were provided.");
+    }
+    List<File> segments = validateRecordingSegments(paths);
+    boolean mp4 = isMp4RecordingSegments(segments);
+    File output = createMergedRecordingOutput(segments, mp4);
+    try {
+      if (mp4 && segments.size() > 1) {
+        remuxMp4Segments(segments, output);
+      } else {
+        concatenateRecordingSegments(segments, output);
+      }
+      long size = output.length();
+      if (size <= 0) {
+        throw new IOException("VLC produced an empty recording.");
+      }
+      String publishedPath = publishRecordingToMediaStore(output);
+      deleteTemporaryRecordingSegments(segments);
+      if (publishedPath != null && publishedPath.startsWith("content://")) {
+        deleteRecordingFileIfPresent(output, "remove the copied temporary recording");
+      }
+      return new RecordingMergeResult(
+          output.getAbsolutePath(), publishedPath, output.getName(), size, null);
+    } catch (IOException | RuntimeException exception) {
+      deleteRecordingFileIfPresent(output, "remove an incomplete recording");
+      throw exception;
+    }
+  }
+
+  private List<File> validateRecordingSegments(List<String> paths) throws IOException {
+    List<File> segments = new ArrayList<>();
+    boolean transportStream = false;
+    boolean mp4 = false;
+    for (String path : paths) {
+      File segment = new File(path);
+      if (!segment.isFile() || segment.length() <= 0) {
+        throw new IOException("A VLC recording segment is missing or empty: " + path);
+      }
+      segments.add(segment);
+      transportStream |= path.toLowerCase().endsWith(".ts");
+      mp4 |= path.toLowerCase().endsWith(".mp4");
+    }
+    if (transportStream && mp4) {
+      throw new IOException("VLC returned mixed TS and MP4 recording segments; they cannot be combined safely.");
+    }
+    if (!transportStream && !mp4) {
+      throw new IOException("VLC returned an unsupported recording container.");
+    }
+    return segments;
+  }
+
+  private boolean isMp4RecordingSegments(List<File> segments) {
+    return segments.get(0).getName().toLowerCase().endsWith(".mp4");
+  }
+
+  private File createMergedRecordingOutput(List<File> segments, boolean mp4) throws IOException {
+    File segmentDirectory = segments.get(0).getParentFile();
+    File recordingsDirectory = segmentDirectory == null ? null : segmentDirectory.getParentFile();
+    if (recordingsDirectory == null) {
+      recordingsDirectory = segmentDirectory;
+    }
+    if (recordingsDirectory == null) {
+      throw new IOException("Could not locate the recording output directory.");
+    }
+    String extension = mp4 ? ".mp4" : ".ts";
+    String filename = "cinecrew-recording-" + System.currentTimeMillis() + extension;
+    File output = new File(recordingsDirectory, filename);
+    File parent = output.getParentFile();
+    if (parent != null && !parent.exists() && !parent.mkdirs()) {
+      throw new IOException("Could not create the recording output directory.");
+    }
+    return output;
+  }
+
+  private void concatenateRecordingSegments(List<File> segments, File output) throws IOException {
+    try (FileOutputStream destination = new FileOutputStream(output, false)) {
+      byte[] buffer = new byte[64 * 1024];
+      for (File segment : segments) {
+        try (FileInputStream source = new FileInputStream(segment)) {
+          int read;
+          while ((read = source.read(buffer)) >= 0) {
+            destination.write(buffer, 0, read);
           }
-        }
-        size = output.length();
-        if (size <= 0) {
-          throw new IOException("VLC produced an empty recording.");
-        }
-        publishedPath = publishRecordingToMediaStore(output);
-        for (File segment : segments) {
-          deleteRecordingFileIfPresent(segment, "remove a temporary recording segment");
-        }
-        if (publishedPath != null && publishedPath.startsWith("content://")) {
-          deleteRecordingFileIfPresent(output, "remove the copied temporary recording");
-        }
-      } catch (Exception exception) {
-        error = exception.getMessage() == null ? "Could not assemble recording segments." : exception.getMessage();
-        if (outputPath != null) {
-          File incompleteOutput = new File(outputPath);
-          deleteRecordingFileIfPresent(incompleteOutput, "remove an incomplete recording");
         }
       }
-      final String completedPath = outputPath;
-      final String savedPath = publishedPath;
-      final String savedFilename = filename;
-      final String failure = error;
-      final long completedSize = size;
-      themedReactContext.runOnUiQueueThread(() -> {
-        WritableMap map = Arguments.createMap();
-        map.putString("operation", "merge");
-        map.putBoolean("requestAccepted", failure == null);
-        map.putBoolean(EVENT_PROP_IS_RECORDING, false);
-        if (savedPath != null) {
-          map.putString("recordPath", savedPath);
-        } else if (completedPath != null) {
-          map.putString("recordPath", completedPath);
-        }
-        if (failure == null) {
-          map.putDouble("size", completedSize);
-          if (savedFilename != null) {
-            map.putString("filename", savedFilename);
-          }
-          map.putString("location", "Downloads/CineCrew Recordings");
-        } else {
-          map.putString(EVENT_PROP_ERROR, failure);
-        }
-        eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
-      });
-    }, "cinecrew-recording-merge").start();
+      destination.getFD().sync();
+    }
+  }
+
+  private void deleteTemporaryRecordingSegments(List<File> segments) {
+    for (File segment : segments) {
+      deleteRecordingFileIfPresent(segment, "remove a temporary recording segment");
+    }
+  }
+
+  private void emitRecordingMergeResult(RecordingMergeResult result) {
+    WritableMap map = Arguments.createMap();
+    map.putString(EVENT_PROP_OPERATION, "merge");
+    map.putBoolean(EVENT_PROP_REQUEST_ACCEPTED, result.error == null);
+    map.putBoolean(EVENT_PROP_IS_RECORDING, false);
+    String resultPath = result.publishedPath == null ? result.outputPath : result.publishedPath;
+    if (resultPath != null) {
+      map.putString(EVENT_PROP_RECORD_PATH, resultPath);
+    }
+    if (result.error == null) {
+      map.putDouble("size", result.size);
+      if (result.filename != null) {
+        map.putString("filename", result.filename);
+      }
+      map.putString("location", "Downloads/CineCrew Recordings");
+    } else {
+      map.putString(EVENT_PROP_ERROR, result.error);
+    }
+    eventEmitter.sendEvent(map, VideoEventEmitter.EVENT_RECORDING_STATE);
   }
 
   private File resolveRecordingDirectory(String requestedPath) throws IOException {
@@ -1199,7 +1266,7 @@ class ReactVlcPlayerView extends TextureView
       File baseDirectory = new File(moviesDirectory, "CineCrew Recordings");
       target = new File(baseDirectory, "cinecrew-" + System.currentTimeMillis());
     } else {
-      String path = requestedPath.startsWith("file://") ? Uri.parse(requestedPath).getPath() : requestedPath;
+      String path = requestedPath.startsWith(FILE_URI_SCHEME) ? Uri.parse(requestedPath).getPath() : requestedPath;
       File requested = new File(path);
       String name = requested.getName();
       if (name.matches("(?i).+\\.(ts|mp4|mkv|mov|avi)$")) {
@@ -1230,7 +1297,7 @@ class ReactVlcPlayerView extends TextureView
     if (path == null || path.trim().isEmpty()) {
       return null;
     }
-    String filesystemPath = path.startsWith("file://") ? Uri.parse(path).getPath() : path;
+    String filesystemPath = path.startsWith(FILE_URI_SCHEME) ? Uri.parse(path).getPath() : path;
     File candidate = new File(filesystemPath);
     if (candidate.isFile() && candidate.length() > 0) {
       return candidate;
@@ -1238,22 +1305,39 @@ class ReactVlcPlayerView extends TextureView
     if (!candidate.isDirectory()) {
       return null;
     }
-    File latest = null;
     File[] children = candidate.listFiles();
     if (children == null) {
       return null;
     }
+    return findLatestRecordingChild(children);
+  }
+
+  private File findLatestRecordingChild(File[] children) {
+    File latest = null;
     for (File child : children) {
-      if (child.isFile() && child.length() > 0 && (latest == null || child.lastModified() > latest.lastModified())) {
-        latest = child;
-      } else if (child.isDirectory()) {
-        File nested = findLatestRecordingFile(child.getAbsolutePath());
-        if (nested != null && (latest == null || nested.lastModified() > latest.lastModified())) {
-          latest = nested;
-        }
+      File candidate = findRecordingCandidate(child);
+      if (isMoreRecentRecording(candidate, latest)) {
+        latest = candidate;
       }
     }
     return latest;
+  }
+
+  private File findRecordingCandidate(File child) {
+    if (child.isDirectory()) {
+      return findLatestRecordingFile(child.getAbsolutePath());
+    }
+    if (child.isFile() && child.length() > 0) {
+      return child;
+    }
+    return null;
+  }
+
+  private boolean isMoreRecentRecording(File candidate, File current) {
+    if (candidate == null) {
+      return false;
+    }
+    return current == null || candidate.lastModified() > current.lastModified();
   }
 
   private void remuxMp4Segments(List<File> segments, File output) throws IOException {
@@ -1264,110 +1348,37 @@ class ReactVlcPlayerView extends TextureView
     try {
       template = new MediaExtractor();
       template.setDataSource(segments.get(0).getAbsolutePath());
-      int trackCount = template.getTrackCount();
-      if (trackCount <= 0) {
-        throw new IOException("The MP4 recording has no media tracks.");
-      }
-      List<String> trackMimes = new ArrayList<>();
-      int[] outputTrackIndices = new int[trackCount];
       muxer = new MediaMuxer(output.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-      for (int track = 0; track < trackCount; track += 1) {
-        MediaFormat format = template.getTrackFormat(track);
-        trackMimes.add(format.getString(MediaFormat.KEY_MIME));
-        outputTrackIndices[track] = muxer.addTrack(format);
-      }
+      Mp4TrackLayout trackLayout = addMp4OutputTracks(template, muxer);
       muxer.start();
       muxerStarted = true;
       long outputBaseUs = 0;
-      long[] lastTrackSampleUs = new long[trackCount];
+      long[] lastTrackSampleUs = new long[trackLayout.trackMimes.size()];
       java.util.Arrays.fill(lastTrackSampleUs, -1);
       for (File segment : segments) {
         MediaExtractor extractor = new MediaExtractor();
         extractors.add(extractor);
         extractor.setDataSource(segment.getAbsolutePath());
-        if (extractor.getTrackCount() != trackCount) {
-          throw new IOException("The paused recording segments have different audio/video track layouts.");
-        }
-        long declaredDurationUs = 0;
-        for (int track = 0; track < trackCount; track += 1) {
-          MediaFormat format = extractor.getTrackFormat(track);
-          if (!trackMimes.get(track).equals(format.getString(MediaFormat.KEY_MIME))) {
-            throw new IOException("The paused recording segments use different codecs and cannot be joined.");
-          }
-          if (format.containsKey(MediaFormat.KEY_DURATION)) {
-            declaredDurationUs = Math.max(declaredDurationUs, format.getLong(MediaFormat.KEY_DURATION));
-          }
-          extractor.selectTrack(track);
-        }
-        ByteBuffer buffer = ByteBuffer.allocateDirect(1024 * 1024);
-        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-        long firstSampleUs = -1;
-        long lastSampleUs = 0;
-        while (true) {
-          int sourceTrack = extractor.getSampleTrackIndex();
-          if (sourceTrack < 0) {
-            break;
-          }
-          long sampleTimeUs = extractor.getSampleTime();
-          if (sampleTimeUs < 0) {
-            throw new IOException("A paused recording segment contains a sample without a valid timestamp.");
-          }
-          if (firstSampleUs < 0) {
-            firstSampleUs = sampleTimeUs;
-          }
-          long sampleSize = extractor.getSampleSize();
-          if (sampleSize > Integer.MAX_VALUE) {
-            throw new IOException("A recording sample is too large to merge.");
-          }
-          if (sampleSize > buffer.capacity()) {
-            buffer = ByteBuffer.allocateDirect((int) sampleSize);
-          }
-          buffer.clear();
-          int read = extractor.readSampleData(buffer, 0);
-          if (read < 0) {
-            break;
-          }
-          long segmentTimeUs = sampleTimeUs - firstSampleUs;
-          if (segmentTimeUs < 0) {
-            throw new IOException("A paused recording segment has out-of-order media timestamps.");
-          }
-          lastSampleUs = Math.max(lastSampleUs, segmentTimeUs);
-          long outputSampleUs = outputBaseUs + segmentTimeUs;
-          if (lastTrackSampleUs[sourceTrack] >= outputSampleUs) {
-            long timestampRegressionUs = lastTrackSampleUs[sourceTrack] - outputSampleUs;
-            if (timestampRegressionUs > 100_000) {
-              throw new IOException(
-                  "The paused recording has a " + trackMimes.get(sourceTrack)
-                      + " timestamp regression of " + timestampRegressionUs
-                      + " microseconds; Android cannot safely mux these segments without losing sync.");
-            }
-            outputSampleUs = lastTrackSampleUs[sourceTrack] + 1;
-          }
-          bufferInfo.set(0, read, outputSampleUs, extractor.getSampleFlags());
-          muxer.writeSampleData(outputTrackIndices[sourceTrack], buffer, bufferInfo);
-          lastTrackSampleUs[sourceTrack] = outputSampleUs;
-          extractor.advance();
-        }
-        if (firstSampleUs < 0) {
-          throw new IOException("A paused recording segment contains no media samples.");
-        }
-        // Use the samples' actual timestamp span rather than container duration metadata.
-        // VLC segment duration metadata can include timestamp offsets that are not part of
-        // the recorded segment, which otherwise creates gaps at pause/resume boundaries.
-        outputBaseUs += Math.max(lastSampleUs + 40_000, declaredDurationUs > 0
-            && declaredDurationUs <= lastSampleUs + 250_000 ? declaredDurationUs : 0);
+        long declaredDurationUs = validateAndSelectMp4Tracks(extractor, trackLayout);
+        SegmentTiming timing = writeMp4SegmentSamples(
+            extractor, muxer, trackLayout.outputTrackIndices, trackLayout.trackMimes,
+            lastTrackSampleUs, outputBaseUs);
+        outputBaseUs += getNextMp4SegmentBase(timing.lastSampleUs, declaredDurationUs);
       }
       muxer.stop();
       muxerStarted = false;
+    } catch (IOException exception) {
+      throw exception;
     } catch (Exception exception) {
-      if (exception instanceof IOException) {
-        throw (IOException) exception;
-      }
       throw new IOException(exception.getMessage() == null ? "Could not join the MP4 recording segments." : exception.getMessage(), exception);
     } finally {
       if (muxer != null) {
         if (muxerStarted) {
-          try { muxer.stop(); } catch (RuntimeException ignored) {}
+          try {
+            muxer.stop();
+          } catch (RuntimeException ignored) {
+            // The muxer can already be stopped after a failed write or finalize call.
+          }
         }
         muxer.release();
       }
@@ -1377,6 +1388,164 @@ class ReactVlcPlayerView extends TextureView
       for (MediaExtractor extractor : extractors) {
         extractor.release();
       }
+    }
+  }
+
+  private Mp4TrackLayout addMp4OutputTracks(MediaExtractor template, MediaMuxer muxer)
+      throws IOException {
+    int trackCount = template.getTrackCount();
+    if (trackCount <= 0) {
+      throw new IOException("The MP4 recording has no media tracks.");
+    }
+    List<String> trackMimes = new ArrayList<>();
+    int[] outputTrackIndices = new int[trackCount];
+    for (int track = 0; track < trackCount; track += 1) {
+      MediaFormat format = template.getTrackFormat(track);
+      trackMimes.add(format.getString(MediaFormat.KEY_MIME));
+      outputTrackIndices[track] = muxer.addTrack(format);
+    }
+    return new Mp4TrackLayout(trackMimes, outputTrackIndices);
+  }
+
+  private long validateAndSelectMp4Tracks(MediaExtractor extractor, Mp4TrackLayout trackLayout)
+      throws IOException {
+    if (extractor.getTrackCount() != trackLayout.trackMimes.size()) {
+      throw new IOException("The paused recording segments have different audio/video track layouts.");
+    }
+    long declaredDurationUs = 0;
+    for (int track = 0; track < trackLayout.trackMimes.size(); track += 1) {
+      MediaFormat format = extractor.getTrackFormat(track);
+      if (!trackLayout.trackMimes.get(track).equals(format.getString(MediaFormat.KEY_MIME))) {
+        throw new IOException("The paused recording segments use different codecs and cannot be joined.");
+      }
+      if (format.containsKey(MediaFormat.KEY_DURATION)) {
+        declaredDurationUs = Math.max(declaredDurationUs, format.getLong(MediaFormat.KEY_DURATION));
+      }
+      extractor.selectTrack(track);
+    }
+    return declaredDurationUs;
+  }
+
+  private SegmentTiming writeMp4SegmentSamples(
+      MediaExtractor extractor,
+      MediaMuxer muxer,
+      int[] outputTrackIndices,
+      List<String> trackMimes,
+      long[] lastTrackSampleUs,
+      long outputBaseUs) throws IOException {
+    ByteBuffer buffer = ByteBuffer.allocateDirect(1024 * 1024);
+    MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+    long firstSampleUs = -1;
+    long lastSampleUs = 0;
+    int sourceTrack = extractor.getSampleTrackIndex();
+    while (sourceTrack >= 0) {
+      long sampleTimeUs = extractor.getSampleTime();
+      if (sampleTimeUs < 0) {
+        throw new IOException("A paused recording segment contains a sample without a valid timestamp.");
+      }
+      if (firstSampleUs < 0) {
+        firstSampleUs = sampleTimeUs;
+      }
+      long sampleSize = extractor.getSampleSize();
+      if (sampleSize > Integer.MAX_VALUE) {
+        throw new IOException("A recording sample is too large to merge.");
+      }
+      if (sampleSize > buffer.capacity()) {
+        buffer = ByteBuffer.allocateDirect((int) sampleSize);
+      }
+      buffer.clear();
+      int read = extractor.readSampleData(buffer, 0);
+      if (read < 0) {
+        return requireSegmentSamples(firstSampleUs, lastSampleUs);
+      }
+      long segmentTimeUs = sampleTimeUs - firstSampleUs;
+      if (segmentTimeUs < 0) {
+        throw new IOException("A paused recording segment has out-of-order media timestamps.");
+      }
+      lastSampleUs = Math.max(lastSampleUs, segmentTimeUs);
+      long outputSampleUs = makeTrackTimestampMonotonic(
+          segmentTimeUs, outputBaseUs, sourceTrack, lastTrackSampleUs, trackMimes);
+      bufferInfo.set(0, read, outputSampleUs, extractor.getSampleFlags());
+      muxer.writeSampleData(outputTrackIndices[sourceTrack], buffer, bufferInfo);
+      lastTrackSampleUs[sourceTrack] = outputSampleUs;
+      extractor.advance();
+      sourceTrack = extractor.getSampleTrackIndex();
+    }
+    return requireSegmentSamples(firstSampleUs, lastSampleUs);
+  }
+
+  private SegmentTiming requireSegmentSamples(long firstSampleUs, long lastSampleUs)
+      throws IOException {
+    if (firstSampleUs < 0) {
+      throw new IOException("A paused recording segment contains no media samples.");
+    }
+    return new SegmentTiming(lastSampleUs);
+  }
+
+  private long makeTrackTimestampMonotonic(
+      long segmentTimeUs,
+      long outputBaseUs,
+      int sourceTrack,
+      long[] lastTrackSampleUs,
+      List<String> trackMimes) throws IOException {
+    long outputSampleUs = outputBaseUs + segmentTimeUs;
+    if (lastTrackSampleUs[sourceTrack] < outputSampleUs) {
+      return outputSampleUs;
+    }
+    long timestampRegressionUs = lastTrackSampleUs[sourceTrack] - outputSampleUs;
+    if (timestampRegressionUs > 100_000) {
+      throw new IOException(
+          "The paused recording has a " + trackMimes.get(sourceTrack)
+              + " timestamp regression of " + timestampRegressionUs
+              + " microseconds; Android cannot safely mux these segments without losing sync.");
+    }
+    return lastTrackSampleUs[sourceTrack] + 1;
+  }
+
+  private long getNextMp4SegmentBase(long lastSampleUs, long declaredDurationUs) {
+    long sampleDurationUs = lastSampleUs + 40_000;
+    long boundedDeclaredDurationUs = 0;
+    if (declaredDurationUs > 0 && declaredDurationUs <= lastSampleUs + 250_000) {
+      boundedDeclaredDurationUs = declaredDurationUs;
+    }
+    return Math.max(sampleDurationUs, boundedDeclaredDurationUs);
+  }
+
+  private static final class Mp4TrackLayout {
+    final List<String> trackMimes;
+    final int[] outputTrackIndices;
+
+    Mp4TrackLayout(List<String> trackMimes, int[] outputTrackIndices) {
+      this.trackMimes = trackMimes;
+      this.outputTrackIndices = outputTrackIndices;
+    }
+  }
+
+  private static final class SegmentTiming {
+    final long lastSampleUs;
+
+    SegmentTiming(long lastSampleUs) {
+      this.lastSampleUs = lastSampleUs;
+    }
+  }
+
+  private static final class RecordingMergeResult {
+    final String outputPath;
+    final String publishedPath;
+    final String filename;
+    final long size;
+    final String error;
+
+    RecordingMergeResult(String outputPath, String publishedPath, String filename, long size, String error) {
+      this.outputPath = outputPath;
+      this.publishedPath = publishedPath;
+      this.filename = filename;
+      this.size = size;
+      this.error = error;
+    }
+
+    static RecordingMergeResult failure(String error) {
+      return new RecordingMergeResult(null, null, null, 0, error);
     }
   }
 

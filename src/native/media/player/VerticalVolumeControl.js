@@ -1,16 +1,31 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { PlayerIcon } from '../../customization';
+import { VerticalSliderCard } from './VerticalSliderCard';
+import {
+  getVerticalSliderMetrics,
+  getVerticalSliderPositionStyle,
+  useVerticalSliderModel,
+} from './verticalSliderUtils';
 
 const MIN_PERCENT = 0;
 const MAX_PERCENT = 100;
 const PERCENT_RANGE = 100;
 
+function toVolumePercent(value) {
+  return value;
+}
+
+function toVolumeValue(percent) {
+  return percent;
+}
+
 function clampPercent(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return MAX_PERCENT;
   // If passed as 0..1 ratio, convert to 0..100
-  const normalized = number <= 1 && number > 0 ? Math.round(number * 100) : Math.round(number);
+  let normalized = Math.round(number);
+  if (number <= 1 && number > 0) normalized = Math.round(number * 100);
   return Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, normalized));
 }
 
@@ -28,141 +43,80 @@ export function VerticalVolumeControl({
   rightInset,
   alignTop = false,
 }) {
-  const measuredHeight = Number(availableHeight);
-  const responsiveCompact = compact || (measuredHeight > 0 && measuredHeight < 280);
-  const safeTopInset = Math.max(0, Number(topInset) || 0);
-  const safeBottomInset = Math.max(0, Number(bottomInset) || 0);
-  const freeHeight = measuredHeight > 0
-    ? Math.max(0, measuredHeight - safeTopInset - safeBottomInset - 6)
-    : 0;
-  const cardHeight = measuredHeight > 0
-    ? Math.min(responsiveCompact ? 144 : 188, freeHeight)
-    : (responsiveCompact ? 144 : 188);
-  const reservedTrackSpace = responsiveCompact ? 38 : 56;
-  const trackHeight = Math.max(12, Math.min(responsiveCompact ? 84 : 120, cardHeight - reservedTrackSpace));
-  const percent = clampPercent(value);
-  const [activePercent, setActivePercent] = React.useState(percent);
-  const isDraggingRef = useRef(false);
-  const percentRef = useRef(percent);
-  const dragStartPercentRef = useRef(percent);
-  const changeRef = useRef(onChange);
-  const changeEndRef = useRef(onChangeEnd);
-
-  React.useEffect(() => {
-    if (!isDraggingRef.current) {
-      setActivePercent(percent);
-      percentRef.current = percent;
-    }
-  }, [percent]);
-
-  changeRef.current = onChange;
-  changeEndRef.current = onChangeEnd;
-
-  const publishPercent = useCallback((nextPercent) => {
-    const next = clampPercent(Math.round(nextPercent));
-    percentRef.current = next;
-    changeRef.current?.(next);
-    return next;
-  }, []);
-
-  const finishInteraction = useCallback((finalPercent = percentRef.current) => {
-    const next = publishPercent(Math.round(finalPercent));
-    changeEndRef.current?.(next);
-  }, [publishPercent]);
-
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponderCapture: () => true,
-    onPanResponderGrant: () => {
-      isDraggingRef.current = true;
-      dragStartPercentRef.current = percentRef.current;
-    },
-    onPanResponderMove: (_event, gesture) => {
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      publishPercent(next);
-    },
-    onPanResponderRelease: (_event, gesture) => {
-      isDraggingRef.current = false;
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      finishInteraction(next);
-    },
-    onPanResponderTerminate: (_event, gesture) => {
-      isDraggingRef.current = false;
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      finishInteraction(next);
-    },
-  }), [finishInteraction, publishPercent, trackHeight]);
-
-  const displayPercent = isDraggingRef.current ? activePercent : percent;
+  const metrics = getVerticalSliderMetrics({ availableHeight, compact, topInset, bottomInset });
+  const { measuredHeight, responsiveCompact, safeTopInset, safeBottomInset, cardHeight, trackHeight } = metrics;
+  const slider = useVerticalSliderModel({
+    value,
+    onChange,
+    onChangeEnd,
+    clampPercent,
+    toPercent: toVolumePercent,
+    toValue: toVolumeValue,
+    percentRange: { range: PERCENT_RANGE, trackHeight },
+  });
+  const { displayPercent, responder, adjustByKeyboard } = slider;
   const fillRatio = (displayPercent - MIN_PERCENT) / PERCENT_RANGE;
   const thumbTop = `${(1 - fillRatio) * 100}%`;
   const fillHeight = `${fillRatio * 100}%`;
   const safeRightInset = Number.isFinite(Number(rightInset)) ? Number(rightInset) : 10;
-  const positionerStyle = [
-    measuredHeight > 0
-      ? {
-          top: safeTopInset + (alignTop ? 0 : 3),
-          bottom: safeBottomInset + 3,
-          justifyContent: alignTop ? 'flex-start' : 'center',
-        }
-      : null,
-    { paddingRight: safeRightInset },
-  ];
-  const adjustByKeyboard = (event) => {
-    const change = event?.nativeEvent?.actionName === 'increment' ? 5 : -5;
-    const next = clampPercent(percentRef.current + change);
-    setActivePercent(next);
-    finishInteraction(next);
-  };
+  const positionerStyle = getVerticalSliderPositionStyle({
+    measuredHeight,
+    safeTopInset,
+    safeBottomInset,
+    alignTop,
+    horizontalInset: safeRightInset,
+    insetSide: 'right',
+  });
+  if (measuredHeight > 0 && cardHeight < 44) {
+    return <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]} />;
+  }
+  let volumeIcon = 'volume-high';
+  if (displayPercent === 0) volumeIcon = 'volume-mute';
+  else if (displayPercent < 50) volumeIcon = 'volume-medium';
 
-  const volumeIcon = displayPercent === 0
-    ? 'volume-mute'
-    : displayPercent < 50
-      ? 'volume-medium'
-      : 'volume-high';
-
-  return (
-    <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]}>
-      {measuredHeight > 0 && cardHeight < 44 ? null : (
-        <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
-          <View style={styles.iconWrap}>
-            <PlayerIcon
-              name={volumeIcon}
-              size={(responsiveCompact ? 16 : 20) * (fullscreenLandscape ? 1.1 : 1)}
-              color={accentColor}
-            />
-          </View>
-          <View
-            {...responder.panHandlers}
-            accessibilityRole="adjustable"
-            accessibilityLabel="Device sound volume"
-            accessibilityValue={{ min: MIN_PERCENT, max: MAX_PERCENT, now: displayPercent, text: `${displayPercent}%` }}
-            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-            onAccessibilityAction={adjustByKeyboard}
-            style={[styles.trackHitTarget, responsiveCompact && styles.compactTrackHitTarget, { height: trackHeight }]}
-          >
-            <View style={styles.track}>
-              <View style={[styles.trackFill, { height: fillHeight, backgroundColor: accentColor }]} />
-              <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
-            </View>
-          </View>
-          {!responsiveCompact ? (
-            <Text
-              style={[
-                styles.valueLabel,
-                fullscreenLandscape && { fontSize: 12, lineHeight: 14 },
-              ]}
-            >{displayPercent}</Text>
-          ) : null}
-        </View>
-      )}
+  const leadingContent = (
+    <View style={styles.iconWrap}>
+      <PlayerIcon
+        name={volumeIcon}
+        size={getVolumeIconSize(responsiveCompact, fullscreenLandscape)}
+        color={accentColor}
+      />
     </View>
   );
+  let trailingContent = null;
+  if (!responsiveCompact) {
+    trailingContent = (
+      <Text style={[styles.valueLabel, fullscreenLandscape && { fontSize: 12, lineHeight: 14 }]}>
+        {displayPercent}
+      </Text>
+    );
+  }
+
+  return (
+    <VerticalSliderCard
+      positionerStyle={positionerStyle}
+      alignItems="flex-end"
+      cardHeight={cardHeight}
+      responsiveCompact={responsiveCompact}
+      leadingContent={leadingContent}
+      responder={responder}
+      accessibilityLabel="Device sound volume"
+      minimumValue={MIN_PERCENT}
+      maximumValue={MAX_PERCENT}
+      displayPercent={displayPercent}
+      onAccessibilityAction={adjustByKeyboard}
+      trackHeight={trackHeight}
+      fillHeight={fillHeight}
+      accentColor={accentColor}
+      thumbTop={thumbTop}
+      trailingContent={trailingContent}
+    />
+  );
+}
+
+function getVolumeIconSize(responsiveCompact, fullscreenLandscape) {
+  const baseSize = responsiveCompact ? 16 : 20;
+  return baseSize * (fullscreenLandscape ? 1.1 : 1);
 }
 
 const styles = StyleSheet.create({
@@ -173,14 +127,6 @@ const styles = StyleSheet.create({
     zIndex: 90,
     elevation: 90,
   },
-  card: {
-    width: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    backgroundColor: 'transparent',
-  },
-  compactCard: { width: 30, paddingVertical: 2 },
   iconWrap: {
     height: 22,
     alignItems: 'center',

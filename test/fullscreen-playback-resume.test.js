@@ -23,7 +23,7 @@ test('native full-player fullscreen captures current playback and restores it af
   assert.match(player, /const position = Number\(fullscreenSeekRestoreRef\.current\?\.target \?\? lastKnownTimeRef\.current/);
   assert.match(player, /fullscreenSeekRestoreRef\.current = \{[\s\S]*?target: position/);
   assert.match(player, /const observedTime = progress\.seconds/);
-  assert.match(player, /vlcRef\.current\.seek\(Math\.max\(0, Math\.min\(1, playerTarget \/ playerDuration\)\)\)/);
+  assert.match(player, /player\.seek\(Math\.max\(0, Math\.min\(1, playerTarget \/ playerDuration\)\)\)/);
 });
 
 test('fullscreen carries the current timestamp, including fractional seconds, for a new VLC player', () => {

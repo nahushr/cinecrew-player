@@ -12,7 +12,7 @@ test('web VOD center controls provide clamped 10-second skips', () => {
   assert.match(webEntry, /function WebSeekSkipButton\(\{ direction, onSeek \}\)/);
   assert.match(webEntry, /Rewind 10 seconds/);
   assert.match(webEntry, /Forward 10 seconds/);
-  assert.match(webEntry, /seekButtonsVisible = !bottomProps\.isLive\s*&& isControlEnabled\(overrides, 'seek', true\)/);
+  assert.match(webEntry, /showSeekButtons = !bottomProps\.isLive\s*&& isControlEnabled\(overrides, 'seek', true\)/);
   assert.match(webEntry, /const seekBy = useCallback\(\(delta\) => \{[\s\S]*Math\.max\(0, Math\.min\(endTime, baseTime \+ \(Number\(delta\) \|\| 0\)\)\)/);
   assert.match(controlsCss, /\.cinecrew-player__seek-skip[\s\S]*width: 46px[\s\S]*height: 46px/);
 });

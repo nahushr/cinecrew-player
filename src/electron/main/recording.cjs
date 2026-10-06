@@ -1,39 +1,54 @@
 const fs = require('node:fs/promises');
 const nodeFs = require('node:fs');
 const path = require('node:path');
+const { once } = require('node:events');
+const { pipeline } = require('node:stream/promises');
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForRecordingFile(filePath, attempt = 0, lastSize = 0) {
+  let currentSize = lastSize;
+  try {
+    const file = await fs.stat(filePath);
+    if (file.size > 0 && file.size === lastSize) return file;
+    currentSize = file.size;
+  } catch {
+    // LibVLC can take a moment to close and flush its output file.
+  }
+
+  if (attempt >= 39) {
+    if (currentSize > 0) return fs.stat(filePath);
+    throw new Error('LibVLC finished without writing a recording file.');
+  }
+  await delay(250);
+  return waitForRecordingFile(filePath, attempt + 1, currentSize);
+}
+
+async function pipeRecordingSegments(segments, output, index = 0) {
+  if (index >= segments.length) return;
+  await pipeline(nodeFs.createReadStream(segments[index]), output, { end: false });
+  return pipeRecordingSegments(segments, output, index + 1);
+}
 
 function createVlcRecordingController({ app, getPlayer, sendEvent }) {
   let activeRecording = null;
 
-  async function waitForRecordingFile(filePath) {
-    let lastSize = 0;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      try {
-        const file = await fs.stat(filePath);
-        if (file.size > 0 && file.size === lastSize) return file;
-        lastSize = file.size;
-      } catch {
-        // LibVLC can take a moment to close and flush its output file.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    if (lastSize > 0) return fs.stat(filePath);
-    throw new Error('LibVLC finished without writing a recording file.');
-  }
-
   async function mergeSegments(recording) {
     const outputPath = recording.finalPath;
-    const output = await fs.open(outputPath, 'w');
+    const output = nodeFs.createWriteStream(outputPath);
     try {
-      for (const segment of recording.segments) {
-        for await (const chunk of nodeFs.createReadStream(segment)) {
-          await output.writeFile(chunk);
-        }
-      }
+      await pipeRecordingSegments(recording.segments, output);
+      output.end();
+      await once(output, 'finish');
+    } catch (error) {
+      output.destroy();
+      throw error;
     } finally {
-      await output.close();
+      if (!output.closed) output.destroy();
     }
-    for (const segment of recording.segments) await fs.unlink(segment).catch(() => {});
+    await Promise.all(recording.segments.map((segment) => fs.unlink(segment).catch(() => {})));
     return waitForRecordingFile(outputPath);
   }
 
@@ -43,7 +58,7 @@ function createVlcRecordingController({ app, getPlayer, sendEvent }) {
     const filePath = `${recording.finalPath}.segment-${recording.segments.length + 1}`;
     const startTimeMs = Math.max(0, Number(player.getTime()) || 0);
     const wasPaused = player.isPaused();
-    const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const escapedPath = JSON.stringify(filePath).slice(1, -1);
     const sout = `#duplicate{dst=display,dst=std{access=file,mux=ts,dst="${escapedPath}"}}`;
 
     player.setSource(recording.source, {
@@ -83,7 +98,7 @@ function createVlcRecordingController({ app, getPlayer, sendEvent }) {
   async function pause() {
     const player = getPlayer();
     const recording = activeRecording;
-    if (!recording || recording.paused || !recording.currentSegment || !player?.isEmbedded?.()) {
+    if (!recording?.currentSegment || recording.paused || !player?.isEmbedded?.()) {
       throw new Error('There is no active recording to pause.');
     }
     const resumeTimeMs = Math.max(0, Number(player.getTime()) || 0);

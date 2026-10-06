@@ -8,7 +8,7 @@ export function getUserInitial(username = '') {
 }
 
 export function findUserMetadata(username = '', userId = '', users = []) {
-  if (!Array.isArray(users) || users.length === 0) return null;
+  if (!Array.isArray(users) || users.length === 0) return {};
   const cleanUser = String(username || '').trim().toLowerCase();
   const cleanId = String(userId || '').trim().toLowerCase();
   return users.find((u) => {
@@ -16,7 +16,7 @@ export function findUserMetadata(username = '', userId = '', users = []) {
     const uName = String(u.username || u.name || '').trim().toLowerCase();
     const uId = String(u.id || u.userId || '').trim().toLowerCase();
     return (cleanId && uId === cleanId) || (cleanUser && uName === cleanUser);
-  }) || null;
+  }) || {};
 }
 
 export function resolveUserAvatar(author = {}, users = []) {

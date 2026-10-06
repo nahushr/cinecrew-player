@@ -14,8 +14,9 @@ test('web player renders accessible brightness and sound sliders when enabled', 
   assert.match(webEntry, /'aria-label': 'Video brightness'/);
   assert.match(webEntry, /'aria-label': 'Device sound volume'/);
   assert.match(webEntry, /showVolumeControl: showVolumeControl \|\| showSoundControl/);
-  assert.match(webEntry, /!locked && !compactInline && showBrightnessControl \? h\(WebBrightnessControl/);
-  assert.match(webEntry, /!locked && !compactInline && showVolumeControl \? h\(WebVolumeControl/);
+  assert.match(webEntry, /if \(locked \|\| compactInline\) return null/);
+  assert.match(webEntry, /props\.showBrightnessControl\s*\?\s*h\(WebBrightnessControl/);
+  assert.match(webEntry, /props\.showVolumeControl\s*\?\s*h\(WebVolumeControl/);
   assert.match(brightnessCss, /\.cinecrew-player__brightness-control[\s\S]*writing-mode: vertical-lr/);
   assert.match(brightnessCss, /\.cinecrew-player__volume-control[\s\S]*right: 10px/);
   assert.match(brightnessCss, /\.cinecrew-player__volume-control input[\s\S]*writing-mode: vertical-lr/);

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { PlayerIcon } from '../../customization';
 import { EmojiPickerModal } from '../EmojiPickerModal';
-import { chatMessageKey, QUICK_REACTIONS } from './liveChatUtils';
+import { chatMessageKey } from './liveChatUtils';
 
 export function LiveChatPanel({
   styles,

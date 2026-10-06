@@ -18,6 +18,19 @@ function shouldShowEpisodeSubtitle(isMobile, episodeLabel, displayTitle) {
   return Boolean(episode && title !== episode && !title.includes(episode));
 }
 
+function getTopBarPaddingTop({ electronFullscreen, compactImmersiveAndroid, isFullscreen, insets }) {
+  if (electronFullscreen) return 8;
+  if (compactImmersiveAndroid) return 4;
+  if (isFullscreen) return Math.max(insets?.top || 0, 24);
+  return 8;
+}
+
+function getTopBarPaddingHorizontal({ electronFullscreen, isFullscreen, isPortrait, insets, compact }) {
+  if (electronFullscreen) return 8;
+  if (isFullscreen || !isPortrait) return Math.max(insets?.left || 0, insets?.right || 0, 20);
+  return compact ? 4 : 10;
+}
+
 function BackButton({ visible, palette, onClose, compact, scale }) {
   if (!visible) return <View style={{ width: 12 }} />;
   const iconBoost = scale?.iconBoost || 1;
@@ -181,6 +194,63 @@ function CompactLandscapeTitle({ compact, displayTitle, palette, scale }) {
   );
 }
 
+function updateCompactLandscapeTopOffset({
+  compact,
+  compactImmersiveAndroid,
+  insets,
+  topBarRef,
+  landscapeTopOffsetRef,
+  setLandscapeTopOffset,
+}) {
+  if (!compact) {
+    if (landscapeTopOffsetRef.current !== 0) {
+      landscapeTopOffsetRef.current = 0;
+      setLandscapeTopOffset(0);
+    }
+    return;
+  }
+
+  topBarRef.current?.measureInWindow?.((_x, windowY) => {
+    const baseWindowY = windowY - landscapeTopOffsetRef.current;
+    const safeTop = compactImmersiveAndroid ? 4 : Math.max(insets?.top || 0, 8);
+    const nextOffset = Math.max(0, safeTop - baseWindowY);
+    if (Math.abs(nextOffset - landscapeTopOffsetRef.current) <= 1) return;
+    landscapeTopOffsetRef.current = nextOffset;
+    setLandscapeTopOffset(nextOffset);
+  });
+}
+
+function UnlockedTopActions(props) {
+  const {
+    canRecord, isScreenRecorderEnabled, recStatus, isLoading, controls,
+    onStartRecording, onResumeRecording, onPauseRecording, onStopRecording,
+    isLiveCommentsEnabled, showLiveChat, drawerTab, onToggleChatTab,
+    isEpgEnabled, diagnosticsOverlayEnabled, isLive, compact, scale,
+    palette, controlsLock, onRestart, onToggleMute, muted,
+  } = props;
+  const muteIcon = muted ? 'mute' : 'unmute';
+  const muteColor = muted ? palette.errorColor : palette.controlColor;
+  const muteLabel = muted ? 'Unmute' : 'Mute';
+  return (
+    <>
+      <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} scale={scale} />
+      <ServiceActionButton name="liveChat" tab="chat" enabled={isLiveCommentsEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="comment-text-multiple" inactiveIcon="comment-text-multiple-outline" label="Live chat" palette={palette} compact={compact} scale={scale} />
+      <ServiceActionButton name="epg" tab="epg" enabled={isEpgEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="television-guide" inactiveIcon="television-classic" label="Programme guide" palette={palette} compact={compact} scale={scale} />
+      <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" scale={scale} />
+      <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onToggleMute} icon={muteIcon} color={muteColor} accessibilityLabel={muteLabel} scale={scale} />
+      <ServiceActionButton name="diagnostics" tab="diagnostics" enabled={diagnosticsOverlayEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="pulse" inactiveIcon="pulse" label="Stream diagnostics" palette={palette} compact={compact} scale={scale} />
+      {controlsLock}
+    </>
+  );
+}
+
+function PlayerTopActions({ locked, props }) {
+  if (locked) {
+    return <PlayerLockButton locked onPress={props.onToggleLock} compact={props.compact} scale={props.scale} />;
+  }
+  return <UnlockedTopActions {...props} />;
+}
+
 export const PlayerTopBar = ({
   insets,
   scale,
@@ -227,29 +297,42 @@ export const PlayerTopBar = ({
   const compactAndroidLandscape = compact && isAndroid();
   const compactImmersiveAndroid = compactAndroidLandscape && isFullscreen;
   const shouldShowLandscapeTitle = !isPortrait && Boolean(paused);
-
-  const alignCompactLandscapeTopBar = () => {
-    if (!compact) {
-      if (landscapeTopOffsetRef.current !== 0) {
-        landscapeTopOffsetRef.current = 0;
-        setLandscapeTopOffset(0);
-      }
-      return;
-    }
-
-    topBarRef.current?.measureInWindow?.((_x, windowY) => {
-      // The native fullscreen host can start above the app's safe-area origin
-      // after rotation. Move only the top controls back into the visible player
-      // region; the video surface, center controls, and seek bar stay untouched.
-      const baseWindowY = windowY - landscapeTopOffsetRef.current;
-      const safeTop = compactImmersiveAndroid ? 4 : Math.max(insets?.top || 0, 8);
-      const nextOffset = Math.max(0, safeTop - baseWindowY);
-      if (Math.abs(nextOffset - landscapeTopOffsetRef.current) > 1) {
-        landscapeTopOffsetRef.current = nextOffset;
-        setLandscapeTopOffset(nextOffset);
-      }
-    });
+  const lockControl = controls.lock !== false && (
+    <PlayerLockButton compact={compact} onPress={onToggleLock} scale={scale} />
+  );
+  const topActionsProps = {
+    canRecord,
+    isScreenRecorderEnabled,
+    recStatus,
+    isLoading,
+    controls,
+    onStartRecording,
+    onResumeRecording,
+    onPauseRecording,
+    onStopRecording,
+    isLiveCommentsEnabled,
+    showLiveChat,
+    drawerTab,
+    onToggleChatTab,
+    isEpgEnabled,
+    diagnosticsOverlayEnabled,
+    isLive,
+    compact,
+    scale,
+    palette,
+    controlsLock: lockControl,
+    onRestart,
+    onToggleMute,
+    muted,
   };
+  const alignCompactLandscapeTopBar = () => updateCompactLandscapeTopOffset({
+    compact,
+    compactImmersiveAndroid,
+    insets,
+    topBarRef,
+    landscapeTopOffsetRef,
+    setLandscapeTopOffset,
+  });
 
   const displayTitle = useMemo(() => {
     return cleanPlayerTitle(title, episodeLabel, isMobile);
@@ -268,8 +351,8 @@ export const PlayerTopBar = ({
         compact && styles.compactLandscapeTopBar,
         compact && { top: landscapeTopOffset },
         {
-          paddingTop: electronFullscreen ? 8 : compactImmersiveAndroid ? 4 : isFullscreen ? Math.max(insets?.top || 0, 24) : 8,
-          paddingHorizontal: electronFullscreen ? 8 : (isFullscreen || !isPortrait) ? Math.max(insets?.left || 0, insets?.right || 0, 20) : (compact ? 4 : 10),
+          paddingTop: getTopBarPaddingTop({ electronFullscreen, compactImmersiveAndroid, isFullscreen, insets }),
+          paddingHorizontal: getTopBarPaddingHorizontal({ electronFullscreen, isFullscreen, isPortrait, insets, compact }),
         },
       ]}
       ref={(node) => { topBarRef.current = node; }}
@@ -298,17 +381,7 @@ export const PlayerTopBar = ({
           compact && styles.compactTopRightActions,
           compactAndroidLandscape && styles.compactAndroidTopRightActions,
         ]}>
-          {locked ? <PlayerLockButton locked onPress={onToggleLock} compact={compact} scale={scale} /> : (
-            <>
-              <RecordingControls canRecord={canRecord ?? true} enabled={isScreenRecorderEnabled} status={recStatus} loading={isLoading} controls={controls} onStart={onStartRecording} onResume={onResumeRecording} onPause={onPauseRecording} onStop={onStopRecording} palette={palette} compact={compact} scale={scale} />
-              <ServiceActionButton name="liveChat" tab="chat" enabled={isLiveCommentsEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="comment-text-multiple" inactiveIcon="comment-text-multiple-outline" label="Live chat" palette={palette} compact={compact} scale={scale} />
-              <ServiceActionButton name="epg" tab="epg" enabled={isEpgEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="television-guide" inactiveIcon="television-classic" label="Programme guide" palette={palette} compact={compact} scale={scale} />
-              <SessionActionButton visible={!isLive && controls.restart !== false} compact={compact} onPress={onRestart} icon="restart" color={palette.controlColor} accessibilityLabel="Restart playback" scale={scale} />
-              <SessionActionButton visible={controls.mute !== false} compact={compact} onPress={onToggleMute} icon={muted ? 'mute' : 'unmute'} color={muted ? palette.errorColor : palette.controlColor} accessibilityLabel={muted ? 'Unmute' : 'Mute'} scale={scale} />
-              <ServiceActionButton name="diagnostics" tab="diagnostics" enabled={diagnosticsOverlayEnabled} controls={controls} showLiveChat={showLiveChat} drawerTab={drawerTab} onToggle={onToggleChatTab} activeIcon="pulse" inactiveIcon="pulse" label="Stream diagnostics" palette={palette} compact={compact} scale={scale} />
-              {controls.lock !== false ? <PlayerLockButton compact={compact} onPress={onToggleLock} scale={scale} /> : null}
-            </>
-          )}
+          <PlayerTopActions locked={locked} props={{ ...topActionsProps, onToggleLock, scale, compact }} />
         </View>
       </View>
       {!locked && shouldShowLandscapeTitle ? <CompactLandscapeTitle compact={compact} displayTitle={displayTitle} palette={palette} scale={scale} /> : null}

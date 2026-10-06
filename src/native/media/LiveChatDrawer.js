@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
@@ -19,14 +18,10 @@ import { isIOS, isWeb } from '../../utils/runtimePlatform';
 import { PlayerIcon } from '../customization';
 import {
   DEFAULT_EPG_LIMIT,
-  QUICK_REACTIONS,
-  getUserInitial,
   resolveUserAvatar,
   formatMessageTime,
-  normalizeChatMessage,
   normalizeChatPage,
   chatPageHasMore,
-  chatMessageKey,
   mergeChatMessages,
   extractHostname,
   detectStreamProtocol,
@@ -50,6 +45,342 @@ function ChatPanelContent(props) {
     );
   }
   return <LiveChatPanel {...props.panelProps} />;
+}
+
+function getPortraitResizeStyle({
+  isPortrait,
+  drawerMode,
+  popupMode,
+  inlinePortraitResize,
+  portraitDrawerHeight,
+  portraitVideoHeight,
+  fullscreen,
+  fullscreenBottomInset,
+}) {
+  if (!isPortrait || drawerMode !== 'resize' || popupMode) return null;
+  if (inlinePortraitResize) {
+    const boundedHeight = Math.max(0, Number(portraitDrawerHeight) || 0);
+    return {
+      position: 'relative', top: undefined, right: undefined, bottom: undefined, left: undefined,
+      width: '100%', maxWidth: '100%', height: boundedHeight, maxHeight: boundedHeight, flex: 0,
+      borderLeftWidth: 0, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.14)',
+      backgroundColor: '#07111E', borderRadius: 0, zIndex: 1, elevation: 0, shadowOpacity: 0,
+    };
+  }
+  return {
+    position: 'absolute', top: portraitVideoHeight,
+    bottom: fullscreen ? fullscreenBottomInset : 0,
+    left: 0, right: 0, width: '100%', maxWidth: '100%', height: undefined, maxHeight: undefined,
+    // Flex bounds the list when Android's KeyboardAvoidingView is active.
+    flex: 1, borderLeftWidth: 0, borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.14)', backgroundColor: '#07111E', borderRadius: 0,
+    zIndex: 160, elevation: 0, shadowOpacity: 0,
+  };
+}
+
+function renderEpgItem({ item, index, epgNow, epgListings }) {
+  const isNow = item.startMs <= epgNow && epgNow < item.endMs;
+  const isPast = item.endMs > 0 && item.endMs <= epgNow;
+  const previous = epgListings[index - 1];
+  const showDay = !previous || new Date(previous.startMs).toDateString() !== new Date(item.startMs).toDateString();
+  const progress = isNow ? epgProgress(item, epgNow) : 0;
+  const timeLabel = item.endMs
+    ? `${formatEpgClock(item.startMs)} – ${formatEpgClock(item.endMs)}`
+    : formatEpgClock(item.startMs);
+  return (
+    <View>
+      {showDay ? <Text style={styles.epgDayLabel}>{formatEpgDayLabel(item.startMs)}</Text> : null}
+      <View style={[styles.epgCard, isNow && styles.epgCardNow, isPast && styles.epgCardPast]}>
+        <View style={styles.epgCardTop}>
+          <Text style={[styles.epgTime, isNow && styles.epgTimeNow]}>{timeLabel}</Text>
+          {isNow && <View style={styles.epgNowBadge}><Text style={styles.epgNowBadgeText}>NOW</Text></View>}
+        </View>
+        <Text style={[styles.epgTitle, isPast && styles.epgTitlePast]} numberOfLines={2}>{item.title}</Text>
+        {!!item.description && <Text style={styles.epgDescription} numberOfLines={3}>{item.description}</Text>}
+        {isNow && <View style={styles.epgProgressTrack}><View style={[styles.epgProgressFill, { width: `${Math.round(progress * 100)}%` }]} /></View>}
+      </View>
+    </View>
+  );
+}
+
+function EpgPanelContent({
+  activeTab, epgAvailable, title, epgLoading, epgListings, epgError,
+  inlinePortraitResize, epgListRef, epgNow, epgNowOffsetRef,
+}) {
+  if (activeTab !== 'epg') return null;
+  if (!epgAvailable) {
+    return (
+      <View style={styles.epgStatusWrap}>
+        <PlayerIcon name="television-off" size={28} color="rgba(255,255,255,0.45)" />
+        <Text style={styles.epgStatusText}>Programme guide is enabled, but no EPG integration was provided.</Text>
+      </View>
+    );
+  }
+
+  let listContent;
+  if (epgLoading && !epgListings.length) {
+    listContent = <View style={styles.epgStatusWrap}><ActivityIndicator size="small" color="#00E5FF" /><Text style={styles.epgStatusText}>Loading programme guide…</Text></View>;
+  } else if (epgError && !epgListings.length) {
+    listContent = <View style={styles.epgStatusWrap}><PlayerIcon name="calendar-remove" size={28} color="rgba(255,255,255,0.45)" /><Text style={styles.epgStatusText}>{epgError}</Text></View>;
+  } else if (!epgListings.length) {
+    listContent = <View style={styles.epgStatusWrap}><PlayerIcon name="television-off" size={28} color="rgba(255,255,255,0.45)" /><Text style={styles.epgStatusText}>No programme guide for this channel.</Text></View>;
+  } else if (inlinePortraitResize) {
+    listContent = (
+      <ScrollView ref={epgListRef} nestedScrollEnabled style={styles.epgFlatList} contentContainerStyle={styles.epgList} showsVerticalScrollIndicator>
+        {epgListings.map((item, index) => {
+          const now = item.startMs <= epgNow && epgNow < item.endMs;
+          const onLayout = now ? (event) => { epgNowOffsetRef.current = event.nativeEvent.layout.y; } : undefined;
+          return <View key={`${String(item.id || 'epg')}-${index}`} onLayout={onLayout}>{renderEpgItem({ item, index, epgNow, epgListings })}</View>;
+        })}
+      </ScrollView>
+    );
+  } else {
+    listContent = (
+      <FlatList
+        ref={epgListRef}
+        nestedScrollEnabled
+        style={styles.epgFlatList}
+        data={epgListings}
+        keyExtractor={(item, index) => `${String(item.id || 'epg')}-${index}`}
+        renderItem={({ item, index }) => renderEpgItem({ item, index, epgNow, epgListings })}
+        contentContainerStyle={styles.epgList}
+        showsVerticalScrollIndicator
+        onScrollToIndexFailed={({ index }) => {
+          setTimeout(() => epgListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 120);
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      {!!title && <View style={styles.welcomeBanner}><PlayerIcon name="television" size={16} color="#00E5FF" style={{ marginTop: 2 }} /><Text style={styles.welcomeText} numberOfLines={2}>{title}</Text></View>}
+      {listContent}
+    </>
+  );
+}
+
+function getDrawerModalModes({ drawerMode, popupMode, isPortrait, windowWidth, windowHeight }) {
+  return {
+    bottomModal: drawerMode === 'modal' && !isWeb() && !popupMode,
+    centeredModal: popupMode || (drawerMode === 'modal' && isWeb()),
+    isPortrait,
+    compactOverlay: drawerMode === 'overlay'
+      && (isPortrait || (isWeb() && (windowWidth < 720 || windowHeight < 520))),
+  };
+}
+
+function getDrawerSafeInsets({ fullscreen, landscapeFullWidth, isPortrait, safeAreaInsets }) {
+  const androidFullscreen = (fullscreen || landscapeFullWidth) && Platform.OS === 'android' && !isPortrait;
+  const fullscreenTopInset = Math.max(
+    androidFullscreen ? 0 : Number(safeAreaInsets?.top) || 0,
+    !androidFullscreen && Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+  );
+  return {
+    androidFullscreen,
+    fullscreenTopInset,
+    fullscreenBottomInset: androidFullscreen ? 0 : Number(safeAreaInsets?.bottom) || 0,
+    fullscreenLeftInset: androidFullscreen ? 0 : Number(safeAreaInsets?.left) || 0,
+    fullscreenRightInset: androidFullscreen ? 0 : Number(safeAreaInsets?.right) || 0,
+  };
+}
+
+function getFullscreenDrawerInsets({ fullscreen, centeredModal, bottomModal, isPortrait, fullscreenTopInset, fullscreenBottomInset }) {
+  if (!fullscreen || centeredModal || bottomModal || isPortrait) return null;
+  return { top: fullscreenTopInset, bottom: fullscreenBottomInset };
+}
+
+function getFullscreenLandscapeDrawerStyle({
+  fullscreen,
+  landscapeFullWidth,
+  drawerMode,
+  windowWidth,
+  windowHeight,
+  fullscreenTopInset,
+  fullscreenBottomInset,
+  fullscreenLeftInset,
+  fullscreenRightInset,
+}) {
+  const landscape = (fullscreen || landscapeFullWidth)
+    && drawerMode !== 'resize'
+    && windowWidth >= windowHeight;
+  if (!landscape) return null;
+  const overlayWidth = Math.min(380, Math.max(280, Math.round(windowWidth * 0.42)));
+  const height = Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset);
+  return {
+    position: 'absolute',
+    top: fullscreenTopInset,
+    right: fullscreenRightInset,
+    bottom: fullscreenBottomInset,
+    left: undefined,
+    width: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
+    maxWidth: overlayWidth,
+    height,
+    maxHeight: height,
+    alignSelf: 'stretch',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 0,
+    backgroundColor: 'rgba(7, 14, 26, 0.88)',
+  };
+}
+
+function getCompactOverlayDrawerStyle({ compactOverlay, popupMode, fullscreen, fullscreenBottomInset }) {
+  if (!compactOverlay || popupMode) return null;
+  return {
+    position: 'absolute',
+    top: undefined,
+    bottom: fullscreen ? fullscreenBottomInset : 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    maxWidth: '100%',
+    height: '75%',
+    maxHeight: '75%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderLeftWidth: 0,
+    backgroundColor: 'rgba(7, 14, 26, 0.9)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 20,
+  };
+}
+
+function getLandscapeOverlayPanelStyle({ drawerMode, popupMode, compactOverlay, isPortrait }) {
+  if (drawerMode !== 'overlay' || popupMode || compactOverlay || isPortrait) return null;
+  return { backgroundColor: 'rgba(7, 14, 26, 0.88)' };
+}
+
+function getDrawerFrameStyles({
+  drawerMode,
+  popupMode,
+  centeredModal,
+  bottomModal,
+  windowWidth,
+  windowHeight,
+  fullscreen,
+  fullscreenBottomInset,
+  fullscreenDrawerInsets,
+  fullscreenLandscapeStyle,
+  portraitResizeStyle,
+  compactOverlayStyle,
+  landscapeOverlayPanelStyle,
+  drawerStyle,
+}) {
+  const result = [styles.drawerContainer];
+  if (drawerMode === 'resize' && !popupMode) {
+    result.push(styles.drawerResize, { width: '30%', maxWidth: '30%' });
+  } else {
+    result.push(styles.drawerLandscape);
+  }
+  if (centeredModal) {
+    result.push(styles.popupDrawer, {
+      width: Math.min(Math.max(windowWidth - 32, 280), 520),
+      height: Math.min(Math.max(windowHeight - 32, 280), 680),
+    });
+  }
+  if (bottomModal) result.push(styles.bottomModalDrawer);
+  if (fullscreenDrawerInsets) result.push(fullscreenDrawerInsets);
+  if (fullscreen && bottomModal && fullscreenBottomInset > 0) {
+    result.push({ marginBottom: fullscreenBottomInset });
+  }
+  result.push(
+    fullscreenLandscapeStyle,
+    portraitResizeStyle,
+    compactOverlayStyle,
+    landscapeOverlayPanelStyle,
+    drawerStyle,
+  );
+  return result;
+}
+
+function DrawerDiagnosticsContent({ activeTab, health, pingLatency, pingJitter, audioCodecName, protocolName, serverHost, title }) {
+  if (activeTab !== 'diagnostics') return null;
+  return (
+    <DiagnosticsTab
+      styles={styles}
+      health={health}
+      pingLatency={pingLatency}
+      pingJitter={pingJitter}
+      audioCodecName={audioCodecName}
+      protocolName={protocolName}
+      serverHost={serverHost}
+      title={title}
+    />
+  );
+}
+
+function DrawerContents(props) {
+  const {
+    activeTab, drawerStyles,
+    onClose, chatPanelProps, epgPanelProps, diagnosticsProps,
+  } = props;
+  let activeTitle = TAB_META[activeTab]?.title || 'Overlay';
+  if (activeTab === 'chat') activeTitle = 'Live chat';
+  return (
+    <KeyboardAvoidingView behavior={isIOS() ? 'padding' : undefined} style={drawerStyles}>
+      <View style={styles.drawerHeader}>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle}>{activeTitle}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.closeHeaderBtn}
+          onPress={onClose}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Close live chat"
+        >
+          <PlayerIcon name="close" size={18} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+      <ChatPanelContent {...chatPanelProps} />
+      <EpgPanelContent {...epgPanelProps} />
+      <DrawerDiagnosticsContent {...diagnosticsProps} activeTab={activeTab} />
+    </KeyboardAvoidingView>
+  );
+}
+
+function DrawerPresentation({ compactOverlay, popupMode, centeredModal, bottomModal, visible, onClose, children }) {
+  if (compactOverlay && !popupMode) {
+    return (
+      <View pointerEvents="box-none" style={styles.compactOverlayRoot}>
+        <TouchableOpacity
+          style={styles.compactOverlayBackdrop}
+          activeOpacity={1}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close player panel"
+        />
+        {children}
+      </View>
+    );
+  }
+  if (!centeredModal && !bottomModal) return children;
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType={bottomModal ? 'slide' : 'fade'}
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={[styles.popupBackdrop, bottomModal && styles.bottomModalBackdrop]}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close player panel"
+        />
+        {children}
+      </View>
+    </Modal>
+  );
 }
 
 export const LiveChatDrawer = ({
@@ -444,52 +775,6 @@ export const LiveChatDrawer = ({
     );
   };
 
-  const renderEpgItem = ({ item, index }) => {
-    const isNow = item.startMs <= epgNow && epgNow < item.endMs;
-    const isPast = item.endMs > 0 && item.endMs <= epgNow;
-    const prev = epgListings[index - 1];
-    const showDay = !prev || new Date(prev.startMs).toDateString() !== new Date(item.startMs).toDateString();
-    const progress = isNow ? epgProgress(item, epgNow) : 0;
-    const timeLabel = item.endMs
-      ? `${formatEpgClock(item.startMs)} – ${formatEpgClock(item.endMs)}`
-      : formatEpgClock(item.startMs);
-
-    return (
-      <View>
-        {showDay ? (
-          <Text style={styles.epgDayLabel}>{formatEpgDayLabel(item.startMs)}</Text>
-        ) : null}
-        <View style={[
-          styles.epgCard,
-          isNow && styles.epgCardNow,
-          isPast && styles.epgCardPast,
-        ]}>
-          <View style={styles.epgCardTop}>
-            <Text style={[styles.epgTime, isNow && styles.epgTimeNow]}>{timeLabel}</Text>
-            {isNow ? (
-              <View style={styles.epgNowBadge}>
-                <Text style={styles.epgNowBadgeText}>NOW</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[styles.epgTitle, isPast && styles.epgTitlePast]} numberOfLines={2}>
-            {item.title}
-          </Text>
-          {!!item.description && (
-            <Text style={styles.epgDescription} numberOfLines={3}>
-              {item.description}
-            </Text>
-          )}
-          {isNow ? (
-            <View style={styles.epgProgressTrack}>
-              <View style={[styles.epgProgressFill, { width: `${Math.round(progress * 100)}%` }]} />
-            </View>
-          ) : null}
-        </View>
-      </View>
-    );
-  };
-
   const getHealthStatus = () => {
     if (pingLatency === null) return { label: 'UNKNOWN', color: '#94A3B8' };
     if (pingLatency < 75) return { label: 'EXCELLENT', color: '#00E5FF' };
@@ -498,12 +783,17 @@ export const LiveChatDrawer = ({
   };
 
   const health = getHealthStatus();
-  const bottomModal = drawerMode === 'modal' && !isWeb() && !popupMode;
-  const centeredModal = popupMode || (drawerMode === 'modal' && isWeb());
   const isPortrait = windowWidth < windowHeight;
+  const modalModes = getDrawerModalModes({
+    drawerMode,
+    popupMode,
+    isPortrait,
+    windowWidth,
+    windowHeight,
+  });
+  const { bottomModal, centeredModal, compactOverlay } = modalModes;
   const calculatedPortraitVideoHeight = Math.min(Math.round(windowHeight * 0.42), Math.round(windowWidth * (9 / 16)));
   const portraitVideoHeight = propPortraitVideoHeight || calculatedPortraitVideoHeight;
-  const resizeWidth = '30%';
   // Android's fullscreen player is already drawn edge-to-edge with system UI
   // hidden. Applying the app's normal safe-area insets here makes the drawer
   // start below (and end before) the video surface, leaving visible gaps.
@@ -511,174 +801,70 @@ export const LiveChatDrawer = ({
   // without opening the player's own fullscreen Modal. Keep the right drawer
   // aligned with that video surface rather than offsetting it below system
   // safe-area insets.
-  const androidFullscreen = (fullscreen || landscapeFullWidth) && Platform.OS === 'android' && !isPortrait;
-  const fullscreenTopInset = Math.max(
-    androidFullscreen ? 0 : Number(safeAreaInsets?.top) || 0,
-    !androidFullscreen && Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
-  );
-  const fullscreenBottomInset = androidFullscreen ? 0 : Number(safeAreaInsets?.bottom) || 0;
-  const fullscreenLeftInset = androidFullscreen ? 0 : Number(safeAreaInsets?.left) || 0;
-  const fullscreenRightInset = androidFullscreen ? 0 : Number(safeAreaInsets?.right) || 0;
-  const fullscreenLandscape = (fullscreen || landscapeFullWidth)
-    && drawerMode !== 'resize'
-    && windowWidth >= windowHeight;
-  const overlayWidth = Math.min(380, Math.max(280, Math.round(windowWidth * 0.42)));
-  const compactOverlay = drawerMode === 'overlay'
-    && (isPortrait || (isWeb() && (windowWidth < 720 || windowHeight < 520)));
-  const fullscreenLandscapeStyle = fullscreenLandscape
-    ? {
-        position: 'absolute',
-        top: fullscreenTopInset,
-        right: fullscreenRightInset,
-        bottom: fullscreenBottomInset,
-        left: undefined,
-        width: Math.max(0, windowWidth - fullscreenLeftInset - fullscreenRightInset),
-        maxWidth: overlayWidth,
-        height: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
-        maxHeight: Math.max(0, windowHeight - fullscreenTopInset - fullscreenBottomInset),
-        alignSelf: 'stretch',
-        borderLeftWidth: 1,
-        borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-        borderRadius: 0,
-        backgroundColor: 'rgba(7, 14, 26, 0.88)',
-      }
-    : null;
-  const fullscreenDrawerInsets = fullscreen && !centeredModal && !bottomModal && !isPortrait
-    ? { top: fullscreenTopInset, bottom: fullscreenBottomInset }
-    : null;
+  const fullscreenInsets = getDrawerSafeInsets({ fullscreen, landscapeFullWidth, isPortrait, safeAreaInsets });
+  const fullscreenLandscapeStyle = getFullscreenLandscapeDrawerStyle({
+    fullscreen,
+    landscapeFullWidth,
+    drawerMode,
+    windowWidth,
+    windowHeight,
+    fullscreenTopInset: fullscreenInsets.fullscreenTopInset,
+    fullscreenBottomInset: fullscreenInsets.fullscreenBottomInset,
+    fullscreenLeftInset: fullscreenInsets.fullscreenLeftInset,
+    fullscreenRightInset: fullscreenInsets.fullscreenRightInset,
+  });
+  const fullscreenDrawerInsets = getFullscreenDrawerInsets({
+    fullscreen,
+    centeredModal,
+    bottomModal,
+    isPortrait,
+    fullscreenTopInset: fullscreenInsets.fullscreenTopInset,
+    fullscreenBottomInset: fullscreenInsets.fullscreenBottomInset,
+  });
 
-  const portraitResizeStyle = isPortrait && drawerMode === 'resize' && !popupMode
-    ? inlinePortraitResize
-      ? {
-        // Inline portrait resize is laid out after the video, not absolutely
-        // over it. Giving the drawer a concrete height bounds its FlatList so
-        // it can consume vertical drags without stealing page scrolling.
-        position: 'relative',
-        top: undefined,
-        right: undefined,
-        bottom: undefined,
-        left: undefined,
-        width: '100%',
-        maxWidth: '100%',
-        height: Math.max(0, Number(portraitDrawerHeight) || 0),
-        maxHeight: Math.max(0, Number(portraitDrawerHeight) || 0),
-        flex: 0,
-        borderLeftWidth: 0,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.14)',
-        backgroundColor: '#07111E',
-        borderRadius: 0,
-        zIndex: 1,
-        elevation: 0,
-        shadowOpacity: 0,
-      }
-      : {
-        position: 'absolute',
-        top: portraitVideoHeight,
-        bottom: fullscreen ? fullscreenBottomInset : 0,
-        left: 0,
-        right: 0,
-        width: '100%',
-        maxWidth: '100%',
-        height: undefined,
-        maxHeight: undefined,
-        // flex: 1 is critical on Android – KAV does not derive its own height
-        // from top/bottom constraints, so without flex: 1 the inner FlatList
-        // has no bounded height and collapses (scroll breaks).
-        flex: 1,
-        borderLeftWidth: 0,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.14)',
-        backgroundColor: '#07111E',
-        borderRadius: 0,
-        zIndex: 160,
-        // Remove elevation in portrait resize: the frame already clips
-        // overflow and elevation shadow on Android causes the drawer to
-        // intercept taps on the video area directly above it.
-        elevation: 0,
-        shadowOpacity: 0,
-      }
-    : null;
-
-  const compactOverlayStyle = compactOverlay && !popupMode
-    ? {
-        position: 'absolute',
-        top: undefined,
-        bottom: fullscreen ? fullscreenBottomInset : 0,
-        left: 0,
-        right: 0,
-        width: '100%',
-        maxWidth: '100%',
-        height: '75%',
-        maxHeight: '75%',
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.2)',
-        borderLeftWidth: 0,
-        backgroundColor: 'rgba(7, 14, 26, 0.9)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.55,
-        shadowRadius: 18,
-        elevation: 20,
-    }
-    : null;
-
-  // Landscape overlay drawers stay anchored to the right edge of the player;
-  // don't stretch the drawer over the full video surface. Portrait overlay
-  // continues to use the compact bottom-sheet presentation above.
-  const landscapeOverlayPanelStyle = drawerMode === 'overlay'
-    && !popupMode
-    && !compactOverlay
-    && !isPortrait
-    ? { backgroundColor: 'rgba(7, 14, 26, 0.88)' }
-    : null;
-
+  const portraitResizeStyle = getPortraitResizeStyle({
+    isPortrait,
+    drawerMode,
+    popupMode,
+    inlinePortraitResize,
+    portraitDrawerHeight,
+    portraitVideoHeight,
+    fullscreen,
+    fullscreenBottomInset: fullscreenInsets.fullscreenBottomInset,
+  });
+  const compactOverlayStyle = getCompactOverlayDrawerStyle({
+    compactOverlay,
+    popupMode,
+    fullscreen,
+    fullscreenBottomInset: fullscreenInsets.fullscreenBottomInset,
+  });
+  const landscapeOverlayPanelStyle = getLandscapeOverlayPanelStyle({ drawerMode, popupMode, compactOverlay, isPortrait });
+  const drawerStyles = getDrawerFrameStyles({
+    drawerMode,
+    popupMode,
+    centeredModal,
+    bottomModal,
+    windowWidth,
+    windowHeight,
+    fullscreen,
+    fullscreenBottomInset: fullscreenInsets.fullscreenBottomInset,
+    fullscreenDrawerInsets,
+    fullscreenLandscapeStyle,
+    portraitResizeStyle,
+    compactOverlayStyle,
+    landscapeOverlayPanelStyle,
+    drawerStyle,
+  });
   const drawerContent = (
-    <KeyboardAvoidingView
-      behavior={isIOS() ? 'padding' : undefined}
-      style={[
-        styles.drawerContainer,
-        drawerMode === 'resize' && !popupMode ? styles.drawerResize : styles.drawerLandscape,
-        drawerMode === 'resize' && !popupMode && {
-          width: resizeWidth,
-          maxWidth: resizeWidth,
-        },
-        centeredModal && styles.popupDrawer,
-        centeredModal && {
-          width: Math.min(Math.max(windowWidth - 32, 280), 520),
-          height: Math.min(Math.max(windowHeight - 32, 280), 680),
-        },
-        bottomModal && styles.bottomModalDrawer,
-        fullscreenDrawerInsets,
-        fullscreen && bottomModal && fullscreenBottomInset > 0 && { marginBottom: fullscreenBottomInset },
-        fullscreenLandscapeStyle,
-        portraitResizeStyle,
-        compactOverlayStyle,
-        landscapeOverlayPanelStyle,
-        drawerStyle,
-      ]}
-    >
-      {/* Header with Close Button & Title */}
-      <View style={styles.drawerHeader}>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>
-            {activeTab === 'chat' ? 'Live chat' : (TAB_META[activeTab]?.title || 'Overlay')}
-          </Text>
-        </View>
-
-        <TouchableOpacity style={styles.closeHeaderBtn} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close live chat">
-          <PlayerIcon name="close" size={18} color="#FFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* --- Tab 1: Live Chat --- */}
-      <ChatPanelContent
-        activeTab={activeTab}
-        chatAvailable={chatAvailable}
-        styles={styles}
-        panelProps={{
+    <DrawerContents
+      activeTab={activeTab}
+      drawerStyles={drawerStyles}
+      onClose={onClose}
+      chatPanelProps={{
+        activeTab,
+        chatAvailable,
+        styles,
+        panelProps: {
           styles,
           messagesLoading,
           messages,
@@ -694,154 +880,46 @@ export const LiveChatDrawer = ({
           showEmojiPicker,
           handleSelectEmoji,
           colors,
-          bottomInset: bottomModal ? fullscreenBottomInset : 0,
+          bottomInset: bottomModal ? fullscreenInsets.fullscreenBottomInset : 0,
           inlinePortraitResize,
           onChatScroll: handleChatScroll,
-        }}
-      />
-
-      {activeTab === 'epg' && epgAvailable && (
-        <>
-          {!!title && (
-            <View style={styles.welcomeBanner}>
-              <PlayerIcon name="television" size={16} color="#00E5FF" style={{ marginTop: 2 }} />
-              <Text style={styles.welcomeText} numberOfLines={2}>
-                {title}
-              </Text>
-            </View>
-          )}
-
-          {(() => {
-            if (epgLoading && !epgListings.length) {
-              return (
-                <View style={styles.epgStatusWrap}>
-                  <ActivityIndicator size="small" color="#00E5FF" />
-                  <Text style={styles.epgStatusText}>Loading programme guide…</Text>
-                </View>
-              );
-            }
-            if (epgError && !epgListings.length) {
-              return (
-                <View style={styles.epgStatusWrap}>
-                  <PlayerIcon name="calendar-remove" size={28} color="rgba(255,255,255,0.45)" />
-                  <Text style={styles.epgStatusText}>{epgError}</Text>
-                </View>
-              );
-            }
-            if (!epgListings.length) {
-              return (
-                <View style={styles.epgStatusWrap}>
-                  <PlayerIcon name="television-off" size={28} color="rgba(255,255,255,0.45)" />
-                  <Text style={styles.epgStatusText}>No programme guide for this channel.</Text>
-                </View>
-              );
-            }
-            if (inlinePortraitResize) {
-              return (
-                <ScrollView
-                  ref={epgListRef}
-                  nestedScrollEnabled
-                  style={styles.epgFlatList}
-                  contentContainerStyle={styles.epgList}
-                  showsVerticalScrollIndicator
-                >
-                  {epgListings.map((item, index) => {
-                    const isNow = item.startMs <= epgNow && epgNow < item.endMs;
-                    return (
-                      <View
-                        key={`${String(item.id || 'epg')}-${index}`}
-                        onLayout={isNow ? (event) => {
-                          epgNowOffsetRef.current = event.nativeEvent.layout.y;
-                        } : undefined}
-                      >
-                        {renderEpgItem({ item, index })}
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              );
-            }
-
-            return (
-              <FlatList
-                ref={epgListRef}
-                nestedScrollEnabled
-                style={styles.epgFlatList}
-                data={epgListings}
-                keyExtractor={(item, index) => `${String(item.id || 'epg')}-${index}`}
-                renderItem={renderEpgItem}
-                contentContainerStyle={styles.epgList}
-                showsVerticalScrollIndicator
-                onScrollToIndexFailed={({ index }) => {
-                  setTimeout(() => {
-                    epgListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 });
-                  }, 120);
-                }}
-              />
-            );
-          })()}
-        </>
-      )}
-
-      {activeTab === 'epg' && !epgAvailable ? (
-        <View style={styles.epgStatusWrap}>
-          <PlayerIcon name="television-off" size={28} color="rgba(255,255,255,0.45)" />
-          <Text style={styles.epgStatusText}>Programme guide is enabled, but no EPG integration was provided.</Text>
-        </View>
-      ) : null}
-
-      {/* --- Tab 2: Provider Health & Stream Diagnostics HUD --- */}
-      {activeTab === 'diagnostics' && (
-        <DiagnosticsTab
-          styles={styles}
-          health={health}
-          pingLatency={pingLatency}
-          pingJitter={pingJitter}
-          audioCodecName={audioCodecName}
-          protocolName={protocolName}
-          serverHost={serverHost}
-          title={title}
-        />
-      )}
-    </KeyboardAvoidingView>
+        },
+      }}
+      epgPanelProps={{
+        activeTab,
+        epgAvailable,
+        title,
+        epgLoading,
+        epgListings,
+        epgError,
+        inlinePortraitResize,
+        epgListRef,
+        epgNow,
+        epgNowOffsetRef,
+      }}
+      diagnosticsProps={{
+        activeTab,
+        health,
+        pingLatency,
+        pingJitter,
+        audioCodecName,
+        protocolName,
+        serverHost,
+        title,
+      }}
+    />
   );
-
-  if (compactOverlay && !popupMode) {
-    return (
-      <View pointerEvents="box-none" style={styles.compactOverlayRoot}>
-        <TouchableOpacity
-          style={styles.compactOverlayBackdrop}
-          activeOpacity={1}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close player panel"
-        />
-        {drawerContent}
-      </View>
-    );
-  }
-
-  if (!centeredModal && !bottomModal) return drawerContent;
-
   return (
-    <Modal
+    <DrawerPresentation
+      compactOverlay={compactOverlay}
+      popupMode={popupMode}
+      centeredModal={centeredModal}
+      bottomModal={bottomModal}
       visible={visible}
-      transparent
-      animationType={bottomModal ? 'slide' : 'fade'}
-      statusBarTranslucent
-      onRequestClose={onClose}
+      onClose={onClose}
     >
-      <View style={[styles.popupBackdrop, bottomModal && styles.bottomModalBackdrop]}>
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close player panel"
-        />
-        {drawerContent}
-      </View>
-    </Modal>
+      {drawerContent}
+    </DrawerPresentation>
   );
 };
 

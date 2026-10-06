@@ -78,14 +78,14 @@ test('drawer modes map to right overlay, resized video, and platform modal layou
   assert.match(nativeDrawer, /drawerMode === 'resize' && !popupMode/);
   assert.match(nativeDrawer, /drawerLandscape: \{[\s\S]*?right: 0/);
   assert.match(nativeDrawer, /bottomModalDrawer: \{/);
-  assert.match(nativeDrawer, /const compactOverlay = drawerMode === 'overlay'[\s\S]*?windowHeight < 520/);
+  assert.match(nativeDrawer, /compactOverlay: drawerMode === 'overlay'[\s\S]*?windowHeight < 520/);
   assert.match(nativeDrawer, /height: '75%'/);
   assert.match(nativeDrawer, /compactOverlayBackdrop/);
   assert.match(nativePlayer, /const resizeDrawerOpen = drawerMode === 'resize'\s+&& showLiveChat\s+&& windowWidth >= windowHeight/);
   assert.match(nativePlayer, /landscapeFullWidth=\{landscapeFullWidth\}/);
-  assert.match(nativeDrawer, /const fullscreenLandscape = \(fullscreen \|\| landscapeFullWidth\)[\s\S]*?windowWidth >= windowHeight/);
+  assert.match(nativeDrawer, /function getFullscreenLandscapeDrawerStyle\([\s\S]*?windowWidth >= windowHeight/);
   assert.match(nativeDrawer, /fullscreenTopInset[\s\S]*fullscreenBottomInset/);
-  assert.match(nativeDrawer, /landscapeOverlayPanelStyle = drawerMode === 'overlay'[\s\S]*?!isPortrait/);
+  assert.match(nativeDrawer, /function getLandscapeOverlayPanelStyle\([\s\S]*?drawerMode !== 'overlay'[\s\S]*?isPortrait/);
   assert.doesNotMatch(nativeDrawer, /overlayVideoSurfaceStyle/);
   assert.match(webPlayer, /cinecrew-player__modal-backdrop/);
   assert.match(webPlayer, /aria-modal/);
@@ -114,7 +114,8 @@ test('native inline player supports the shared drawers without clipping resize m
   assert.match(inlinePlayer, /isEpgEnabled,/);
   assert.match(inlinePlayer, /diagnosticsEnabled,/);
   assert.match(inlinePlayer, /initialTab: drawerTab/);
-  assert.match(inlinePlayer, /fullscreenLandscape \? fullscreenFrameHeight : fullscreenPortraitVideoHeight/);
+  assert.match(inlinePlayer, /const fullscreenControlHeight = fullscreenLandscape\s+\?\s+fullscreenFrameHeight/);
+  assert.match(inlinePlayer, /function getInlineSurfaceLayout\([\s\S]*?fullscreenControlHeight,[\s\S]*?inlineFrameTotalHeight/);
   assert.match(nativeDemoViewport, /showLiveChat=\{showLiveChat\}/);
   assert.match(nativeDemoViewport, /drawerMode=\{drawerMode\}/);
   assert.match(nativeDemoViewport, /integrations=\{integrations\}/);
@@ -141,12 +142,12 @@ test('native resize drawer and demo page support nested scroll handoff', () => {
   assert.match(gestures, /onStartShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
   assert.match(gestures, /onMoveShouldSetPanResponder:[\s\S]*?if \(drawerOpenRef\.current\) return false/);
   assert.match(drawer, /flex: 1,[\s\S]*?elevation: 0/);
-  assert.match(drawer, /inlinePortraitResize[\s\S]*?height: Math\.max\(0, Number\(portraitDrawerHeight\)/);
+  assert.match(drawer, /function getPortraitResizeStyle[\s\S]*?if \(inlinePortraitResize\)[\s\S]*?height: boundedHeight/);
   assert.match(readFileSync(path.join(root, 'src/native/InlineLivePlayer.js'), 'utf8'), /renderDrawer\(false, true\)/);
   assert.match(messagesPanel, /inlinePortraitResize \? \([\s\S]*?<ScrollView[\s\S]*?nestedScrollEnabled[\s\S]*?onScroll=\{onChatScroll\}/);
   assert.doesNotMatch(messagesPanel, /Load more/);
   assert.match(messagesPanel, /<FlatList[\s\S]*?scrollEnabled[\s\S]*?nestedScrollEnabled/);
-  assert.match(drawer, /if \(inlinePortraitResize\)[\s\S]*?<ScrollView[\s\S]*?nestedScrollEnabled[\s\S]*?epgListings\.map/);
+  assert.match(drawer, /function EpgPanelContent[\s\S]*?else if \(inlinePortraitResize\)[\s\S]*?<ScrollView[\s\S]*?nestedScrollEnabled[\s\S]*?epgListings\.map/);
   assert.match(drawer, /<FlatList[\s\S]*?nestedScrollEnabled[\s\S]*?data=\{epgListings\}/);
   assert.match(diagnostics, /<ScrollView[\s\S]*?nestedScrollEnabled/);
 });
@@ -160,7 +161,7 @@ test('native fullscreen video taps dismiss controls and landscape drawers overla
   assert.match(nativePlayer, /onTouchStart=\{markControlSurfaceTouch\}/);
   assert.match(nativePlayer, /showResizeVideoTapTarget = !isWeb\(\)[\s\S]*?drawerMode === 'resize'[\s\S]*?showLiveChat[\s\S]*?!showControls/);
   assert.match(nativePlayer, /showResizeVideoTapTarget \? \([\s\S]*?<Pressable[\s\S]*?onPress=\{toggleControls\}[\s\S]*?accessibilityLabel="Show video controls"/);
-  assert.match(nativeDrawer, /fullscreenLandscapeStyle = fullscreenLandscape/);
+  assert.match(nativeDrawer, /function getFullscreenLandscapeDrawerStyle/);
   assert.match(nativeDrawer, /width: Math\.max\(0, windowWidth - fullscreenLeftInset - fullscreenRightInset\)/);
 });
 
@@ -327,8 +328,8 @@ test('web player exposes manual chat paging and customizable aspect modes', () =
   assert.doesNotMatch(webEntry, /name: 'videoOnly'/);
   assert.match(webStyles, /cinecrew-player__menu-option\.is-selected/);
   assert.match(webStyles, /cinecrew-player__controls\.is-recording/);
-  assert.match(webEntry, /recordingStatus === 'recording' \|\| bottomProps\.recordingStatus === 'paused'/);
-  assert.match(webEntry, /recordingStatus === 'finalizing'\) return null/);
+  assert.match(webEntry, /status !== 'recording' && status !== 'paused'/);
+  assert.match(webEntry, /status === 'finalizing'\) return \{ finalizing: true/);
   assert.match(webEntry, /cinecrew-player__recording-dialog-backdrop/);
   assert.match(webStyles, /cinecrew-player__recording-progress/);
   assert.match(nativeEntry, /!recordingInProgress && showControls/);

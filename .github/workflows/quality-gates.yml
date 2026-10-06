@@ -48,6 +48,8 @@ jobs:
           args=(
             -Dproject.settings=sonar-project.properties
             -Dsonar.token="$SONAR_TOKEN"
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=600
           )
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             args+=(
@@ -58,7 +60,7 @@ jobs:
           fi
           npx --yes sonarqube-scanner@5.0.0 "${args[@]}"
 
-      - name: Enforce SonarCloud quality gate and duplication limit
+      - name: Enforce zero open SonarCloud issues and duplication limit
         id: sonar_policy
         if: always() && steps.sonar_scan.outcome == 'success'
         continue-on-error: true
@@ -81,11 +83,24 @@ jobs:
             --data-urlencode "component=$SONAR_PROJECT_KEY" \
             --data-urlencode 'metricKeys=duplicated_lines_density' "${scope[@]}")
           duplicate_percent=$(jq -er '.component.measures[] | select(.metric == "duplicated_lines_density") | .value' <<<"$measures")
+
+          issues=$(curl --fail --silent --show-error --user "$SONAR_TOKEN:" --get \
+            'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode "componentKeys=$SONAR_PROJECT_KEY" \
+            --data-urlencode 'resolved=false' \
+            --data-urlencode 'ps=1' "${scope[@]}")
+          open_issue_count=$(jq -er '.total' <<<"$issues")
+          if [[ "$open_issue_count" -ne 0 ]]; then
+            echo "::error::SonarCloud reports $open_issue_count unresolved issue(s); zero are allowed."
+            jq -r '.issues[]? | "\(.severity) \(.type) \(.component):\(.line // 0) [\(.rule)] \(.message)"' <<<"$issues"
+            exit 1
+          fi
+
           if ! awk -v value="$duplicate_percent" 'BEGIN { exit !(value < 3) }'; then
             echo "::error::SonarCloud duplication is ${duplicate_percent}%; it must be below 3%."
             exit 1
           fi
-          echo "SonarCloud policy passed: no unresolved findings and ${duplicate_percent}% duplication."
+          echo "SonarCloud policy passed: zero unresolved issues and ${duplicate_percent}% duplication."
 
       - name: Set up Snyk CLI
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb

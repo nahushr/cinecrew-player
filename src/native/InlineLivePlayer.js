@@ -16,6 +16,7 @@ import { WebVideoPlayer } from './media/WebVideoPlayer';
 import { ElectronVideoPlayer } from './media/ElectronVideoPlayer';
 import { isAndroid, isElectron, isElectronOverlay, isIOS, isWeb } from '../utils/runtimePlatform';
 import { USER_AGENT } from './media/player/playerConstants';
+import { getPanelActionName } from './media/player/playerUtils';
 import { invokePlayerAction } from '../utils/invokePlayerAction.js';
 import { getPlayerErrorMessage } from '../utils/playerError.js';
 import { VerticalBrightnessControl } from './media/player/VerticalBrightnessControl';
@@ -40,10 +41,16 @@ function getProgressPosition(event) {
   const positionTime = Number.isFinite(position) && Number.isFinite(duration) && duration > 0
     ? Math.max(0, position * duration / 1000)
     : null;
+  let normalizedCurrentTime = null;
+  if (Number.isFinite(currentTime) && currentTime > 0) {
+    normalizedCurrentTime = currentTime / 1000;
+  } else if (positionTime !== null) {
+    normalizedCurrentTime = positionTime;
+  } else if (Number.isFinite(currentTime)) {
+    normalizedCurrentTime = 0;
+  }
   return {
-    currentTime: Number.isFinite(currentTime) && currentTime > 0
-      ? currentTime / 1000
-      : positionTime ?? (Number.isFinite(currentTime) ? 0 : null),
+    currentTime: normalizedCurrentTime,
     duration: Number.isFinite(duration) ? Math.max(0, duration / 1000) : 0,
     position: Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : null,
   };
@@ -169,48 +176,57 @@ function InlinePanelButton({
   }, React.createElement(PlayerIcon, { name: icon, size: iconSize, color: active ? palette.accentColor : palette.controlColor }));
 }
 
-function InlinePlayerOverlay({
-  showControls,
-  controls,
-  palette,
-  title,
-  muted,
-  paused,
-  source,
-  fullscreen,
-  showLiveBadge = false,
-  onToggleControls,
-  onMute,
-  onPlay,
-  onFullscreen,
-  fullscreenLandscape = false,
-  seekControl,
-  seekButtonsVisible = false,
-  onSeekBy,
-  drawerVisible = false,
-  drawerTab = 'chat',
-  isLiveCommentsEnabled = false,
-  isEpgEnabled = false,
-  diagnosticsEnabled = false,
-  onTogglePanel,
-}) {
-  const iconSize = fullscreenLandscape ? 21 : 19;
-  const button = (controlName, actionName, label, icon, fallback, payload, active = false) => React.createElement(InlineControlButton, {
-    key: controlName,
-    controlName,
-    actionName,
-    label,
-    icon,
-    fallback,
-    payload,
-    active,
+function createInlineControlButton({ controls, palette, iconSize, ...buttonProps }) {
+  return React.createElement(InlineControlButton, {
+    ...buttonProps,
     controls,
     actions: controls.actions || {},
     palette,
     iconSize,
   });
+}
+
+function InlinePlayerTopRow({
+  controls, palette, iconSize, fullscreenLandscape, showLiveBadge, fullscreen,
+  isLiveCommentsEnabled, isEpgEnabled, diagnosticsEnabled, drawerVisible,
+  drawerTab, onTogglePanel, muted, onMute,
+}) {
   const muteLabel = muted ? 'Unmute' : 'Mute';
   const muteIcon = muted ? 'mute' : 'unmute';
+  const panelProps = { palette, actions: controls.actions, onToggle: onTogglePanel, iconSize };
+  return React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
+    showLiveBadge && React.createElement(View, { style: styles.liveBadge },
+      React.createElement(View, { style: styles.liveDot }),
+      React.createElement(Text, { style: [styles.liveText, fullscreenLandscape && { fontSize: 11 }] }, 'LIVE')),
+    React.createElement(View, { style: { flex: 1 } }),
+    React.createElement(InlinePanelButton, {
+      ...panelProps,
+      panel: 'chat', actionName: 'onLiveChatOpen', label: 'Live chat', icon: 'comment-text-multiple-outline',
+      visible: fullscreen && isLiveCommentsEnabled && controls.liveChat !== false,
+      active: drawerVisible && drawerTab === 'chat',
+    }),
+    React.createElement(InlinePanelButton, {
+      ...panelProps,
+      panel: 'epg', actionName: 'onEpgOpen', label: 'Programme guide', icon: 'television-classic',
+      visible: fullscreen && isEpgEnabled && controls.epg !== false,
+      active: drawerVisible && drawerTab === 'epg',
+    }),
+    React.createElement(InlinePanelButton, {
+      ...panelProps,
+      panel: 'diagnostics', actionName: 'onDiagnosticsOpen', label: 'Stream diagnostics', icon: 'pulse',
+      visible: fullscreen && diagnosticsEnabled && controls.diagnostics !== false,
+      active: drawerVisible && drawerTab === 'diagnostics',
+    }),
+    createInlineControlButton({
+      controlName: 'mute', actionName: 'onMute', label: muteLabel, icon: muteIcon,
+      fallback: onMute, payload: { muted: !muted }, controls, palette, iconSize,
+    }));
+}
+
+function InlinePlayerCenterControls({
+  controls, palette, iconSize, fullscreenLandscape, paused, onPlay,
+  seekButtonsVisible, onSeekBy,
+}) {
   const playbackLabel = paused ? 'Play' : 'Pause';
   const playbackIcon = paused ? 'play' : 'pause';
   const seekButton = (deltaSeconds, label, icon) => React.createElement(Pressable, {
@@ -223,43 +239,61 @@ function InlinePlayerOverlay({
     },
     style: [styles.seekButton, fullscreenLandscape && styles.fullscreenSeekButton],
   }, React.createElement(PlayerIcon, { name: icon, size: iconSize, color: palette.controlColor }));
+  return React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
+    React.createElement(View, { pointerEvents: 'box-none', style: styles.centerControlsRow },
+      seekButtonsVisible && seekButton(-10, 'Rewind 10 seconds', 'rewind-10'),
+      createInlineControlButton({
+        controlName: 'playPause', actionName: 'onPlayPause', label: playbackLabel, icon: playbackIcon,
+        fallback: onPlay, payload: { isPlaying: !paused }, controls, palette, iconSize,
+      }),
+      seekButtonsVisible && seekButton(10, 'Forward 10 seconds', 'fast-forward-10')));
+}
 
+function InlinePlayerBottomRow({
+  controls, palette, iconSize, fullscreen, fullscreenLandscape, title, source, onFullscreen,
+}) {
+  const fullscreenLabel = fullscreen ? 'Exit full player' : 'Open full player';
+  const fullscreenIcon = fullscreen ? 'fullscreen-exit' : 'fullscreen';
+  return React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
+    React.createElement(Text, {
+      numberOfLines: 1,
+      style: [styles.title, { color: palette.controlColor }, fullscreenLandscape && { fontSize: 15 }],
+    }, title),
+    createInlineControlButton({
+      controlName: 'fullscreen', actionName: 'onFullscreen', label: fullscreenLabel,
+      icon: fullscreenIcon, fallback: onFullscreen,
+      payload: { source, title, isFullscreen: !fullscreen }, controls, palette, iconSize,
+    }));
+}
+
+function InlinePlayerOverlay({
+  showControls, controls, palette, title, muted, paused, source, fullscreen,
+  showLiveBadge = false, onToggleControls, onMute, onPlay, onFullscreen,
+  fullscreenLandscape = false, seekControl, seekButtonsVisible = false, onSeekBy,
+  drawerVisible = false, drawerTab = 'chat', isLiveCommentsEnabled = false,
+  isEpgEnabled = false, diagnosticsEnabled = false, onTogglePanel,
+}) {
+  const iconSize = fullscreenLandscape ? 21 : 19;
   return React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
     React.createElement(Pressable, {
       style: StyleSheet.absoluteFill,
       onPress: onToggleControls,
       accessibilityLabel: showControls ? 'Hide video controls' : 'Show video controls',
     }),
-    showControls ? React.createElement(React.Fragment, null,
-      React.createElement(View, { pointerEvents: 'box-none', style: styles.topRow },
-      showLiveBadge ? React.createElement(View, { style: styles.liveBadge }, React.createElement(View, { style: styles.liveDot }), React.createElement(Text, { style: [styles.liveText, fullscreenLandscape && { fontSize: 11 }] }, 'LIVE')) : null,
-      React.createElement(View, { style: { flex: 1 } }),
-      React.createElement(InlinePanelButton, {
-        panel: 'chat', actionName: 'onLiveChatOpen', label: 'Live chat', icon: 'comment-text-multiple-outline',
-        visible: fullscreen && isLiveCommentsEnabled && controls.liveChat !== false, active: drawerVisible && drawerTab === 'chat',
-        palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
+    showControls && React.createElement(React.Fragment, null,
+      React.createElement(InlinePlayerTopRow, {
+        controls, palette, iconSize, fullscreenLandscape, showLiveBadge, fullscreen,
+        isLiveCommentsEnabled, isEpgEnabled, diagnosticsEnabled, drawerVisible,
+        drawerTab, onTogglePanel, muted, onMute,
       }),
-      React.createElement(InlinePanelButton, {
-        panel: 'epg', actionName: 'onEpgOpen', label: 'Programme guide', icon: 'television-classic',
-        visible: fullscreen && isEpgEnabled && controls.epg !== false, active: drawerVisible && drawerTab === 'epg',
-        palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
+      React.createElement(InlinePlayerCenterControls, {
+        controls, palette, iconSize, fullscreenLandscape, paused, onPlay,
+        seekButtonsVisible, onSeekBy,
       }),
-      React.createElement(InlinePanelButton, {
-        panel: 'diagnostics', actionName: 'onDiagnosticsOpen', label: 'Stream diagnostics', icon: 'pulse',
-        visible: fullscreen && diagnosticsEnabled && controls.diagnostics !== false, active: drawerVisible && drawerTab === 'diagnostics',
-        palette, actions: controls.actions, onToggle: onTogglePanel, iconSize,
-      }),
-      button('mute', 'onMute', muteLabel, muteIcon, onMute, { muted: !muted }),
-      ),
-      React.createElement(View, { pointerEvents: 'box-none', style: styles.center },
-      React.createElement(View, { pointerEvents: 'box-none', style: styles.centerControlsRow },
-      seekButtonsVisible ? seekButton(-10, 'Rewind 10 seconds', 'rewind-10') : null,
-      button('playPause', 'onPlayPause', playbackLabel, playbackIcon, onPlay, { isPlaying: !paused }),
-      seekButtonsVisible ? seekButton(10, 'Forward 10 seconds', 'fast-forward-10') : null)),
-      fullscreen ? seekControl : null,
-      React.createElement(View, { pointerEvents: 'box-none', style: styles.bottomRow },
-      React.createElement(Text, { numberOfLines: 1, style: [styles.title, { color: palette.controlColor }, fullscreenLandscape && { fontSize: 15 }] }, title),
-      button('fullscreen', 'onFullscreen', fullscreen ? 'Exit full player' : 'Open full player', fullscreen ? 'fullscreen-exit' : 'fullscreen', onFullscreen, { source, title, isFullscreen: !fullscreen }))) : null);
+      fullscreen && seekControl,
+      React.createElement(InlinePlayerBottomRow, {
+        controls, palette, iconSize, fullscreen, fullscreenLandscape, title, source, onFullscreen,
+      })));
 }
 
 function createInlinePlayerLayer(player, visible) {
@@ -284,6 +318,67 @@ function createInlineStatusLayer(loading, error, palette) {
   if (!loading) return null;
   return React.createElement(View, { pointerEvents: 'none', style: styles.loading },
     React.createElement(ActivityIndicator, { size: 'large', color: palette.accentColor }));
+}
+
+function getInlineSurfaceLayout({
+  width,
+  height,
+  requestedHeight,
+  fullscreen,
+  fullscreenFrameHeight,
+  drawerVisible,
+  drawerMode,
+}) {
+  const fullscreenLandscape = fullscreen && width > height;
+  const portraitResize = drawerVisible && drawerMode === 'resize' && height >= width;
+  const inlinePortraitResize = portraitResize && !fullscreen;
+  const landscapeResize = drawerVisible && drawerMode === 'resize' && width > height;
+  const inlineVideoHeight = Math.max(80, Number(requestedHeight) || 220);
+  const fullscreenPortraitVideoHeight = Math.min(Math.round(height * 0.42), Math.round(width * (9 / 16)));
+  const inlineResizeDrawerHeight = Math.min(380, Math.max(280, Math.round(height * 0.42)));
+  const drawerPortraitVideoHeight = fullscreen
+    ? fullscreenPortraitVideoHeight
+    : inlineVideoHeight;
+  const fullscreenControlHeight = fullscreenLandscape
+    ? fullscreenFrameHeight
+    : fullscreenPortraitVideoHeight;
+  const inlineFrameTotalHeight = inlineVideoHeight + (portraitResize ? inlineResizeDrawerHeight : 0);
+  return {
+    fullscreenLandscape,
+    portraitResize,
+    inlinePortraitResize,
+    landscapeResize,
+    inlineVideoHeight,
+    fullscreenPortraitVideoHeight,
+    inlineResizeDrawerHeight,
+    drawerPortraitVideoHeight,
+    fullscreenControlHeight,
+    inlineFrameTotalHeight,
+  };
+}
+
+function getInlineVideoStageStyle(isFullscreen, layout, windowHeight, windowWidth, drawerVisible, drawerMode) {
+  if (!drawerVisible || drawerMode !== 'resize') return StyleSheet.absoluteFillObject;
+  if (isFullscreen && windowHeight >= windowWidth) {
+    return { position: 'absolute', top: 0, left: 0, right: 0, height: layout.fullscreenPortraitVideoHeight };
+  }
+  if (layout.landscapeResize) {
+    return { position: 'absolute', top: 0, left: 0, bottom: 0, width: '70%', height: '100%' };
+  }
+  if (layout.portraitResize && !isFullscreen) {
+    return { position: 'relative', width: '100%', height: layout.inlineVideoHeight };
+  }
+  return StyleSheet.absoluteFillObject;
+}
+
+function createInlineDrawer({ fullscreen, inlinePortraitResize, drawerVisible, renderDrawer }) {
+  if (fullscreen || !drawerVisible) return null;
+  if (inlinePortraitResize) return renderDrawer(false, true);
+  return React.createElement(
+    View,
+    { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
+    renderDrawer(false),
+  );
 }
 
 function InlineLivePlayerSurface({
@@ -340,77 +435,65 @@ function InlineLivePlayerSurface({
   }, []);
   // Use the window orientation immediately. Waiting for the modal's first
   // layout causes one frame of portrait sizing after entering landscape.
-  const fullscreenLandscape = fullscreen && windowWidth > windowHeight;
+  const layout = getInlineSurfaceLayout({
+    width: windowWidth,
+    height: windowHeight,
+    requestedHeight: height,
+    fullscreen,
+    fullscreenFrameHeight,
+    drawerVisible,
+    drawerMode,
+  });
+  const { fullscreenLandscape } = layout;
   useEffect(() => {
     const immersiveLandscape = fullscreen && windowWidth > windowHeight;
     setAndroidImmersiveNavigationBar(immersiveLandscape);
     return () => setAndroidImmersiveNavigationBar(false);
   }, [fullscreen, windowWidth, windowHeight]);
 
-  const inlineVideoHeight = Math.max(80, Number(height) || 220);
-  const portraitResize = drawerVisible && drawerMode === 'resize' && windowHeight >= windowWidth;
-  const inlinePortraitResize = portraitResize && !fullscreen;
-  const landscapeResize = drawerVisible && drawerMode === 'resize' && windowWidth > windowHeight;
-  const fullscreenPortraitVideoHeight = Math.min(
-    Math.round(windowHeight * 0.42),
-    Math.round(windowWidth * (9 / 16)),
-  );
-  const inlineResizeDrawerHeight = Math.min(380, Math.max(280, Math.round(windowHeight * 0.42)));
-  const inlineFrameTotalHeight = inlineVideoHeight + (portraitResize ? inlineResizeDrawerHeight : 0);
-  const videoStageStyle = (isFullscreen) => {
-    if (drawerVisible && drawerMode === 'resize') {
-      if (isFullscreen && windowHeight >= windowWidth) {
-        return { position: 'absolute', top: 0, left: 0, right: 0, height: fullscreenPortraitVideoHeight };
-      }
-      if (landscapeResize) {
-        return { position: 'absolute', top: 0, left: 0, bottom: 0, width: '70%', height: '100%' };
-      }
-      if (portraitResize && !isFullscreen) {
-        return { position: 'relative', width: '100%', height: inlineVideoHeight };
-      }
-    }
-    return StyleSheet.absoluteFillObject;
-  };
+  const {
+    inlineVideoHeight,
+    portraitResize,
+    inlinePortraitResize,
+    inlineResizeDrawerHeight,
+    drawerPortraitVideoHeight,
+    fullscreenControlHeight,
+    inlineFrameTotalHeight,
+  } = layout;
   const brightnessOverlay = (visible) => visible && brightness < 1
     ? React.createElement(View, {
       pointerEvents: 'none',
       style: [StyleSheet.absoluteFill, { backgroundColor: '#000000', opacity: 1 - brightness, zIndex: 2 }],
     })
     : null;
-  const brightnessControl = (visible) => visible && showBrightnessControl
-    && fullscreen
-    && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
-    ? React.createElement(VerticalBrightnessControl, {
+  const brightnessControl = (visible) => {
+    if (!visible || !showBrightnessControl || !fullscreen || fullscreenFrameHeight <= 0) return null;
+    return React.createElement(VerticalBrightnessControl, {
       value: brightness,
       onChange: onBrightnessChange,
       onChangeEnd: onBrightnessChangeEnd,
       accentColor: brightnessAccentColor || palette.accentColor,
       compact: true,
       fullscreenLandscape,
-      availableHeight: fullscreen
-        ? (fullscreenLandscape ? fullscreenFrameHeight : fullscreenPortraitVideoHeight)
-        : inlineFrameHeight,
-      topInset: fullscreen ? 54 : 32,
-      bottomInset: fullscreen ? 54 : 32,
-    })
-    : null;
-  const volumeControl = (visible) => visible && showVolumeControl
-    && fullscreen
-    && ((fullscreen && fullscreenFrameHeight > 0) || (!fullscreen && inlineFrameHeight > 0))
-    ? React.createElement(VerticalVolumeControl, {
+      availableHeight: fullscreenControlHeight,
+      topInset: 54,
+      bottomInset: 54,
+    });
+  };
+  const volumeControl = (visible) => {
+    if (!visible || !showVolumeControl || !fullscreen || fullscreenFrameHeight <= 0) return null;
+    return React.createElement(VerticalVolumeControl, {
       value: volume,
       onChange: onVolumeChange,
       onChangeEnd: onVolumeChangeEnd,
       accentColor: volumeAccentColor || '#FFE066',
       compact: true,
       fullscreenLandscape,
-      availableHeight: fullscreen
-        ? (fullscreenLandscape ? fullscreenFrameHeight : fullscreenPortraitVideoHeight)
-        : inlineFrameHeight,
-      topInset: fullscreen ? 54 : 32,
-      bottomInset: fullscreen ? 54 : 32,
-    })
-    : null;
+      availableHeight: fullscreenControlHeight,
+      topInset: 54,
+      bottomInset: 54,
+    });
+  };
 
   const renderPlayerStage = (isFullscreen) => {
     const isCurrentStage = isFullscreen === Boolean(fullscreen);
@@ -423,7 +506,7 @@ function InlineLivePlayerSurface({
       id: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
       nativeID: playerSurfaceBoundsRef?.current?.ids?.[isFullscreen ? 'fullscreen' : 'inline'],
       style: [
-        videoStageStyle(isFullscreen),
+        getInlineVideoStageStyle(isFullscreen, layout, windowHeight, windowWidth, drawerVisible, drawerMode),
         { backgroundColor: transparentElectronOverlay ? 'transparent' : palette.surfaceColor },
       ],
       onLayout: (event) => {
@@ -442,33 +525,36 @@ function InlineLivePlayerSurface({
     );
   };
 
-  const renderDrawer = (isFullscreen, inlineFlow = false) => drawerVisible ? React.createElement(LiveChatDrawer, {
-    videoId: mediaId || title || 'live',
-    userId: currentUser?.id || '0',
-    username: currentUser?.username || 'Viewer',
-    visible: drawerVisible,
-    onClose: onCloseDrawer,
-    drawerMode,
-    initialTab: drawerTab,
-    streamUrl,
-    serverUrl: streamUrl,
-    isLive: true,
-    isLiveCommentsEnabled,
-    isEpgEnabled,
-    diagnosticsEnabled,
-    title,
-    streamId: mediaId,
-    integrations,
-    users: users || integrations?.users,
-    messagePageSize,
-    drawerStyle,
-    fullscreen: isFullscreen,
-    inlinePortraitResize: inlineFlow,
-    portraitDrawerHeight: inlineFlow ? inlineResizeDrawerHeight : undefined,
-    portraitVideoHeight: drawerMode === 'resize'
-      ? (isFullscreen ? fullscreenPortraitVideoHeight : inlineVideoHeight)
-      : undefined,
-  }) : null;
+  const renderDrawer = (isFullscreen, inlineFlow = false) => {
+    if (!drawerVisible) return null;
+    return React.createElement(LiveChatDrawer, {
+      videoId: mediaId || title || 'live',
+      userId: currentUser?.id || '0',
+      username: currentUser?.username || 'Viewer',
+      visible: drawerVisible,
+      onClose: onCloseDrawer,
+      drawerMode,
+      initialTab: drawerTab,
+      streamUrl,
+      serverUrl: streamUrl,
+      isLive: true,
+      isLiveCommentsEnabled,
+      isEpgEnabled,
+      diagnosticsEnabled,
+      title,
+      streamId: mediaId,
+      integrations,
+      users: users || integrations?.users,
+      messagePageSize,
+      drawerStyle,
+      fullscreen: isFullscreen,
+      inlinePortraitResize: inlineFlow,
+      portraitDrawerHeight: inlineFlow ? inlineResizeDrawerHeight : undefined,
+      portraitVideoHeight: drawerMode === 'resize' ? drawerPortraitVideoHeight : undefined,
+    });
+  };
+
+  const inlineDrawer = createInlineDrawer({ fullscreen, inlinePortraitResize, drawerVisible, renderDrawer });
 
   return React.createElement(View, {
     style: [
@@ -481,27 +567,22 @@ function InlineLivePlayerSurface({
       style,
     ],
   },
-      fullscreen ? null : renderPlayerStage(false),
+      !fullscreen && renderPlayerStage(false),
       // Keep the inline portrait resize drawer in normal layout flow below
       // the video so its message list owns a bounded, independently scrollable
       // viewport instead of competing through overlapping absolute layers.
-      fullscreen ? null : (inlinePortraitResize
-        ? renderDrawer(false, true)
-        : drawerVisible
-        ? React.createElement(View, { pointerEvents: 'box-none', style: StyleSheet.absoluteFill },
-            renderDrawer(false))
-        : null),
+      inlineDrawer,
     React.createElement(Modal, {
       visible: fullscreen,
       supportedOrientations: ['portrait', 'landscape', 'landscape-left', 'landscape-right'],
       animationType: 'none',
       statusBarTranslucent: true,
       onRequestClose: () => changeFullscreenWithPosition(false),
-    }, fullscreen ? React.createElement(View, {
+    }, fullscreen && React.createElement(View, {
       style: [styles.fullscreenFrame, transparentElectronOverlay && { backgroundColor: 'transparent' }],
     },
       renderPlayerStage(true),
-      renderDrawer(true)) : null));
+      renderDrawer(true))));
 }
 
 function InlineLivePlayerView({
@@ -558,7 +639,8 @@ function InlineLivePlayerView({
   const playerRef = useRef(null);
   const playerSurfaceBoundsRef = useRef({ inline: null, fullscreen: null, ids: null });
   if (!playerSurfaceBoundsRef.current.ids) {
-    const surfaceId = `cinecrew-inline-surface-${nextInlineSurfaceId += 1}`;
+    nextInlineSurfaceId += 1;
+    const surfaceId = `cinecrew-inline-surface-${nextInlineSurfaceId}`;
     playerSurfaceBoundsRef.current.ids = {
       inline: `${surfaceId}-inline`,
       fullscreen: `${surfaceId}-fullscreen`,
@@ -628,7 +710,7 @@ function InlineLivePlayerView({
         setInternalShowLiveChat(false);
         onLiveChatChange?.(false);
       },
-      actions?.[drawerTab === 'chat' ? 'onLiveChatOpen' : drawerTab === 'epg' ? 'onEpgOpen' : 'onDiagnosticsOpen'],
+      actions?.[getPanelActionName(drawerTab)],
       { tab: drawerTab, isOpen: false },
       { player: null },
     );
@@ -665,11 +747,10 @@ function InlineLivePlayerView({
       playbackDurationRef.current = progress.duration;
       setPlaybackDuration(progress.duration);
     }
-    const current = progress.currentTime !== null
-      ? progress.currentTime
-      : (progress.position !== null && playbackDurationRef.current > 0
-        ? progress.position * playbackDurationRef.current
-        : null);
+    let current = progress.currentTime;
+    if (current === null && progress.position !== null && playbackDurationRef.current > 0) {
+      current = progress.position * playbackDurationRef.current;
+    }
     if (current !== null) {
       applyPendingSeek(current);
       // Progress from before a seek can arrive after the slider is released.
@@ -909,8 +990,13 @@ function InlineLivePlayerView({
           pendingSeekRef.current = nextTime;
           pendingSeekAttemptAtRef.current = 0;
           setPlaybackTime(nextTime);
-          if (typeof playerRef.current?.seekTo === 'function') playerRef.current.seekTo(nextTime);
-          else playerRef.current?.seek?.(playbackDuration > 0 ? nextTime / playbackDuration : 0);
+          if (typeof playerRef.current?.seekTo === 'function') {
+            playerRef.current.seekTo(nextTime);
+          } else if (playbackDuration > 0) {
+            playerRef.current?.seek?.(nextTime / playbackDuration);
+          } else {
+            playerRef.current?.seek?.(0);
+          }
         },
       }),
       React.createElement(Text, { style: styles.seekTime }, formatProgressBarTime(playbackDuration)))

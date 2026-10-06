@@ -1,9 +1,23 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { VerticalSliderCard } from './VerticalSliderCard';
+import {
+  getVerticalSliderMetrics,
+  getVerticalSliderPositionStyle,
+  useVerticalSliderModel,
+} from './verticalSliderUtils';
 
 const MIN_PERCENT = 10;
 const MAX_PERCENT = 100;
 const PERCENT_RANGE = MAX_PERCENT - MIN_PERCENT;
+
+function toBrightnessPercent(value) {
+  return Number(value) * 100;
+}
+
+function toBrightnessValue(percent) {
+  return Number((percent / 100).toFixed(2));
+}
 
 function clampPercent(value) {
   const number = Number(value);
@@ -25,140 +39,76 @@ export function VerticalBrightnessControl({
   leftInset,
   alignTop = false,
 }) {
-  const measuredHeight = Number(availableHeight);
-  const responsiveCompact = compact || (measuredHeight > 0 && measuredHeight < 280);
-  const safeTopInset = Math.max(0, Number(topInset) || 0);
-  const safeBottomInset = Math.max(0, Number(bottomInset) || 0);
-  const freeHeight = measuredHeight > 0
-    ? Math.max(0, measuredHeight - safeTopInset - safeBottomInset - 6)
-    : 0;
-  const cardHeight = measuredHeight > 0
-    ? Math.min(responsiveCompact ? 144 : 188, freeHeight)
-    : (responsiveCompact ? 144 : 188);
-  const reservedTrackSpace = responsiveCompact ? 38 : 56;
-  const trackHeight = Math.max(12, Math.min(responsiveCompact ? 84 : 120, cardHeight - reservedTrackSpace));
-  const percent = clampPercent(Number(value) * 100);
-  const [activePercent, setActivePercent] = React.useState(percent);
-  const isDraggingRef = useRef(false);
-  const percentRef = useRef(percent);
-  const dragStartPercentRef = useRef(percent);
-  const changeRef = useRef(onChange);
-  const changeEndRef = useRef(onChangeEnd);
-
-  React.useEffect(() => {
-    if (!isDraggingRef.current) {
-      setActivePercent(percent);
-      percentRef.current = percent;
-    }
-  }, [percent]);
-
-  changeRef.current = onChange;
-  changeEndRef.current = onChangeEnd;
-
-  const publishPercent = useCallback((nextPercent) => {
-    const next = clampPercent(Math.round(nextPercent));
-    percentRef.current = next;
-    changeRef.current?.(Number((next / 100).toFixed(2)));
-    return next;
-  }, []);
-
-  const finishInteraction = useCallback((finalPercent = percentRef.current) => {
-    const next = publishPercent(Math.round(finalPercent));
-    changeEndRef.current?.(Math.round(next));
-  }, [publishPercent]);
-
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponderCapture: () => true,
-    onPanResponderGrant: () => {
-      isDraggingRef.current = true;
-      dragStartPercentRef.current = percentRef.current;
-    },
-    onPanResponderMove: (_event, gesture) => {
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      publishPercent(next);
-    },
-    onPanResponderRelease: (_event, gesture) => {
-      isDraggingRef.current = false;
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      finishInteraction(next);
-    },
-    onPanResponderTerminate: (_event, gesture) => {
-      isDraggingRef.current = false;
-      const next = clampPercent(Math.round(dragStartPercentRef.current - (gesture.dy / trackHeight) * PERCENT_RANGE));
-      setActivePercent(next);
-      finishInteraction(next);
-    },
-  }), [finishInteraction, publishPercent, trackHeight]);
-
-  const displayPercent = isDraggingRef.current ? activePercent : percent;
+  const metrics = getVerticalSliderMetrics({ availableHeight, compact, topInset, bottomInset });
+  const { measuredHeight, responsiveCompact, safeTopInset, safeBottomInset, cardHeight, trackHeight } = metrics;
+  const slider = useVerticalSliderModel({
+    value,
+    onChange,
+    onChangeEnd,
+    clampPercent,
+    toPercent: toBrightnessPercent,
+    toValue: toBrightnessValue,
+    percentRange: { range: PERCENT_RANGE, trackHeight },
+  });
+  const { displayPercent, responder, adjustByKeyboard } = slider;
   const fillRatio = (displayPercent - MIN_PERCENT) / PERCENT_RANGE;
   const thumbTop = `${(1 - fillRatio) * 100}%`;
   const fillHeight = `${fillRatio * 100}%`;
   const safeLeftInset = Number.isFinite(Number(leftInset)) ? Number(leftInset) : 10;
-  const positionerStyle = [
-    measuredHeight > 0
-      ? {
-          top: safeTopInset + (alignTop ? 0 : 3),
-          bottom: safeBottomInset + 3,
-          justifyContent: alignTop ? 'flex-start' : 'center',
-        }
-      : null,
-    { paddingLeft: safeLeftInset },
-  ];
-  const adjustByKeyboard = (event) => {
-    const change = event?.nativeEvent?.actionName === 'increment' ? 5 : -5;
-    const next = clampPercent(percentRef.current + change);
-    setActivePercent(next);
-    finishInteraction(next);
-  };
+  const landscapeSunStyle = getLandscapeSunStyle(responsiveCompact, fullscreenLandscape);
+  const positionerStyle = getVerticalSliderPositionStyle({
+    measuredHeight,
+    safeTopInset,
+    safeBottomInset,
+    alignTop,
+    horizontalInset: safeLeftInset,
+    insetSide: 'left',
+  });
+  if (measuredHeight > 0 && cardHeight < 44) {
+    return <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]} />;
+  }
+  const leadingContent = (
+    <Text
+      style={[styles.sunIcon, responsiveCompact && styles.compactSunIcon, landscapeSunStyle, { color: accentColor }]}
+      accessible={false}
+    >☼</Text>
+  );
+  let trailingContent = null;
+  if (!responsiveCompact) {
+    trailingContent = (
+      <Text style={[styles.valueLabel, fullscreenLandscape && { fontSize: 12, lineHeight: 14 }]}>
+        {displayPercent}
+      </Text>
+    );
+  }
 
   return (
-    <View pointerEvents="box-none" style={[styles.positioner, positionerStyle]}>
-      {measuredHeight > 0 && cardHeight < 44 ? null : (
-        <View pointerEvents="auto" style={[styles.card, { height: cardHeight }, responsiveCompact && styles.compactCard]}>
-          <Text
-            style={[
-              styles.sunIcon,
-              responsiveCompact && styles.compactSunIcon,
-              fullscreenLandscape && {
-                fontSize: (responsiveCompact ? 14 : 20) * 1.1,
-                lineHeight: (responsiveCompact ? 16 : 22) * 1.1,
-              },
-              { color: accentColor },
-            ]}
-            accessible={false}
-          >☼</Text>
-          <View
-            {...responder.panHandlers}
-            accessibilityRole="adjustable"
-            accessibilityLabel="Video brightness"
-            accessibilityValue={{ min: MIN_PERCENT, max: MAX_PERCENT, now: displayPercent, text: `${displayPercent}%` }}
-            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-            onAccessibilityAction={adjustByKeyboard}
-            style={[styles.trackHitTarget, responsiveCompact && styles.compactTrackHitTarget, { height: trackHeight }]}
-          >
-            <View style={styles.track}>
-              <View style={[styles.trackFill, { height: fillHeight, backgroundColor: accentColor }]} />
-              <View style={[styles.thumb, { top: thumbTop, borderColor: accentColor }]} />
-            </View>
-          </View>
-          {!responsiveCompact ? (
-            <Text
-              style={[
-                styles.valueLabel,
-                fullscreenLandscape && { fontSize: 12, lineHeight: 14 },
-              ]}
-            >{displayPercent}</Text>
-          ) : null}
-        </View>
-      )}
-    </View>
+    <VerticalSliderCard
+      positionerStyle={positionerStyle}
+      alignItems="flex-start"
+      cardHeight={cardHeight}
+      responsiveCompact={responsiveCompact}
+      leadingContent={leadingContent}
+      responder={responder}
+      accessibilityLabel="Video brightness"
+      minimumValue={MIN_PERCENT}
+      maximumValue={MAX_PERCENT}
+      displayPercent={displayPercent}
+      onAccessibilityAction={adjustByKeyboard}
+      trackHeight={trackHeight}
+      fillHeight={fillHeight}
+      accentColor={accentColor}
+      thumbTop={thumbTop}
+      trailingContent={trailingContent}
+    />
   );
+}
+
+function getLandscapeSunStyle(responsiveCompact, fullscreenLandscape) {
+  if (!fullscreenLandscape) return null;
+  const fontSize = responsiveCompact ? 14 : 20;
+  const lineHeight = responsiveCompact ? 16 : 22;
+  return { fontSize: fontSize * 1.1, lineHeight: lineHeight * 1.1 };
 }
 
 const styles = StyleSheet.create({
@@ -169,14 +119,6 @@ const styles = StyleSheet.create({
     zIndex: 90,
     elevation: 90,
   },
-  card: {
-    width: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    backgroundColor: 'transparent',
-  },
-  compactCard: { width: 30, paddingVertical: 2 },
   sunIcon: {
     fontSize: 20,
     lineHeight: 22,
