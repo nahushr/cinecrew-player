@@ -1014,6 +1014,13 @@ function getWebLoadingNotice(props) {
     h('span', { className: 'cinecrew-player__spinner' }), 'Loading stream…');
 }
 
+function getWebErrorNotice(props) {
+  if (!props.error) return null;
+  return h('div', { className: 'cinecrew-player__error', role: 'alert' },
+    h('strong', null, 'Playback error'),
+    h('span', null, props.error));
+}
+
 function getWebAudioCard(props) {
   if (!props.audioOnly) return null;
   return h(WebAudioOnlyCard, {
@@ -1156,6 +1163,7 @@ function WebPlayerLayout(props) {
   getWebAudioCard(props),
   h('div', { className: 'cinecrew-player__shade' }),
   getWebLoadingNotice(props),
+  getWebErrorNotice(props),
   getWebControlLayer({ ...props, showInteractionControls: revealInteractionControls }),
   h(WebRecordingSaveDialog, { saveDialog: props.recordingSaveDialog, onDismiss: props.onDismissRecordingSave }),
   getWebPanelNode(props));
@@ -2696,6 +2704,7 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
   messagePageSize = 50,
   drawerStyle,
   onError,
+  initialShowLiveChat = false,
   onPlaying,
   onProgressBarChange,
   onPromotePreview,
@@ -2740,6 +2749,7 @@ export const InlineLivePlayer = React.memo(function InlineLivePlayer({
     drawerMode,
     messagePageSize,
     drawerStyle,
+    initialShowLiveChat,
     onError,
     onPlaying,
     onProgressBarChange,
