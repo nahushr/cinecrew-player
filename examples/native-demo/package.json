@@ -9,7 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "file:../..",
+    "@cinecrew/cinecrew-player": "0.1.53",
     "@expo/vector-icons": "~14.0.4",
     "@react-native-community/slider": "4.5.5",
     "expo": "~52.0.49",

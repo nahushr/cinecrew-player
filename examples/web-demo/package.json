@@ -10,7 +10,7 @@
     "update:player": "npm install --no-save @cinecrew/cinecrew-player@latest"
   },
   "dependencies": {
-    "@cinecrew/cinecrew-player": "latest",
+    "@cinecrew/cinecrew-player": "0.1.53",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
