@@ -7,6 +7,7 @@ export function SourceControls({
   fileInputRef,
   inline,
   brightnessControl,
+  soundControl,
   drawerMode,
   onSelectSample,
   onDraftUrlChange,
@@ -15,6 +16,7 @@ export function SourceControls({
   onClearFile,
   onInlineChange,
   onBrightnessControlChange,
+  onSoundControlChange,
   onDrawerModeChange,
   progressTime,
   status,
@@ -59,6 +61,10 @@ export function SourceControls({
           <label className="inline-toggle">
             <input type="checkbox" checked={brightnessControl} onChange={(event) => onBrightnessControlChange(event.target.checked)} />
             Brightness control
+          </label>
+          <label className="inline-toggle">
+            <input type="checkbox" checked={soundControl} onChange={(event) => onSoundControlChange(event.target.checked)} />
+            Sound control
           </label>
         </div>
         <div className="player-options-row">

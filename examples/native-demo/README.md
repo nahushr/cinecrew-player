@@ -1,6 +1,6 @@
 # React Native demo · Android and iOS
 
-Expo app demonstrating the CineCrew Player native interface and VLC-backed playback. The demo package points to the player source at the repository root (`file:../..`), so clone the full repository before installing.
+Expo app demonstrating the CineCrew Player native interface and VLC-backed playback. It installs the published `@cinecrew/cinecrew-player` npm package at the latest released version. The main-branch release pipeline updates this demo's exact package version and lockfile whenever a new version is published.
 
 ## Install and start
 

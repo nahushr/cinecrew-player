@@ -13,6 +13,7 @@ export default function App() {
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
   const [brightnessControl, setBrightnessControl] = useState(true);
+  const [soundControl, setSoundControl] = useState(true);
   const [status, setStatus] = useState('Ready');
   const [progressTime, setProgressTime] = useState('00:00:00');
   const [drawerMode, setDrawerMode] = useState('overlay');
@@ -108,6 +109,7 @@ export default function App() {
         fileInputRef={fileInputRef}
         inline={inline}
         brightnessControl={brightnessControl}
+        soundControl={soundControl}
         drawerMode={drawerMode}
         onSelectSample={selectSample}
         onDraftUrlChange={setDraftUrl}
@@ -116,6 +118,7 @@ export default function App() {
         onClearFile={clearFile}
         onInlineChange={handleInlineChange}
         onBrightnessControlChange={setBrightnessControl}
+        onSoundControlChange={setSoundControl}
         onDrawerModeChange={setDrawerMode}
         progressTime={progressTime}
         status={status}
@@ -129,7 +132,9 @@ export default function App() {
           inline={inline}
           startTime={startTime}
           showBrightnessControl={brightnessControl}
+          showVolumeControl={soundControl}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
+          onVolumeChangeEnd={(percent) => notify('Sound', `Sound volume set to ${percent}%`)}
           selectedAudioTrack={selectedAudioTrack}
           integrations={integrations}
           actions={actions}

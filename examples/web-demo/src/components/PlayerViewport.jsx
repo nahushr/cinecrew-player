@@ -13,7 +13,9 @@ export function PlayerViewport({
   inline,
   startTime,
   showBrightnessControl,
+  showVolumeControl,
   onBrightnessChangeEnd,
+  onVolumeChangeEnd,
   muted,
   selectedAudioTrack,
   integrations,
@@ -41,7 +43,9 @@ export function PlayerViewport({
         actions={actions}
         onProgressBarChange={onProgressBarChange}
         showBrightnessControl={showBrightnessControl}
+        showVolumeControl={showVolumeControl}
         onBrightnessChangeEnd={onBrightnessChangeEnd}
+        onVolumeChangeEnd={onVolumeChangeEnd}
         onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
@@ -55,7 +59,9 @@ export function PlayerViewport({
       title={active.title}
       startTime={startTime}
       showBrightnessControl={showBrightnessControl}
+      showVolumeControl={showVolumeControl}
       onBrightnessChangeEnd={onBrightnessChangeEnd}
+      onVolumeChangeEnd={onVolumeChangeEnd}
       poster={active.poster}
       mediaId={active.id}
       autoPlay

@@ -229,7 +229,11 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          for demo in examples/web-demo examples/expo-web-demo examples/electron-demo; do
+          npm install --package-lock-only --ignore-scripts --save-exact --prefer-online \
+            --cache="$RUNNER_TEMP/npm-release-cache" --prefix examples/native-demo \
+            "@cinecrew/cinecrew-player@$VERSION" --registry=https://registry.npmjs.org
+
+          for demo in examples/web-demo examples/expo-web-demo examples/native-demo examples/electron-demo; do
             updated=false
             for attempt in $(seq 1 12); do
               if npm update --package-lock-only --ignore-scripts --save=false --prefer-online \
@@ -257,13 +261,24 @@ jobs:
           node - <<'NODE'
           const fs = require('node:fs');
           const packageName = '@cinecrew/cinecrew-player';
-          const manifest = JSON.parse(fs.readFileSync('examples/native-demo/package.json', 'utf8'));
-          const lock = JSON.parse(fs.readFileSync('examples/native-demo/package-lock.json', 'utf8'));
-          const declared = manifest.dependencies?.[packageName];
-          const locked = lock.packages?.['']?.dependencies?.[packageName];
-          const resolved = lock.packages?.[`node_modules/${packageName}`]?.resolved;
-          if (declared !== 'file:../..' || locked !== declared || resolved !== declared) {
-            throw new Error(`Native demo must continue resolving ${packageName} from the workspace (manifest: ${declared}; lock: ${locked}; resolved: ${resolved}).`);
+          const expected = process.env.VERSION;
+          const demos = ['web-demo', 'expo-web-demo', 'native-demo', 'electron-demo'];
+          for (const name of demos) {
+            const root = `examples/${name}`;
+            const manifest = JSON.parse(fs.readFileSync(`${root}/package.json`, 'utf8'));
+            const lock = JSON.parse(fs.readFileSync(`${root}/package-lock.json`, 'utf8'));
+            const declared = manifest.dependencies?.[packageName];
+            const locked = lock.packages?.['']?.dependencies?.[packageName];
+            const player = lock.packages?.[`node_modules/${packageName}`];
+            if (declared?.startsWith('file:') || locked?.startsWith('file:') || player?.resolved?.startsWith('file:')) {
+              throw new Error(`${name} still resolves ${packageName} from a local file reference.`);
+            }
+            if (player?.version !== expected) {
+              throw new Error(`${name} lockfile resolves ${player?.version}; expected ${expected}.`);
+            }
+            if (name === 'native-demo' && (declared !== expected || locked !== expected)) {
+              throw new Error(`Native demo must pin ${packageName}@${expected} (manifest: ${declared}; lock: ${locked}).`);
+            }
           }
           NODE
 

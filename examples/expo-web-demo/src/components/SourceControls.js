@@ -90,6 +90,7 @@ export function SourceControls({
   fileInputRef,
   inline,
   brightnessControl,
+  soundControl,
   drawerMode,
   onSelectSample,
   onDraftUrlChange,
@@ -98,6 +99,7 @@ export function SourceControls({
   onClearFile,
   onInlineChange,
   onBrightnessControlChange,
+  onSoundControlChange,
   onDrawerModeChange,
   progressTime,
   status,
@@ -144,6 +146,7 @@ export function SourceControls({
       <View style={styles.options}>
         <ToggleRow label="Use compact inline player" value={inline} onChange={onInlineChange} />
         <ToggleRow label="Brightness control" value={brightnessControl} onChange={onBrightnessControlChange} />
+        <ToggleRow label="Sound control" value={soundControl} onChange={onSoundControlChange} />
         <View style={styles.drawerRow}>
           <Text style={styles.toggleLabel}>Drawer layout</Text>
           <DrawerLayoutPicker value={drawerMode} onChange={onDrawerModeChange} />

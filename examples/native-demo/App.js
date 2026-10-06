@@ -20,6 +20,8 @@ export default function App() {
   const [active, setActive] = useState(sampleSources[0]);
   const [draftUrl, setDraftUrl] = useState(sampleSources[0].url);
   const [inline, setInline] = useState(false);
+  const [brightnessControl, setBrightnessControl] = useState(true);
+  const [soundControl, setSoundControl] = useState(true);
   const [promotedFullscreen, setPromotedFullscreen] = useState(false);
   const [liveBadge, setLiveBadge] = useState(false);
   const [status, setStatus] = useState('Ready');
@@ -224,6 +226,8 @@ export default function App() {
             draftUrl={draftUrl}
             fileInputRef={fileInputRef}
             inline={inline}
+            brightnessControl={brightnessControl}
+            soundControl={soundControl}
             drawerMode={effectiveDrawerMode}
             onSelectSample={selectSample}
             onDraftUrlChange={setDraftUrl}
@@ -231,6 +235,8 @@ export default function App() {
             onChooseFile={loadFile}
             onClearFile={clearFile}
             onInlineChange={handleInlineChange}
+            onBrightnessControlChange={setBrightnessControl}
+            onSoundControlChange={setSoundControl}
             liveBadge={liveBadge}
             onLiveBadgeChange={setLiveBadge}
             onDrawerModeChange={setDrawerMode}
@@ -266,9 +272,9 @@ export default function App() {
           promotedFullscreen={promotedFullscreen}
           onPromotePreview={handlePromotePreview}
           startTime={startTime}
-          showBrightnessControl={true}
+          showBrightnessControl={brightnessControl}
           onBrightnessChangeEnd={(percent) => notify('Brightness', `Brightness set to ${percent}%`)}
-          showVolumeControl={true}
+          showVolumeControl={soundControl}
           onVolumeChangeEnd={(percent) => notify('Volume', `Sound volume set to ${percent}%`)}
           showLiveBadge={liveBadge}
           selectedAudioTrack={selectedAudioTrack}

@@ -11,6 +11,10 @@ export function PlayerViewport({
   source,
   drawerMode,
   inline,
+  showBrightnessControl,
+  showVolumeControl,
+  onBrightnessChangeEnd,
+  onVolumeChangeEnd,
   selectedAudioTrack,
   integrations,
   actions,
@@ -33,6 +37,10 @@ export function PlayerViewport({
         isActive
         paused={false}
         controls={{ playPause: true, mute: true, fullscreen: true }}
+        showBrightnessControl={showBrightnessControl}
+        showVolumeControl={showVolumeControl}
+        onBrightnessChangeEnd={onBrightnessChangeEnd}
+        onVolumeChangeEnd={onVolumeChangeEnd}
         onError={reportPlaybackError}
         onPlaying={() => onStatus('Playing')}
       />
@@ -48,6 +56,10 @@ export function PlayerViewport({
       mediaId={active.id}
       autoPlay
       muted
+      showBrightnessControl={showBrightnessControl}
+      showVolumeControl={showVolumeControl}
+      onBrightnessChangeEnd={onBrightnessChangeEnd}
+      onVolumeChangeEnd={onVolumeChangeEnd}
       audioTracks={demoAudioTracks}
       selectedAudioTrack={selectedAudioTrack}
       controls={{

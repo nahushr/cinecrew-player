@@ -101,6 +101,8 @@ export function SourceControls({
   draftUrl,
   fileInputRef,
   inline,
+  brightnessControl,
+  soundControl,
   liveBadge = false,
   drawerMode,
   onSelectSample,
@@ -109,6 +111,8 @@ export function SourceControls({
   onChooseFile,
   onClearFile,
   onInlineChange,
+  onBrightnessControlChange,
+  onSoundControlChange,
   onLiveBadgeChange,
   onDrawerModeChange,
   progressTime,
@@ -157,6 +161,8 @@ export function SourceControls({
 
       <View style={styles.options}>
         <ToggleRow label="Use compact inline player" value={inline} onChange={onInlineChange} />
+        <ToggleRow label="Brightness control" value={brightnessControl} onChange={onBrightnessControlChange} />
+        <ToggleRow label="Sound control" value={soundControl} onChange={onSoundControlChange} />
         <ToggleRow label="Show LIVE pill badge" value={liveBadge} onChange={onLiveBadgeChange} />
         <View style={styles.drawerRow}>
           <Text style={styles.toggleLabel}>Drawer layout</Text>

@@ -198,9 +198,33 @@ test('Vite demo lockfile includes Linux optional native build bindings', () => {
   assert.deepEqual(lightningcssBinding.os, ['linux']);
   assert.deepEqual(lightningcssBinding.cpu, ['x64']);
   assert.equal(lightningcssBinding.optional, true);
-  assert.equal(demoManifest.dependencies['@cinecrew/cinecrew-player'], 'latest');
+  assert.equal(demoManifest.dependencies['@cinecrew/cinecrew-player'], manifest.version);
   assert.equal(demoManifest.scripts['update:player'], 'npm install --no-save @cinecrew/cinecrew-player@latest');
-  assert.equal(lockedDemoManifest.dependencies['@cinecrew/cinecrew-player'], 'latest');
+  assert.equal(lockedDemoManifest.dependencies['@cinecrew/cinecrew-player'], demoManifest.dependencies['@cinecrew/cinecrew-player']);
+});
+
+test('all demo projects resolve the published CineCrew Player package', () => {
+  const packageName = '@cinecrew/cinecrew-player';
+  const demos = ['web-demo', 'expo-web-demo', 'native-demo', 'electron-demo'];
+
+  for (const name of demos) {
+    const demoRoot = path.join(root, 'examples', name);
+    const demoManifest = JSON.parse(readFileSync(path.join(demoRoot, 'package.json'), 'utf8'));
+    const lock = JSON.parse(readFileSync(path.join(demoRoot, 'package-lock.json'), 'utf8'));
+    const declared = demoManifest.dependencies?.[packageName];
+    const locked = lock.packages?.['']?.dependencies?.[packageName];
+    const installed = lock.packages?.[`node_modules/${packageName}`];
+
+    assert.ok(declared, `${name} must declare ${packageName}`);
+    assert.doesNotMatch(declared, /^file:/, `${name} must not use a local package reference`);
+    assert.equal(locked, declared, `${name} manifest and lockfile declarations must match`);
+    assert.equal(installed?.version, manifest.version, `${name} must lock the current published version`);
+    assert.match(installed?.resolved || '', /^https:\/\/registry\.npmjs\.org\/@cinecrew\/cinecrew-player\//);
+
+    if (name === 'native-demo') {
+      assert.equal(declared, manifest.version, 'native demo must pin the current published version');
+    }
+  }
 });
 
 test('README documents every public control and action key', () => {
