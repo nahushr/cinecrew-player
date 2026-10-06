@@ -189,6 +189,11 @@
   position: relative;
 }
 
+/* Escape the seek slider's sibling stacking layer when this menu is open. */
+.cinecrew-player__menu-wrap--aspect {
+  z-index: 3;
+}
+
 .cinecrew-player__menu {
   position: absolute;
   right: 0;
