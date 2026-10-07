@@ -865,8 +865,12 @@ function WebPlayerSurface({
     onDurationChange: applyInitialTime,
     onLoadedMetadata: applyInitialTime,
     onError: (event) => {
-      if (!directVideoSource) return;
-      const mediaError = event.currentTarget?.error;
+      const video = event.currentTarget;
+      // A direct-source CORS retry replaces the <video> element. An error
+      // queued by the retired element must not poison the replacement player.
+      if (!directVideoSource || video !== videoRef.current) return;
+      if (video?.readyState >= 2 && Number(video.currentTime) > 0 && !video.paused && !video.ended) return;
+      const mediaError = video?.error;
       handleError({ message: mediaError?.message || 'The browser could not load this stream. Check URL, codec and CORS support.', code: mediaError?.code, cause: mediaError, isCorsCandidate: corsMode === 'anonymous' });
     },
   });
@@ -1925,6 +1929,16 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   errorRef.current = onError;
 
   const handleError = useCallback((detail) => {
+    const activeVideo = videoRef.current;
+    // Some providers reject an initial request (for example, before a source
+    // retry or redirect completes) and then play successfully from the same
+    // session. A late error from that failed attempt is stale once the active
+    // video has decodable data and is advancing.
+    if (activeVideo?.readyState >= 2 && Number(activeVideo.currentTime) > 0 && !activeVideo.paused && !activeVideo.ended) {
+      setError('');
+      setBuffering(false);
+      return;
+    }
     const message = typeof detail === 'string' ? detail : detail?.message || 'Unable to play this media source.';
     // If playback failed while crossOrigin="anonymous" was set, retry without
     // CORS so playback still works (recording will fall back to screen capture).
@@ -2476,11 +2490,13 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       updateMpegTsEndState();
       const mediaDuration = Number(video.duration);
       if (Number.isFinite(mediaDuration) && mediaDuration > 0) setDuration(mediaDuration);
+      setError('');
       setBuffering(false);
       updateTracks();
       onReady?.(video);
     };
     const onPlayingEvent = () => {
+      setError('');
       setBuffering(false);
       onPlaying?.(video);
     };
