@@ -62,6 +62,13 @@ const DEFAULT_ICONS = {
 const DEFAULT_ASPECT_RATIOS = ['FIT', 'FILL', 'STRETCH', '16:9', '4:3', '21:9', '1:1'];
 const PLAYBACK_ERROR_GRACE_MS = 1500;
 
+function clearPendingPlaybackError(timerRef) {
+  if (timerRef.current !== null) {
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+}
+
 function normalizeAspectRatios(aspectRatios) {
   const values = Array.isArray(aspectRatios) && aspectRatios.length ? aspectRatios : DEFAULT_ASPECT_RATIOS;
   const unique = new Map();
@@ -1930,15 +1937,8 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   pausedRef.current = isPaused;
   errorRef.current = onError;
 
-  const clearPendingPlaybackError = useCallback(() => {
-    if (pendingPlaybackErrorRef.current !== null) {
-      clearTimeout(pendingPlaybackErrorRef.current);
-      pendingPlaybackErrorRef.current = null;
-    }
-  }, []);
-
   const handleError = useCallback((detail) => {
-    clearPendingPlaybackError();
+    clearPendingPlaybackError(pendingPlaybackErrorRef);
     const activeVideo = videoRef.current;
     // Some providers reject an initial request (for example, before a source
     // retry or redirect completes) and then play successfully from the same
@@ -1982,7 +1982,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
         ...(actualMessage ? { actualMessage } : {}),
       });
     }, PLAYBACK_ERROR_GRACE_MS);
-  }, [clearPendingPlaybackError]);
+  }, []);
   const onErrorRef = useRef(handleError);
   onErrorRef.current = handleError;
   const onBufferingRef = useRef((next) => {
@@ -1995,7 +1995,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
   };
 
   useEffect(() => {
-    clearPendingPlaybackError();
+    clearPendingPlaybackError(pendingPlaybackErrorRef);
     setError('');
     setBuffering(Boolean(streamUrl) || resolution.loading);
     setCurrentTime(0);
@@ -2006,13 +2006,13 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
     corsModeRef.current = 'anonymous';
     if (resolution.error) {
       handleError(resolution.error);
-      return clearPendingPlaybackError;
+      return () => clearPendingPlaybackError(pendingPlaybackErrorRef);
     }
     if (!streamUrl) {
       setBuffering(Boolean(resolution.loading));
     }
-    return clearPendingPlaybackError;
-  }, [streamUrl, resolution.loading, resolution.error, handleError, durationHint, clearPendingPlaybackError]);
+    return () => clearPendingPlaybackError(pendingPlaybackErrorRef);
+  }, [streamUrl, resolution.loading, resolution.error, handleError, durationHint]);
 
   useEffect(() => {
     if (pausedProp !== undefined) setIsPaused(!!pausedProp);
@@ -2512,7 +2512,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       onProgress?.({ currentTime: (Number(video.currentTime) || 0) * 1000, duration: knownDuration * 1000, target: video.currentTime });
     };
     const onReadyEvent = () => {
-      clearPendingPlaybackError();
+      clearPendingPlaybackError(pendingPlaybackErrorRef);
       updateMpegTsEndState();
       const mediaDuration = Number(video.duration);
       if (Number.isFinite(mediaDuration) && mediaDuration > 0) setDuration(mediaDuration);
@@ -2522,7 +2522,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       onReady?.(video);
     };
     const onPlayingEvent = () => {
-      clearPendingPlaybackError();
+      clearPendingPlaybackError(pendingPlaybackErrorRef);
       setError('');
       setBuffering(false);
       onPlaying?.(video);
@@ -2549,7 +2549,7 @@ export const CineCrewPlayer = forwardRef(function CineCrewPlayer(props, ref) {
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('ended', endedHandler);
     };
-  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType, durationHint, directVideoSource, corsMode, clearPendingPlaybackError]);
+  }, [onReady, onPlaying, onProgress, progressBarCallback, onEnded, tracksProp, mpegTsSource, mpegTsSourceKey, streamUrl, media.type, media.mimeType, durationHint, directVideoSource, corsMode]);
 
   useEffect(() => {
     if (selectedAudioTrack === undefined || selectedAudioTrack === null) return;
